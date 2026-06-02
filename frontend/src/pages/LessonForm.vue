@@ -27,6 +27,20 @@
 							type="checkbox"
 							label="Include in Preview"
 						/>
+						<FormControl
+							v-model="lesson.require_quiz_pass"
+							type="checkbox"
+							:label="__('Require Quiz Pass Before Next Lesson')"
+							class="mt-4"
+						/>
+						<MultiSelect
+							v-if="lesson.require_quiz_pass"
+							v-model="requiredQuizzes"
+							doctype="LMS Quiz"
+							:label="__('Quizzes to Pass')"
+							:required="true"
+							class="mt-4"
+						/>
 					</div>
 					<div class="border-t mt-4">
 						<div class="w-5/6 mx-auto pt-4">
@@ -97,6 +111,7 @@ import {
 import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
 import LessonHelp from '@/components/LessonHelp.vue'
+import MultiSelect from '@/components/Controls/MultiSelect.vue'
 import { ChevronRight } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr } from '@/utils'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
@@ -106,6 +121,7 @@ const editor = ref(null)
 const instructorEditor = ref(null)
 const user = inject('$user')
 const openInstructorEditor = ref(false)
+const requiredQuizzes = ref([])
 const { capture } = useTelemetry()
 const { updateOnboardingStep } = useOnboarding('learning')
 let autoSaveInterval
@@ -154,6 +170,8 @@ const lesson = reactive({
 	body: '',
 	instructor_notes: '',
 	content: '',
+	quiz_id: '',
+	require_quiz_pass: false,
 })
 
 const lessonDetails = createResource({
@@ -172,6 +190,8 @@ const lessonDetails = createResource({
 			lesson.include_in_preview = data?.lesson?.include_in_preview
 				? true
 				: false
+			lesson.require_quiz_pass = data?.lesson?.require_quiz_pass ? true : false
+			requiredQuizzes.value = getRequiredQuizzes(data?.lesson?.quiz_id)
 			addLessonContent(data)
 			addInstructorNotes(data)
 			enableAutoSave()
@@ -381,6 +401,7 @@ const saveLesson = (e) => {
 	if (typeof e != 'undefined' && e.showSuccessMessage) {
 		showSuccessMessage = true
 	}
+	updateQuizGateFields()
 	editor.value.save().then((outputData) => {
 		outputData = removeEmptyBlocks(outputData)
 		lesson.content = JSON.stringify(outputData)
@@ -461,6 +482,21 @@ const validateLesson = () => {
 	if (!lesson.content) {
 		return 'Content is required'
 	}
+	if (lesson.require_quiz_pass && !requiredQuizzes.value.length) {
+		return 'Select at least one quiz to require before the next lesson'
+	}
+}
+
+const getRequiredQuizzes = (quizId) => {
+	if (!quizId) return []
+	return quizId
+		.split(',')
+		.map((quiz) => quiz.trim())
+		.filter(Boolean)
+}
+
+const updateQuizGateFields = () => {
+	lesson.quiz_id = requiredQuizzes.value.join(', ')
 }
 
 const breadcrumbs = computed(() => {

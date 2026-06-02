@@ -19,8 +19,9 @@ class CourseLesson(Document):
 		self.validate_quiz_id()
 
 	def validate_quiz_id(self):
-		if self.quiz_id and not frappe.db.exists("LMS Quiz", self.quiz_id):
-			frappe.throw(_("Invalid Quiz ID"))
+		for quiz in get_quiz_ids(self.quiz_id):
+			if not frappe.db.exists("LMS Quiz", quiz):
+				frappe.throw(_("Invalid Quiz ID"))
 
 		if self.content:
 			self.save_lesson_details_in_quiz(self.content)
@@ -43,6 +44,12 @@ class CourseLesson(Document):
 						"lesson": self.name,
 					},
 				)
+
+
+def get_quiz_ids(quiz_id):
+	if not quiz_id:
+		return []
+	return [quiz.strip() for quiz in quiz_id.split(",") if quiz.strip()]
 
 
 @frappe.whitelist()

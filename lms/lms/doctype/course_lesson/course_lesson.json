@@ -86,10 +86,10 @@
    "read_only": 1
   },
   {
-   "description": "Quiz will appear at the bottom of the lesson.",
+   "description": "Comma-separated quiz IDs that students must pass before accessing the next lesson.",
    "fieldname": "quiz_id",
-   "fieldtype": "Data",
-   "label": "Quiz ID"
+   "fieldtype": "Small Text",
+   "label": "Quizzes to Pass"
   },
   {
    "default": "0",

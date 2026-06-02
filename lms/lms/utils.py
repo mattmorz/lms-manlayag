@@ -1000,8 +1000,12 @@ def is_previous_lesson_completed(course, chapter, lesson):
 	if int(chapter) == 1 and int(lesson) == 1:
 		return True
 
-	# Check if sequential lessons are enabled for the course
-	enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+	# Check if sequential lessons are enabled for the course (default to True if field doesn't exist yet)
+	try:
+		enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+	except Exception:
+		enable_sequential = 1  # Default to enabled during migration
+
 	if not enable_sequential:
 		return True
 
@@ -1040,33 +1044,103 @@ def is_previous_lesson_completed(course, chapter, lesson):
 	if not progress:
 		return False
 
-	# Check if previous lesson requires passing a quiz
-	require_quiz_pass = frappe.db.get_value("Course Lesson", prev_lesson_name, "require_quiz_pass")
+	# Check if previous lesson requires passing a quiz (default to False if field doesn't exist yet)
+	try:
+		require_quiz_pass = frappe.db.get_value("Course Lesson", prev_lesson_name, "require_quiz_pass")
+	except Exception:
+		require_quiz_pass = 0  # Default to disabled during migration
+
 	if require_quiz_pass:
-		# Check if user has passed the quiz for the previous lesson
 		quiz_id = frappe.db.get_value("Course Lesson", prev_lesson_name, "quiz_id")
-		if quiz_id:
-			return has_passed_quiz(quiz_id, frappe.session.user)
+		quiz_ids = get_lesson_gate_quizzes(quiz_id)
+		if quiz_ids:
+			return has_passed_quizzes(quiz_ids, frappe.session.user)
 
 	return bool(progress)
 
 
+def get_lesson_gate_quizzes(quiz_id: str) -> list:
+	if not quiz_id:
+		return []
+	return [quiz.strip() for quiz in quiz_id.split(",") if quiz.strip()]
+
+
+def has_passed_quizzes(quiz_ids: list, user: str) -> bool:
+	"""Check if a user has passed all specified quizzes."""
+	return all(has_passed_quiz(quiz_id, user) for quiz_id in quiz_ids)
+
+
 def has_passed_quiz(quiz_id: str, user: str) -> bool:
 	"""Check if a user has passed the specified quiz"""
-	quiz_submission = frappe.db.get_value(
-		"LMS Quiz Submission",
-		{"quiz": quiz_id, "member": user},
-		["status", "percentage"],
-		as_dict=1,
+	passing_percentage = frappe.db.get_value("LMS Quiz", quiz_id, "passing_percentage") or 0
+	return bool(
+		frappe.db.exists(
+			"LMS Quiz Submission",
+			{
+				"quiz": quiz_id,
+				"member": user,
+				"percentage": [">=", passing_percentage],
+			},
+		)
 	)
 
-	if not quiz_submission:
-		return False
 
-	if quiz_submission.status == "Pass":
-		return True
+def get_lesson_lock_reason(course: str, chapter: int, lesson: int) -> dict:
+	"""Get the reason why a lesson is locked, if any"""
+	# First lesson is always accessible
+	if int(chapter) == 1 and int(lesson) == 1:
+		return {"locked": False}
 
-	return False
+	# Check if sequential lessons are enabled (default to True if field doesn't exist yet)
+	try:
+		enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+	except Exception:
+		enable_sequential = 1  # Default to enabled during migration
+
+	if not enable_sequential:
+		return {"locked": False}
+
+	# Get previous lesson details
+	neighbours = get_neighbour_lesson(course, chapter, lesson)
+	previous = neighbours.get("prev")
+
+	if not previous:
+		return {"locked": False}
+
+	prev_chapter, prev_lesson = previous.split(".")
+	prev_chapter_name = frappe.db.get_value(
+		"Chapter Reference", {"parent": course, "idx": int(prev_chapter)}, "chapter"
+	)
+	prev_lesson_name = frappe.db.get_value(
+		"Lesson Reference", {"parent": prev_chapter_name, "idx": int(prev_lesson)}, "lesson"
+	)
+
+	if not prev_lesson_name:
+		return {"locked": False}
+
+	# Check if previous lesson is completed
+	progress = get_progress(course, prev_lesson_name)
+	if not progress:
+		return {"locked": True, "reason": "incomplete_previous"}
+
+	# Check if previous lesson requires quiz pass (default to False if field doesn't exist yet)
+	try:
+		require_quiz_pass = frappe.db.get_value("Course Lesson", prev_lesson_name, "require_quiz_pass")
+	except Exception:
+		require_quiz_pass = 0  # Default to disabled during migration
+
+	if require_quiz_pass:
+		quiz_id = frappe.db.get_value("Course Lesson", prev_lesson_name, "quiz_id")
+		quiz_ids = get_lesson_gate_quizzes(quiz_id)
+		if quiz_ids and not has_passed_quizzes(quiz_ids, frappe.session.user):
+			return {
+				"locked": True,
+				"reason": "quiz_not_passed",
+				"quiz_lesson": prev_lesson_name,
+			}
+
+	return {"locked": False}
+
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)
@@ -1099,8 +1173,8 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 		and frappe.session.user != "Guest"
 		and not can_modify_course(course)
 	):
-		if not is_previous_lesson_completed(course, chapter, lesson):
-
+		lock_info = get_lesson_lock_reason(course, chapter, lesson)
+		if lock_info.get("locked"):
 			course_info = frappe.db.get_value(
 				"LMS Course",
 				course,
@@ -1111,10 +1185,20 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			neighbours = get_neighbour_lesson(course, chapter, lesson)
 			progress = get_progress(course, lesson_name)
 
+			# Determine lock message based on reason
+			if lock_info.get("reason") == "quiz_not_passed":
+				quiz_lesson = lock_info.get("quiz_lesson")
+				quiz_lesson_title = frappe.db.get_value("Course Lesson", quiz_lesson, "title")
+				message = _("Please pass the quiz in '{0}' before accessing this lesson.").format(
+					quiz_lesson_title
+				)
+			else:
+				message = _("Please complete the previous lesson before proceeding.")
+
 			return {
 				"name": lesson_name,
 				"locked": 1,
-				"message": _("Please complete the previous lesson before proceeding."),
+				"message": message,
 				"title": lesson_details.title,
 				"course_title": course_info.title,
 				"chapter_title": frappe.db.get_value(
@@ -1965,6 +2049,7 @@ def get_lesson_creation_details(course: str, chapter: int, lesson: int) -> dict:
 				"instructor_content",
 				"youtube",
 				"quiz_id",
+				"require_quiz_pass",
 			],
 			as_dict=1,
 		)
