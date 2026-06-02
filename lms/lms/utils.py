@@ -1000,6 +1000,11 @@ def is_previous_lesson_completed(course, chapter, lesson):
 	if int(chapter) == 1 and int(lesson) == 1:
 		return True
 
+	# Check if sequential lessons are enabled for the course
+	enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+	if not enable_sequential:
+		return True
+
 	# Get current lesson's previous neighbour
 	neighbours = get_neighbour_lesson(course, chapter, lesson)
 	previous = neighbours.get("prev")
@@ -1032,7 +1037,36 @@ def is_previous_lesson_completed(course, chapter, lesson):
 
 	progress = get_progress(course, prev_lesson_name)
 
+	if not progress:
+		return False
+
+	# Check if previous lesson requires passing a quiz
+	require_quiz_pass = frappe.db.get_value("Course Lesson", prev_lesson_name, "require_quiz_pass")
+	if require_quiz_pass:
+		# Check if user has passed the quiz for the previous lesson
+		quiz_id = frappe.db.get_value("Course Lesson", prev_lesson_name, "quiz_id")
+		if quiz_id:
+			return has_passed_quiz(quiz_id, frappe.session.user)
+
 	return bool(progress)
+
+
+def has_passed_quiz(quiz_id: str, user: str) -> bool:
+	"""Check if a user has passed the specified quiz"""
+	quiz_submission = frappe.db.get_value(
+		"LMS Quiz Submission",
+		{"quiz": quiz_id, "member": user},
+		["status", "percentage"],
+		as_dict=1,
+	)
+
+	if not quiz_submission:
+		return False
+
+	if quiz_submission.status == "Pass":
+		return True
+
+	return False
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)

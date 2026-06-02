@@ -24,6 +24,7 @@
   "youtube",
   "column_break_9",
   "quiz_id",
+  "require_quiz_pass",
   "section_break_16",
   "question",
   "column_break_15",
@@ -89,6 +90,14 @@
    "fieldname": "quiz_id",
    "fieldtype": "Data",
    "label": "Quiz ID"
+  },
+  {
+   "default": "0",
+   "depends_on": "quiz_id",
+   "description": "If enabled, students must pass this quiz before accessing the next lesson.",
+   "fieldname": "require_quiz_pass",
+   "fieldtype": "Check",
+   "label": "Require Quiz Pass"
   },
   {
    "fieldname": "column_break_9",
