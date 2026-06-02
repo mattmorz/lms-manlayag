@@ -22,25 +22,35 @@
 							class="mb-4"
 							:required="true"
 						/>
-						<FormControl
-							v-model="lesson.include_in_preview"
-							type="checkbox"
-							label="Include in Preview"
-						/>
-						<FormControl
-							v-model="lesson.require_quiz_pass"
-							type="checkbox"
-							:label="__('Require Quiz Pass Before Next Lesson')"
-							class="mt-4"
-						/>
-						<MultiSelect
-							v-if="lesson.require_quiz_pass"
-							v-model="requiredQuizzes"
-							doctype="LMS Quiz"
-							:label="__('Quizzes to Pass')"
-							:required="true"
-							class="mt-4"
-						/>
+
+						<div class="grid grid-cols-3 gap-6">
+							<!-- Left Column -->
+							<div class="col-span-1">
+								<FormControl
+									v-model="lesson.include_in_preview"
+									type="checkbox"
+									label="Include in Preview"
+								/>
+							</div>
+
+							<!-- Right Column -->
+							<div class="col-span-2">
+								<FormControl
+									v-model="lesson.require_quiz_pass"
+									type="checkbox"
+									:label="__('Require Quiz Pass Before Next Lesson')"
+								/>
+
+								<MultiSelect
+									v-if="lesson.require_quiz_pass"
+									v-model="requiredQuizzes"
+									doctype="LMS Quiz"
+									:label="__('Quizzes to Pass')"
+									:required="true"
+									class="mt-3"
+								/>
+							</div>
+						</div>
 					</div>
 					<div class="border-t mt-4">
 						<div class="w-5/6 mx-auto pt-4">

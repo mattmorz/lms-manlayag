@@ -64,8 +64,8 @@ msgid "<a href=\"https://docs.frappe.io/learning\">Documentation</a>"
 msgstr "<a href=\"https://docs.frappe.io/learning\">文档</a>"
 
 #: frontend/src/components/Modals/EmailTemplateModal.vue:50
-msgid "<p>Dear {{ member_name }},</p>\\n\\n<p>You have been enrolled in our upcoming batch {{ batch_name }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Frappe Learning</p>"
-msgstr "<p>尊敬的{{ member_name }}：</p>\\n\\n<p>您已成功注册我们即将开班的{{ batch_name }}。</p>\\n\\n<p>此致，</p>\\n<p>Frappe Learning团队</p>"
+msgid "<p>Dear {{ member_name }},</p>\\n\\n<p>You have been enrolled in our upcoming batch {{ batch_name }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Manlayag</p>"
+msgstr "<p>尊敬的{{ member_name }}：</p>\\n\\n<p>您已成功注册我们即将开班的{{ batch_name }}。</p>\\n\\n<p>此致，</p>\\n<p>Manlayag团队</p>"
 
 #. Header text in the LMS Workspace
 #: lms/lms/workspace/lms/lms.json
@@ -1995,8 +1995,8 @@ msgid "Dear "
 msgstr "尊敬的"
 
 #: frontend/src/components/Modals/EmailTemplateModal.vue:66
-msgid "Dear {{ member_name }},\\n\\nYou have been enrolled in our upcoming batch {{ batch_name }}.\\n\\nThanks,\\nFrappe Learning"
-msgstr "尊敬的{{ member_name }}：\\n\\n您已成功注册我们即将开班的{{ batch_name }}。\\n\\n此致，\\nFrappe Learning团队"
+msgid "Dear {{ member_name }},\\n\\nYou have been enrolled in our upcoming batch {{ batch_name }}.\\n\\nThanks,\\nManlayag"
+msgstr "尊敬的{{ member_name }}：\\n\\n您已成功注册我们即将开班的{{ batch_name }}。\\n\\n此致，\\nManlayag团队"
 
 #. Label of the default_currency (Link) field in DocType 'LMS Settings'
 #: lms/lms/doctype/lms_settings/lms_settings.json
@@ -3264,8 +3264,8 @@ msgstr "安装"
 
 #: frontend/src/components/InstallPrompt.vue:4
 #: frontend/src/components/InstallPrompt.vue:32
-msgid "Install Frappe Learning"
-msgstr "安装Frappe Learning"
+msgid "Install Manlayag"
+msgstr "安装Manlayag"
 
 #. Label of the institution_name (Data) field in DocType 'Education Detail'
 #: lms/lms/doctype/education_detail/education_detail.json
@@ -5309,7 +5309,7 @@ msgid "Postal Code"
 msgstr "邮政编码"
 
 #: frontend/src/components/Sidebar/AppSidebar.vue:135
-msgid "Powered by Learning"
+msgid "Powered by CSU-Virtual Learning Research Center"
 msgstr "技术支持：学习平台"
 
 #. Name of a DocType
@@ -7302,8 +7302,8 @@ msgid "What does include in preview mean?"
 msgstr "「包含在预览中」的含义是什么？"
 
 #: frontend/src/pages/PersonaForm.vue:21
-msgid "What is your use case for Frappe Learning?"
-msgstr "您使用Frappe Learning的主要场景是？"
+msgid "What is your use case for Manlayag?"
+msgstr "您使用Manlayag的主要场景是？"
 
 #: lms/templates/courses_under_review.html:15
 msgid "When a course gets submitted for review, it will be listed here."

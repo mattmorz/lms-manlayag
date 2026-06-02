@@ -1,7 +1,7 @@
 <div align="center" markdown="1">
 
-<img src=".github/lms-logo.png" alt="Frappe Learning logo" width="80" height="80"/>
-<h1>Frappe Learning</h1>
+<img src=".github/lms-logo.png" alt="Manlayag logo" width="80" height="80"/>
+<h1>Manlayag</h1>
 
 **Easy to use, open source, Learning Management System**
 
@@ -20,8 +20,8 @@
 	<a href="https://docs.frappe.io/learning">Documentation</a>
 </div>
 
-## Frappe Learning
-Frappe Learning is an easy-to-use learning system that helps you bring structure to your content.
+## Manlayag
+Manlayag is an easy-to-use learning system that helps you bring structure to your content.
 
 ### Motivation
 In 2021, we were looking for a Learning Management System to launch [Mon.School](https://mon.school) for FOSS United. We checked out Moodle, but it didn’t feel right. The forms were unnecessarily lengthy and the UI was confusing. It shouldn't be this hard to create a course right? So I started making a learning system for Mon.School which soon became a product in itself. The aim is to have a simple platform that anyone can use to launch a course of their own and make knowledge sharing easier.
@@ -92,7 +92,7 @@ It takes care of installation, setup, upgrades, monitoring, maintenance and supp
 
 ### Self Hosting
 
-Follow these steps to set up Frappe Learning in production:
+Follow these steps to set up Manlayag in production:
 
 **Step 1**: Download the easy install script
 
@@ -116,7 +116,7 @@ Replace the following parameters with your values:
 - `your_email.example.com`: Your email address
 - `subdomain.domain.tld`: Your domain name where Learning will be hosted
 
-The script will set up a production-ready instance of Frappe Learning with all the necessary configurations in about 5 minutes.
+The script will set up a production-ready instance of Manlayag with all the necessary configurations in about 5 minutes.
 
 **Note:** To avoid a `404 Page Not Found` error:
 - If hosting on a **public server**, make sure your DNS **A record** points to your server's IP.

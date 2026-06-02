@@ -64,8 +64,8 @@ msgid "<a href=\"https://docs.frappe.io/learning\">Documentation</a>"
 msgstr "<a href=\"https://docs.frappe.io/learning\">Documentatie</a>"
 
 #: frontend/src/components/Modals/EmailTemplateModal.vue:50
-msgid "<p>Dear {{ member_name }},</p>\\n\\n<p>You have been enrolled in our upcoming batch {{ batch_name }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Frappe Learning</p>"
-msgstr "<p>Beste {{ member_name }},</p>\\n\\n<p>U bent ingeschreven op onze aanstaande batch {{ batch_name }}.</p>\\n\\n<p>Bedankt,</p>\\n<p>Frappe Learning</p>"
+msgid "<p>Dear {{ member_name }},</p>\\n\\n<p>You have been enrolled in our upcoming batch {{ batch_name }}.</p>\\n\\n<p>Thanks,</p>\\n<p>Manlayag</p>"
+msgstr "<p>Beste {{ member_name }},</p>\\n\\n<p>U bent ingeschreven op onze aanstaande batch {{ batch_name }}.</p>\\n\\n<p>Bedankt,</p>\\n<p>Manlayag</p>"
 
 #. Header text in the LMS Workspace
 #: lms/lms/workspace/lms/lms.json
@@ -1995,8 +1995,8 @@ msgid "Dear "
 msgstr "Beste "
 
 #: frontend/src/components/Modals/EmailTemplateModal.vue:66
-msgid "Dear {{ member_name }},\\n\\nYou have been enrolled in our upcoming batch {{ batch_name }}.\\n\\nThanks,\\nFrappe Learning"
-msgstr "Beste {{ member_name }},\\n\\nU bent ingeschreven voor onze aankomende cursus {{ batch_name }}.\\n\\nBedankt,\\nFrappe Learning"
+msgid "Dear {{ member_name }},\\n\\nYou have been enrolled in our upcoming batch {{ batch_name }}.\\n\\nThanks,\\nManlayag"
+msgstr "Beste {{ member_name }},\\n\\nU bent ingeschreven voor onze aankomende cursus {{ batch_name }}.\\n\\nBedankt,\\nManlayag"
 
 #. Label of the default_currency (Link) field in DocType 'LMS Settings'
 #: lms/lms/doctype/lms_settings/lms_settings.json
@@ -3264,8 +3264,8 @@ msgstr "Installeer"
 
 #: frontend/src/components/InstallPrompt.vue:4
 #: frontend/src/components/InstallPrompt.vue:32
-msgid "Install Frappe Learning"
-msgstr "Installeer Frappe Learning"
+msgid "Install Manlayag"
+msgstr "Installeer Manlayag"
 
 #. Label of the institution_name (Data) field in DocType 'Education Detail'
 #: lms/lms/doctype/education_detail/education_detail.json
@@ -5309,7 +5309,7 @@ msgid "Postal Code"
 msgstr "Postcode"
 
 #: frontend/src/components/Sidebar/AppSidebar.vue:135
-msgid "Powered by Learning"
+msgid "Powered by CSU-Virtual Learning Research Center"
 msgstr "Mogelijk gemaakt door Leren"
 
 #. Name of a DocType
@@ -7303,8 +7303,8 @@ msgid "What does include in preview mean?"
 msgstr "Wat staat er in de preview?"
 
 #: frontend/src/pages/PersonaForm.vue:21
-msgid "What is your use case for Frappe Learning?"
-msgstr "Wat is uw use case voor Frappe Learning?"
+msgid "What is your use case for Manlayag?"
+msgstr "Wat is uw use case voor Manlayag?"
 
 #: lms/templates/courses_under_review.html:15
 msgid "When a course gets submitted for review, it will be listed here."
