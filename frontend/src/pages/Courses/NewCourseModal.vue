@@ -42,6 +42,11 @@
 				</div>
 				<div class="space-y-4">
 					<FormControl
+						type="checkbox"
+						v-model="course.enable_sequential_lessons"
+						:label="__('Enable Sequential Lessons')"
+					/>
+					<FormControl
 						v-model="course.short_introduction"
 						:label="__('Short Introduction')"
 						type="textarea"
@@ -99,6 +104,7 @@ const course = ref({
 	instructors: [],
 	category: null,
 	image: null,
+	enable_sequential_lessons: true,
 })
 
 const saveCourse = (close: () => void = () => {}) => {

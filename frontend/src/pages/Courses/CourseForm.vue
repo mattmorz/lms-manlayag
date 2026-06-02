@@ -119,6 +119,12 @@
 									:label="__('Disable Self Enrollment')"
 									@change="makeFormDirty()"
 								/>
+								<FormControl
+									type="checkbox"
+									v-model="courseResource.doc.enable_sequential_lessons"
+									:label="__('Enable Sequential Lessons')"
+									@change="makeFormDirty()"
+								/>
 							</div>
 						</div>
 					</div>
@@ -400,6 +406,7 @@ const updateCourseData = () => {
 		'paid_course',
 		'featured',
 		'enable_certification',
+		'enable_sequential_lessons',
 		'paid_certificate',
 	]
 	for (let idx in checkboxes) {
