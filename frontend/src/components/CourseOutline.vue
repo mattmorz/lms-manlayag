@@ -145,9 +145,12 @@
 											</router-link>
 											<div
 												v-else
-												class="flex items-center text-sm leading-5 opacity-50 cursor-not-allowed"
+												class="flex items-center text-sm leading-5 pl-8 py-2 pr-4 text-ink-gray-9 opacity-60 cursor-not-allowed"
 											>
-												<!-- locked lesson placeholder -->
+												<LockKeyhole
+													class="h-4 w-4 text-orange-600 mr-2"
+												/>
+												{{ lesson.title }}
 											</div>
 											</div>
 									</template>

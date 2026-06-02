@@ -65,11 +65,12 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 
 	quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
+	video_completed = get_video_progress(lesson)
 
 	if scorm_details:
 		scorm_details = frappe._dict(**scorm_details)
 
-	if not progress_already_exists and quiz_completed and assignment_completed and not scorm_details:
+	if not progress_already_exists and quiz_completed and assignment_completed and video_completed and not scorm_details:
 		frappe.get_doc(
 			{
 				"doctype": "LMS Course Progress",
@@ -181,3 +182,39 @@ def get_assignment_progress(lesson):
 		):
 			return False
 	return True
+
+
+def get_video_progress(lesson):
+	"""Check if all videos in the lesson have been watched"""
+	lesson_details = frappe.db.get_value("Course Lesson", lesson, ["body", "content"], as_dict=1)
+	videos = []
+
+	# Extract videos from content
+	if lesson_details.content:
+		content = json.loads(lesson_details.content)
+		for block in content.get("blocks", []):
+			if block.get("type") == "video":
+				videos.append(block.get("data", {}).get("url"))
+			elif block.get("type") == "upload":
+				# Videos uploaded in blocks
+				video_url = block.get("data", {}).get("url")
+				if video_url:
+					videos.append(video_url)
+
+	# If no videos found, return True (no video requirement)
+	if not videos:
+		return True
+
+	# Check if each video has been watched
+	watched_videos = frappe.db.get_all(
+		"LMS Video Watch Duration",
+		{"lesson": lesson, "member": frappe.session.user},
+		pluck="source",
+	)
+
+	# If no watched videos but videos exist, return False
+	if not watched_videos:
+		return False
+
+	# Return True only if all videos have been watched
+	return len(watched_videos) >= len(videos)

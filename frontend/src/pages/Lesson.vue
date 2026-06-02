@@ -1,9 +1,12 @@
 <template>
-	<div v-if="lesson.data" class="">
+	<div v-if="lesson.data" class="flex flex-col h-screen">
 		<header
-			class="sticky top-0 z-10 flex items-center justify-between border-b bg-surface-white px-3 py-2.5 sm:px-5"
+			class="sticky top-0 z-20 flex items-center justify-between border-b bg-surface-white px-3 py-2.5 sm:px-5"
 		>
-			<Breadcrumbs class="h-7" :items="breadcrumbs" />
+			<div class="flex items-center gap-2">
+				<Breadcrumbs class="h-7" :items="breadcrumbs" />
+				<LockKeyholeIcon v-if="lesson.data?.locked" class="w-4 h-4 text-orange-600" />
+			</div>
 			<div class="flex items-center space-x-2">
 				<Tooltip v-if="canGoZen()" :text="__('Zen Mode')">
 					<Button @click="goFullScreen()">
@@ -73,9 +76,9 @@
 				</router-link>
 			</div>
 		</header>
-		<div class="grid md:grid-cols-[70%,30%] h-screen">
-			<div v-if="lesson.data?.locked" class="border-r">
-				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+		<div class="grid md:grid-cols-[70%,30%] flex-1 overflow-hidden">
+			<div v-if="lesson.data?.locked" class="border-r overflow-y-auto flex flex-col items-center justify-center">
+				<div class="shadow rounded-md w-3/4 text-center p-4">
 					<div class="flex items-center justify-center mt-4 space-x-2">
 						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
 						<div class="text-lg font-semibold text-ink-gray-7">
@@ -86,7 +89,7 @@
 						{{ lesson.data.message }}
 					</div>
 
-					<div class="flex gap-2">
+					<div class="flex gap-2 justify-center">
 						<Button
 							v-if="lesson.data.prev"
 							@click="switchLesson('prev')"
@@ -108,8 +111,8 @@
 					</div>
 				</div>
 			</div>
-			<div v-else-if="lesson.data.no_preview" class="border-r">
-				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+			<div v-else-if="lesson.data.no_preview" class="border-r overflow-y-auto flex flex-col items-center justify-center">
+				<div class="shadow rounded-md w-3/4 text-center p-4">
 					<div class="flex items-center justify-center mt-4 space-x-2">
 						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
 						<div class="text-lg font-semibold text-ink-gray-7">
@@ -149,13 +152,13 @@
 			<div
 				v-else
 				ref="lessonContainer"
-				class="bg-surface-white"
+				class="bg-surface-white overflow-y-auto"
 				:class="{
 					'overflow-y-auto': zenModeEnabled,
 				}"
 			>
 				<div
-					class="border-r pt-5 pb-10 h-full"
+					class="border-r pt-5 pb-10"
 					:class="{
 						'w-full md:w-3/5 mx-auto border-none !pt-10': zenModeEnabled,
 					}"
@@ -337,7 +340,7 @@
 					</div>
 				</div>
 			</div>
-			<div class="sticky top-10">
+			<div class="sticky top-0 overflow-y-auto">
 				<div class="bg-surface-menu-bar py-5 px-2 border-b">
 					<div class="text-lg font-semibold text-ink-gray-9">
 						{{ lesson.data.course_title }}
@@ -356,7 +359,7 @@
 				</div>
 				<CourseOutline
 					:courseName="courseName"
-					:key="chapterNumber"
+					:key="`${chapterNumber}-${lesson.data?.name}`"
 					:getProgress="lesson.data.membership ? true : false"
 					:lessonProgress="lessonProgress"
 				/>
@@ -594,6 +597,9 @@ const progress = createResource({
 	},
 	onSuccess(data) {
 		lessonProgress.value = data
+		if (lesson.data) {
+			lesson.data.progress = data
+		}
 	},
 })
 
@@ -832,11 +838,13 @@ onBeforeUnmount(() => {
 
 const checkIfDiscussionsAllowed = () => {
 	hasQuiz.value = false
-	JSON.parse(lesson.data?.content)?.blocks?.forEach((block) => {
-		if (block.type === 'quiz') {
-			hasQuiz.value = true
-		}
-	})
+	if (lesson.data?.content) {
+		JSON.parse(lesson.data.content)?.blocks?.forEach((block) => {
+			if (block.type === 'quiz') {
+				hasQuiz.value = true
+			}
+		})
+	}
 
 	if (
 		!hasQuiz.value &&

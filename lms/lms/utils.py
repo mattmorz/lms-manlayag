@@ -1061,15 +1061,38 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	membership = get_membership(course)
 
 	if (
-	membership
-	and frappe.session.user != "Guest"
-	and not can_modify_course(course)
+		membership
+		and frappe.session.user != "Guest"
+		and not can_modify_course(course)
 	):
 		if not is_previous_lesson_completed(course, chapter, lesson):
+
+			course_info = frappe.db.get_value(
+				"LMS Course",
+				course,
+				["title", "paid_certificate", "disable_self_learning"],
+				as_dict=1,
+			)
+
+			neighbours = get_neighbour_lesson(course, chapter, lesson)
+			progress = get_progress(course, lesson_name)
+
 			return {
-					"locked": 1,
-					"message": _("Please complete the previous lesson before proceeding."),
-				}
+				"name": lesson_name,
+				"locked": 1,
+				"message": _("Please complete the previous lesson before proceeding."),
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"chapter_title": frappe.db.get_value(
+					"Course Chapter",
+					chapter_name,
+					"title",
+				),
+				"prev": neighbours["prev"],
+				"next": neighbours["next"],
+				"membership": membership,
+				"progress": progress,
+			}
 
 	course_info = frappe.db.get_value(
 		"LMS Course",
