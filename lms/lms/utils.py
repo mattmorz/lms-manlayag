@@ -1368,8 +1368,8 @@ def get_batch_students(
 		"LMS Batch Enrollment",
 		filters={"batch": batch},
 		fields=["member", "name"],
-		offset=start,
-		limit=page_length,
+		start=start,
+		page_length=page_length,
 		order_by="creation desc",
 	)
 
