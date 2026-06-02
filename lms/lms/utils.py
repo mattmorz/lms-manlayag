@@ -177,7 +177,25 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 		lesson_details.icon = get_lesson_icon(lesson_details.body, lesson_details.content)
 
 		if progress:
-			lesson_details.is_complete = get_progress(lesson_details.course, lesson_details.name)
+			lesson_details.is_complete = get_progress(
+				lesson_details.course,
+				lesson_details.name
+			)
+
+			# Default
+			lesson_details.locked = False
+
+			# First lesson of first chapter is always accessible
+			'''
+			if not (chapter.idx == 1 and row.idx == 1):
+				lesson_details.locked = not is_previous_lesson_completed(
+					lesson_details.course,
+					chapter.idx,
+					row.idx,
+				)
+			'''
+		else:
+			lesson_details.locked = False
 
 		lessons.append(lesson_details)
 	return lessons
@@ -977,6 +995,44 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 		outline.append(chapter_details)
 	return outline
 
+def is_previous_lesson_completed(course, chapter, lesson):
+	# First lesson of first chapter is always accessible
+	if int(chapter) == 1 and int(lesson) == 1:
+		return True
+
+	# Get current lesson's previous neighbour
+	neighbours = get_neighbour_lesson(course, chapter, lesson)
+	previous = neighbours.get("prev")
+
+	if not previous:
+		return True
+
+	prev_chapter, prev_lesson = previous.split(".")
+
+	prev_chapter_name = frappe.db.get_value(
+		"Chapter Reference",
+		{
+			"parent": course,
+			"idx": int(prev_chapter),
+		},
+		"chapter",
+	)
+
+	prev_lesson_name = frappe.db.get_value(
+		"Lesson Reference",
+		{
+			"parent": prev_chapter_name,
+			"idx": int(prev_lesson),
+		},
+		"lesson",
+	)
+
+	if not prev_lesson_name:
+		return True
+
+	progress = get_progress(course, prev_lesson_name)
+
+	return bool(progress)
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)
@@ -1003,6 +1059,18 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 		}
 
 	membership = get_membership(course)
+
+	if (
+	membership
+	and frappe.session.user != "Guest"
+	and not can_modify_course(course)
+	):
+		if not is_previous_lesson_completed(course, chapter, lesson):
+			return {
+					"locked": 1,
+					"message": _("Please complete the previous lesson before proceeding."),
+				}
+
 	course_info = frappe.db.get_value(
 		"LMS Course",
 		course,

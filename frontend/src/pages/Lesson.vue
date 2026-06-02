@@ -43,12 +43,20 @@
 					</Button>
 				</router-link>
 
-				<Button v-if="lesson.data.next" @click="switchLesson('next')">
+				<Button
+					v-if="lesson.data.next"
+					:disabled="!canProceedToNext()"
+					@click="switchLesson('next')"
+				>
 					<template #suffix>
 						<ChevronRight class="w-4 h-4 stroke-1" />
 					</template>
 					<span>
-						{{ __('Next') }}
+						{{
+							canProceedToNext()
+								? __('Next')
+								: __('Complete Lesson First')
+						}}
 					</span>
 				</Button>
 
@@ -66,7 +74,41 @@
 			</div>
 		</header>
 		<div class="grid md:grid-cols-[70%,30%] h-screen">
-			<div v-if="lesson.data.no_preview" class="border-r">
+			<div v-if="lesson.data?.locked" class="border-r">
+				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+					<div class="flex items-center justify-center mt-4 space-x-2">
+						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
+						<div class="text-lg font-semibold text-ink-gray-7">
+							{{ __('Lesson Locked') }}
+						</div>
+					</div>
+					<div class="mt-1 mb-4 text-ink-gray-7">
+						{{ lesson.data.message }}
+					</div>
+
+					<div class="flex gap-2">
+						<Button
+							v-if="lesson.data.prev"
+							@click="switchLesson('prev')"
+						>
+							{{ __('Go Back to Previous Lesson') }}
+						</Button>
+
+						<router-link
+							v-else
+							:to="{
+								name: 'CourseDetail',
+								params: { courseName: courseName },
+							}"
+						>
+							<Button>
+								{{ __('Back to Course') }}
+							</Button>
+						</router-link>
+					</div>
+				</div>
+			</div>
+			<div v-else-if="lesson.data.no_preview" class="border-r">
 				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
 					<div class="flex items-center justify-center mt-4 space-x-2">
 						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
@@ -178,8 +220,11 @@
 										{{ __('Edit') }}
 									</Button>
 								</router-link>
-
-								<Button v-if="lesson.data.next" @click="switchLesson('next')">
+								<Button
+									v-if="lesson.data.next"
+									:disabled="!canProceedToNext()"
+									@click="switchLesson('next')"
+								>
 									<template #suffix>
 										<ChevronRight class="w-4 h-4 stroke-1" />
 									</template>
@@ -465,6 +510,10 @@ const lesson = createResource({
 	auto: true,
 })
 
+const lessonLocked = computed(() => {
+    return lesson.data?.locked
+})
+
 const setupLesson = (data) => {
 	if (Object.keys(data).length === 0) {
 		router.push({
@@ -586,20 +635,46 @@ const breadcrumbs = computed(() => {
 })
 
 const switchLesson = (direction) => {
-	trackVideoWatchDuration()
-	let lessonIndex =
-		direction === 'prev'
-			? lesson.data.prev.split('.')
-			: lesson.data.next.split('.')
+    if (
+        direction === 'next' &&
+        !canProceedToNext()
+    ) {
+        toast.error(
+            __('Please complete this lesson before proceeding.')
+        )
+        return
+    }
 
-	router.push({
-		name: 'Lesson',
-		params: {
-			courseName: props.courseName,
-			chapterNumber: lessonIndex[0],
-			lessonNumber: lessonIndex[1],
-		},
-	})
+    trackVideoWatchDuration()
+
+    let lessonIndex =
+        direction === 'prev'
+            ? lesson.data.prev.split('.')
+            : lesson.data.next.split('.')
+
+    router.push({
+        name: 'Lesson',
+        params: {
+            courseName: props.courseName,
+            chapterNumber: lessonIndex[0],
+            lessonNumber: lessonIndex[1],
+        },
+    })
+}
+
+const canProceedToNext = () => {
+    if (!lesson.data?.next) return true
+
+    // Moderators/Instructors can bypass
+    if (
+        user.data?.is_moderator ||
+        user.data?.is_instructor ||
+        user.data?.is_evaluator
+    ) {
+        return true
+    }
+
+    return lesson.data?.progress
 }
 
 watch(

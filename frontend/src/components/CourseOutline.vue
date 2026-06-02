@@ -94,15 +94,16 @@
 											"
 										>
 											<router-link
-												:to="{
-													name: allowEdit ? 'LessonForm' : 'Lesson',
-													params: {
-														courseName: courseName,
-														chapterNumber: lesson.number.split('-')[0],
-														lessonNumber: lesson.number.split('-')[1],
-													},
-												}"
-											>
+													v-if="!lesson.locked || allowEdit"
+													:to="{
+														name: allowEdit ? 'LessonForm' : 'Lesson',
+														params: {
+															courseName: courseName,
+															chapterNumber: lesson.number.split('-')[0],
+															lessonNumber: lesson.number.split('-')[1],
+														},
+													}"
+												>
 												<div class="flex items-center text-sm leading-5 group">
 													<MonitorPlay
 														v-if="lesson.icon === 'icon-youtube'"
@@ -124,6 +125,10 @@
 														v-else-if="lesson.icon === 'icon-list'"
 														class="h-4 w-4 text-ink-gray-9 stroke-1 mr-2"
 													/>
+													<LockKeyhole
+														v-if="lesson.locked"
+														class="h-4 w-4 text-orange-600 mr-2"
+													/>
 													{{ lesson.title }}
 													<Trash2
 														v-if="allowEdit"
@@ -138,7 +143,13 @@
 													/>
 												</div>
 											</router-link>
-										</div>
+											<div
+												v-else
+												class="flex items-center text-sm leading-5 opacity-50 cursor-not-allowed"
+											>
+												<!-- locked lesson placeholder -->
+											</div>
+											</div>
 									</template>
 								</Draggable>
 								<div v-if="allowEdit" class="flex mt-2 mb-4 pl-8">
@@ -190,6 +201,7 @@ import {
 	SquareCode,
 	Trash2,
 	Notebook,
+	LockKeyhole
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import ChapterModal from '@/components/Modals/ChapterModal.vue'
