@@ -1,6 +1,6 @@
 <div align="center" markdown="1">
 
-<img src=".github/lms-logo.png" alt="Manlayag logo" width="80" height="80"/>
+<img src="https://manlayag.carsu.edu.ph/private/files/8lYMmiB.png?fid=a6dc998d96" alt="Manlayag logo" width="80" height="80"/>
 <h1>Manlayag</h1>
 
 **CARSU's Learning Management System powered by Frappe Learning**
