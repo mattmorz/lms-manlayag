@@ -2231,31 +2231,32 @@ def get_video_transcript(video_id: str, service: str):
 	elif service == "vimeo":
 		transcript = fetch_vimeo_transcript(video_id)
 
-	if transcript:
-		frappe.cache().set_value(cache_key, json.dumps(transcript), expires_in_sec=86400 * 7) # Cache for 7 days
-		return transcript
-	else:
-		frappe.throw(_("Could not retrieve transcript for this video."))
+	if transcript is None:
+		transcript = []
+
+	frappe.cache().set_value(cache_key, json.dumps(transcript), expires_in_sec=86400 * 7) # Cache for 7 days
+	return transcript
 
 
 def fetch_youtube_transcript(video_id):
 	import requests
 	import re
 	import json
+	import xml.etree.ElementTree as ET
 	from html import unescape
 
 	try:
 		# First attempt: check if youtube_transcript_api is installed and use it
 		try:
 			from youtube_transcript_api import YouTubeTranscriptApi
-			transcript_list = YouTubeTranscriptApi().fetch(video_id)
+			transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
 			return [{
-				"text": unescape(t.text),
-				"start": t.start,
-				"duration": t.duration
+				"text": unescape(t["text"]),
+				"start": t["start"],
+				"duration": t["duration"]
 			} for t in transcript_list]
-		except Exception:
-			pass
+		except Exception as e:
+			frappe.log_error(f"YouTubeTranscriptApi attempt failed for {video_id}: {str(e)}")
 
 		# Second attempt: scrape YouTube initial player response
 		headers = {
