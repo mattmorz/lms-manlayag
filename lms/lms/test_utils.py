@@ -11,6 +11,7 @@ from lms.lms.utils import (
 	get_batch_details,
 	get_chapters,
 	get_course_details,
+	get_course_outline,
 	get_evaluator,
 	get_instructors,
 	get_lesson_index,
@@ -61,6 +62,51 @@ class TestLMSUtils(BaseTestUtils):
 		lessons = get_lessons(self.course.name)
 		all_lessons = frappe.db.count("Course Lesson", {"course": self.course.name})
 		self.assertEqual(len(lessons), all_lessons)
+
+	def test_get_course_outline_locking(self):
+		# Set sequential lessons enabled
+		frappe.db.set_value("LMS Course", self.course.name, "enable_sequential_lessons", 1)
+
+		# Login as student1
+		frappe.session.user = self.student1.email
+
+		# Get course outline with progress=True
+		outline = get_course_outline(self.course.name, progress=True)
+		self.assertTrue(len(outline) > 0)
+
+		# The first lesson of the first chapter should be unlocked
+		first_chapter = outline[0]
+		self.assertTrue(len(first_chapter.lessons) > 0)
+		self.assertFalse(first_chapter.lessons[0].locked)
+
+		# Subsequent lessons should be locked
+		if len(first_chapter.lessons) > 1:
+			self.assertTrue(first_chapter.lessons[1].locked)
+
+		# Now mark the first lesson as complete
+		progress_doc = frappe.get_doc({
+			"doctype": "LMS Course Progress",
+			"course": self.course.name,
+			"member": self.student1.email,
+			"lesson": first_chapter.lessons[0].name,
+			"status": "Complete"
+		})
+		progress_doc.insert()
+
+		# Get course outline again
+		outline = get_course_outline(self.course.name, progress=True)
+		first_chapter = outline[0]
+		self.assertFalse(first_chapter.lessons[0].locked)
+		if len(first_chapter.lessons) > 1:
+			# The second lesson should now be unlocked!
+			self.assertFalse(first_chapter.lessons[1].locked)
+			if len(first_chapter.lessons) > 2:
+				# The third lesson should still be locked
+				self.assertTrue(first_chapter.lessons[2].locked)
+
+		# Clean up progress doc
+		progress_doc.delete()
+		frappe.session.user = "Administrator"
 
 	def test_get_instructors(self):
 		instructors = get_instructors("LMS Course", self.course.name)

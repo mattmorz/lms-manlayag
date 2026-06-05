@@ -1587,6 +1587,8 @@ def track_video_watch_duration(lesson: str, videos: list):
 	if not isinstance(videos, list):
 		videos = json.loads(videos)
 
+	has_duration_field = frappe.get_meta("LMS Video Watch Duration").has_field("duration")
+
 	for video in videos:
 		filters = {
 			"lesson": lesson,
@@ -1596,23 +1598,32 @@ def track_video_watch_duration(lesson: str, videos: list):
 		existing_record = frappe.db.get_value(
 			"LMS Video Watch Duration", filters, ["name", "watch_time"], as_dict=True
 		)
-		if existing_record and flt(existing_record.watch_time) < flt(video.get("watch_time")):
-			frappe.db.set_value(
-				"LMS Video Watch Duration",
-				filters,
-				"watch_time",
-				video.get("watch_time"),
-			)
-		elif not existing_record:
-			track_new_watch_time(lesson, video)
+
+		update_values = {
+			"watch_time": video.get("watch_time")
+		}
+		if video.get("duration") and has_duration_field:
+			update_values["duration"] = video.get("duration")
+
+		if existing_record:
+			if flt(existing_record.watch_time) < flt(video.get("watch_time")):
+				frappe.db.set_value(
+					"LMS Video Watch Duration",
+					filters,
+					update_values
+				)
+		else:
+			track_new_watch_time(lesson, video, has_duration_field)
 
 
-def track_new_watch_time(lesson: str, video: dict):
+def track_new_watch_time(lesson: str, video: dict, has_duration_field: bool = False):
 	doc = frappe.new_doc("LMS Video Watch Duration")
 	doc.lesson = lesson
 	doc.source = video.get("source")
 	doc.watch_time = video.get("watch_time")
 	doc.member = frappe.session.user
+	if video.get("duration") and has_duration_field:
+		doc.duration = video.get("duration")
 	doc.save()
 
 

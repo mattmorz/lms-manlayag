@@ -61,3 +61,50 @@ class TestLMSAPI(BaseTestUtils):
 			self.assertEqual(exercise.exercise, self.programming_exercise.name)
 			self.assertEqual(exercise.exercise_title, self.programming_exercise.title)
 			self.assertEqual(exercise.status, "Passed")
+
+	def test_video_progress_90_percent(self):
+		import json
+		# Create a lesson with a video block
+		lesson = frappe.new_doc("Course Lesson")
+		lesson.title = "Test Video Lesson"
+		lesson.course = self.course.name
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "video",
+					"data": {
+						"url": "https://www.youtube.com/watch?v=mock"
+					}
+				}
+			]
+		})
+		lesson.insert()
+
+		from lms.lms.doctype.course_lesson.course_lesson import get_video_progress
+		from lms.lms.api import track_video_watch_duration
+
+		# Login as student1
+		frappe.session.user = self.student1.email
+
+		# Initially, get_video_progress should return False because no watch duration exists
+		self.assertFalse(get_video_progress(lesson.name))
+
+		# Now track watch duration below 90% (e.g. 50s watch time, 100s duration)
+		track_video_watch_duration(
+			lesson.name,
+			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 50, "duration": 100}]
+		)
+		# get_video_progress should still be False
+		self.assertFalse(get_video_progress(lesson.name))
+
+		# Now track watch duration >= 90% (e.g. 95s watch time, 100s duration)
+		track_video_watch_duration(
+			lesson.name,
+			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 95, "duration": 100}]
+		)
+		# get_video_progress should now be True!
+		self.assertTrue(get_video_progress(lesson.name))
+
+		# Clean up
+		lesson.delete()
+		frappe.session.user = "Administrator"

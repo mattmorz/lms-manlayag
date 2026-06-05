@@ -1,6 +1,6 @@
 <div align="center" markdown="1">
 
-<img src=".github/manlayag-logo.png" alt="Manlayag logo" width="80" height="80"/>
+<img src=".github/manlayag-logo.png" alt="Manlayag logo" width="180" height="80"/>
 <h1>Manlayag</h1>
 
 **CARSU's Learning Management System powered by Frappe Learning**

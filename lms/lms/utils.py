@@ -170,6 +170,7 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 				"course",
 				"chapter",
 				"content",
+				"require_quiz_pass",
 			],
 			as_dict=True,
 		)
@@ -993,7 +994,50 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 			)
 
 		outline.append(chapter_details)
+
+	if progress and frappe.session.user != "Guest" and not can_modify_course(course):
+		membership = get_membership(course)
+		if membership:
+			try:
+				enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+			except Exception:
+				enable_sequential = 1
+
+			if enable_sequential:
+				completed_lessons = set(
+					frappe.db.get_all(
+						"LMS Course Progress",
+						filters={"course": course, "member": frappe.session.user, "status": "Complete"},
+						pluck="lesson"
+					)
+				)
+
+				previous_lesson_accessible = True
+
+				for chapter_idx, chapter in enumerate(outline):
+					for lesson_idx, lesson in enumerate(chapter.lessons):
+						if chapter_idx == 0 and lesson_idx == 0:
+							lesson.locked = False
+						else:
+							lesson.locked = not previous_lesson_accessible
+
+						# Now update previous_lesson_accessible for the NEXT lesson.
+						is_completed = lesson.name in completed_lessons
+						if not is_completed:
+							previous_lesson_accessible = False
+						else:
+							require_quiz_pass = lesson.get("require_quiz_pass")
+							if require_quiz_pass:
+								quiz_id = lesson.get("quiz_id")
+								quiz_ids = get_lesson_gate_quizzes(quiz_id)
+								if quiz_ids and not has_passed_quizzes(quiz_ids, frappe.session.user):
+									previous_lesson_accessible = False
+								else:
+									previous_lesson_accessible = True
+							else:
+								previous_lesson_accessible = True
 	return outline
+
 
 def is_previous_lesson_completed(course, chapter, lesson):
 	# First lesson of first chapter is always accessible

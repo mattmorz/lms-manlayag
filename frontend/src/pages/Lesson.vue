@@ -680,6 +680,33 @@ const canProceedToNext = () => {
         return true
     }
 
+    if (lesson.data?.progress) return true
+
+    // Enforce 90% watch time check locally on the frontend
+    if (lesson.data?.icon === 'icon-youtube') {
+        const videos = document.querySelectorAll('video')
+        if (videos.length > 0) {
+            let allWatched = true
+            videos.forEach((vid) => {
+                if (!vid.duration || vid.currentTime < 0.9 * vid.duration) {
+                    allWatched = false
+                }
+            })
+            if (allWatched) return true
+        }
+
+        if (plyrSources.value && plyrSources.value.length > 0) {
+            let allWatched = true
+            plyrSources.value.forEach((source) => {
+                if (!source.duration || source.currentTime < 0.9 * source.duration) {
+                    allWatched = false
+                }
+            })
+            if (allWatched) return true
+        }
+        return false
+    }
+
     return lesson.data?.progress
 }
 
@@ -727,10 +754,11 @@ const getVideoDetails = () => {
 	const videos = document.querySelectorAll('video')
 	if (videos.length > 0) {
 		videos.forEach((video) => {
-			if (video.currentTime == video.duration) markProgress()
+			if (video.duration && video.currentTime >= 0.9 * video.duration) markProgress()
 			details.push({
 				source: video.src,
 				watch_time: video.currentTime,
+				duration: video.duration,
 			})
 		})
 	}
@@ -740,11 +768,12 @@ const getVideoDetails = () => {
 const getPlyrSourceDetails = () => {
 	let details = []
 	plyrSources.value.forEach((source) => {
-		if (source.currentTime == source.duration) markProgress()
+		if (source.duration && source.currentTime >= 0.9 * source.duration) markProgress()
 		let src = cleanYouTubeUrl(source.source)
 		details.push({
 			source: src,
 			watch_time: source.currentTime,
+			duration: source.duration,
 		})
 	})
 	return details
@@ -774,6 +803,48 @@ const getPlyrSource = async () => {
 		plyrSources.value = await enablePlyr()
 	}
 	updateVideoWatchDuration()
+
+	const lastSavedTimes = {}
+
+	// Register real-time timeupdate and pause listeners
+	plyrSources.value.forEach((plyrSource) => {
+		const sourceUrl = cleanYouTubeUrl(plyrSource.source)
+
+		plyrSource.on('pause', () => {
+			trackVideoWatchDuration()
+		})
+
+		plyrSource.on('timeupdate', () => {
+			if (plyrSource.duration && plyrSource.currentTime >= 0.9 * plyrSource.duration) {
+				markProgress()
+			}
+
+			const lastSaved = lastSavedTimes[sourceUrl] || 0
+			if (Math.abs(plyrSource.currentTime - lastSaved) >= 5) {
+				lastSavedTimes[sourceUrl] = plyrSource.currentTime
+				trackVideoWatchDuration()
+			}
+		})
+	})
+
+	const videos = document.querySelectorAll('video')
+	videos.forEach((video) => {
+		video.addEventListener('pause', () => {
+			trackVideoWatchDuration()
+		})
+
+		video.addEventListener('timeupdate', () => {
+			if (video.duration && video.currentTime >= 0.9 * video.duration) {
+				markProgress()
+			}
+
+			const lastSaved = lastSavedTimes[video.src] || 0
+			if (Math.abs(video.currentTime - lastSaved) >= 5) {
+				lastSavedTimes[video.src] = video.currentTime
+				trackVideoWatchDuration()
+			}
+		})
+	})
 }
 
 const updateVideoWatchDuration = () => {
@@ -823,7 +894,8 @@ const updateVideoTime = (video) => {
 
 const startTimer = () => {
 	if (!lesson.data?.membership) return
-	let timerInterval = setInterval(() => {
+	if (lesson.data?.icon === 'icon-youtube') return
+	timerInterval = setInterval(() => {
 		timer.value++
 		if (timer.value == 30) {
 			clearInterval(timerInterval)

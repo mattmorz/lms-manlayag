@@ -192,7 +192,7 @@ def get_assignment_progress(lesson):
 
 
 def get_video_progress(lesson):
-	"""Check if all videos in the lesson have been watched"""
+	"""Check if all videos in the lesson have been watched to at least 90% of their duration"""
 	lesson_details = frappe.db.get_value("Course Lesson", lesson, ["body", "content"], as_dict=1)
 	videos = []
 
@@ -212,16 +212,34 @@ def get_video_progress(lesson):
 	if not videos:
 		return True
 
-	# Check if each video has been watched
-	watched_videos = frappe.db.get_all(
+	has_duration_field = frappe.get_meta("LMS Video Watch Duration").has_field("duration")
+	fields_to_fetch = ["source", "watch_time"]
+	if has_duration_field:
+		fields_to_fetch.append("duration")
+
+	# Check watch durations
+	watched_records = frappe.db.get_all(
 		"LMS Video Watch Duration",
-		{"lesson": lesson, "member": frappe.session.user},
-		pluck="source",
+		filters={"lesson": lesson, "member": frappe.session.user},
+		fields=fields_to_fetch,
 	)
 
-	# If no watched videos but videos exist, return False
-	if not watched_videos:
+	if len(watched_records) < len(videos):
 		return False
 
-	# Return True only if all videos have been watched
-	return len(watched_videos) >= len(videos)
+	for video_url in videos:
+		record = next((r for r in watched_records if r.source == video_url), None)
+		if not record:
+			return False
+
+		# Enforce that watch_time is at least 90% of duration
+		if has_duration_field and record.get("duration"):
+			try:
+				watch_time = float(record.get("watch_time") or 0)
+				duration = float(record.get("duration") or 0)
+				if duration > 0 and watch_time < 0.9 * duration:
+					return False
+			except (ValueError, TypeError):
+				return False
+
+	return True
