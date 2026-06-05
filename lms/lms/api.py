@@ -2703,15 +2703,10 @@ def import_course(course_data):
 			lesson_doc.insert(ignore_permissions=True)
 			new_lesson_name = lesson_doc.name
 			
-			lesson_ref_doc = frappe.get_doc({
-				"doctype": "Lesson Reference",
-				"parent": new_chapter_name,
-				"parenttype": "Course Chapter",
-				"parentfield": "lessons",
+			chapter_doc.append("lessons", {
 				"lesson": new_lesson_name,
 				"idx": les.get("idx")
 			})
-			lesson_ref_doc.insert(ignore_permissions=True)
 
 			for new_q_ref in new_quiz_ids:
 				if frappe.db.exists("LMS Quiz", new_q_ref):
@@ -2723,6 +2718,9 @@ def import_course(course_data):
 							"lesson": new_lesson_name
 						}
 					)
+
+		# Save Chapter Document to persist lessons child table and trigger index/counts
+		chapter_doc.save(ignore_permissions=True)
 
 	return new_course_name
 

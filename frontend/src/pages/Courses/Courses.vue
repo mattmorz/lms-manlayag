@@ -172,10 +172,14 @@ const handleImportFile = (event) => {
 		try {
 			const courseData = JSON.parse(e.target.result)
 			call('lms.lms.api.import_course', { course_data: courseData })
-				.then((newCourseName) => {
+				.then((response) => {
+					const courseName =
+						response && typeof response === 'object'
+							? response.message || response.name || JSON.stringify(response)
+							: response
 					toast.success(
 						__('Course "{0}" imported successfully.', [
-							newCourseName,
+							courseName,
 						])
 					)
 					courses.reload()
