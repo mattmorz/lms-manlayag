@@ -65,6 +65,7 @@ declare module 'vue' {
     EditProfile: typeof import('./src/components/Modals/EditProfile.vue')['default']
     EmailTemplateModal: typeof import('./src/components/Modals/EmailTemplateModal.vue')['default']
     EmailTemplates: typeof import('./src/components/Settings/EmailTemplates.vue')['default']
+    EmbedVideoBlock: typeof import('./src/components/EmbedVideoBlock.vue')['default']
     EmptyState: typeof import('./src/components/EmptyState.vue')['default']
     EvaluationModal: typeof import('./src/components/Modals/EvaluationModal.vue')['default']
     Evaluators: typeof import('./src/components/Settings/Evaluators.vue')['default']

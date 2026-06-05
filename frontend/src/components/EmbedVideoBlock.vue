@@ -28,7 +28,6 @@
 			></div>
 		</div>
 		<Quiz
-			v-slot="{}"
 			v-if="showQuiz"
 			:quizName="currentQuiz"
 			:inVideo="true"
@@ -47,7 +46,6 @@
 		:duration="duration"
 	/>
 	<Dialog
-		v-slot="{}"
 		v-model="showQuizLoader"
 		:options="{
 			size: 'sm',
