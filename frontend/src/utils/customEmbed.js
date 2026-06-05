@@ -21,6 +21,18 @@ export class CustomEmbed {
 		return true
 	}
 
+	static get conversionConfig() {
+		return EmbedTool.conversionConfig
+	}
+
+	static get pasteConfig() {
+		return EmbedTool.pasteConfig
+	}
+
+	static get sanitize() {
+		return EmbedTool.sanitize
+	}
+
 	render() {
 		const isVideoService = this.data && (this.data.service === 'youtube' || this.data.service === 'vimeo')
 		if (isVideoService) {
