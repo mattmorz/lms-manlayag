@@ -30,20 +30,28 @@ class CourseLesson(Document):
 			self.save_lesson_details_in_quiz(self.instructor_content)
 
 	def save_lesson_details_in_quiz(self, content):
-		content = json.loads(self.content)
-		for block in content.get("blocks"):
+		content = json.loads(content)
+		for block in content.get("blocks", []):
 			if block.get("type") == "quiz":
-				quiz = block.get("data").get("quiz")
-				if not frappe.db.exists("LMS Quiz", quiz):
-					frappe.throw(_("Invalid Quiz ID in content"))
-				frappe.db.set_value(
-					"LMS Quiz",
-					quiz,
-					{
-						"course": self.course,
-						"lesson": self.name,
-					},
-				)
+				quiz = block.get("data", {}).get("quiz")
+				self.validate_and_set_quiz(quiz)
+			elif block.get("type") in ["upload", "embed"]:
+				quizzes = block.get("data", {}).get("quizzes", [])
+				for q in quizzes:
+					if q.get("quiz"):
+						self.validate_and_set_quiz(q.get("quiz"))
+
+	def validate_and_set_quiz(self, quiz):
+		if not frappe.db.exists("LMS Quiz", quiz):
+			frappe.throw(_("Invalid Quiz ID: {0}").format(quiz))
+		frappe.db.set_value(
+			"LMS Quiz",
+			quiz,
+			{
+				"course": self.course,
+				"lesson": self.name,
+			},
+		)
 
 
 def get_quiz_ids(quiz_id):
@@ -140,11 +148,11 @@ def get_quiz_progress(lesson):
 	if lesson_details.content:
 		content = json.loads(lesson_details.content)
 
-		for block in content.get("blocks"):
+		for block in content.get("blocks", []):
 			if block.get("type") == "quiz":
 				quizzes.append(block.get("data").get("quiz"))
-			if block.get("type") == "upload":
-				quizzes_in_video = block.get("data").get("quizzes")
+			elif block.get("type") in ["upload", "embed"]:
+				quizzes_in_video = block.get("data", {}).get("quizzes")
 				if quizzes_in_video and len(quizzes_in_video) > 0:
 					for row in quizzes_in_video:
 						quizzes.append(row.get("quiz"))

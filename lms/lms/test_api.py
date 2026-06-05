@@ -108,3 +108,67 @@ class TestLMSAPI(BaseTestUtils):
 		# Clean up
 		lesson.delete()
 		frappe.session.user = "Administrator"
+
+	def test_in_video_quiz_verification(self):
+		import json
+		# Create a lesson with an embed block containing a quiz
+		lesson = frappe.new_doc("Course Lesson")
+		lesson.title = "Test Embed Video Quiz Lesson"
+		lesson.course = self.course.name
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "embed",
+					"data": {
+						"service": "youtube",
+						"source": "https://www.youtube.com/watch?v=mock",
+						"embed": "https://www.youtube.com/embed/mock",
+						"quizzes": [
+							{"quiz": self.quiz.name, "time": 10}
+						]
+					}
+				}
+			]
+		})
+		
+		lesson.insert()
+		
+		from lms.lms.doctype.course_lesson.course_lesson import get_quiz_progress
+
+		# Login as student1
+		frappe.session.user = self.student1.email
+
+		# The student has already passed self.quiz in setup flow, so get_quiz_progress should be True
+		self.assertTrue(get_quiz_progress(lesson.name))
+
+		# Now create a quiz that the student has NOT passed
+		unpassed_quiz = frappe.new_doc("LMS Quiz")
+		unpassed_quiz.title = "Unpassed Quiz"
+		unpassed_quiz.passing_percentage = 80
+		unpassed_quiz.insert()
+
+		# Update the lesson to contain this unpassed quiz
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "embed",
+					"data": {
+						"service": "youtube",
+						"source": "https://www.youtube.com/watch?v=mock",
+						"embed": "https://www.youtube.com/embed/mock",
+						"quizzes": [
+							{"quiz": unpassed_quiz.name, "time": 10}
+						]
+					}
+				}
+			]
+		})
+		lesson.save()
+
+		# get_quiz_progress should now be False!
+		self.assertFalse(get_quiz_progress(lesson.name))
+
+		# Clean up
+		lesson.delete()
+		unpassed_quiz.delete()
+		frappe.session.user = "Administrator"

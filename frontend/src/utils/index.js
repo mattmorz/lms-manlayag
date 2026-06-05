@@ -14,7 +14,7 @@ import { CodeBox } from '@/utils/code'
 import NestedList from '@editorjs/nested-list'
 import InlineCode from '@editorjs/inline-code'
 import dayjs from '@/utils/dayjs'
-import Embed from '@editorjs/embed'
+import { CustomEmbed } from './customEmbed'
 import SimpleImage from '@editorjs/simple-image'
 import Table from '@editorjs/table'
 import Plyr from 'plyr'
@@ -157,7 +157,7 @@ export function getEditorTools() {
 			shortcut: 'CMD+SHIFT+M',
 		},
 		embed: {
-			class: Embed,
+			class: CustomEmbed,
 			inlineToolbar: false,
 			config: {
 				services: {
@@ -777,6 +777,7 @@ const setupPlyrForVideo = (video, players) => {
 		},
 	})
 
+	video.plyr = player
 	players.push(player)
 }
 
