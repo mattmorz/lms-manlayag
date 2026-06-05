@@ -81,7 +81,7 @@
 							{{ inVideo ? __('Start the Quiz') : __('Start') }}
 						</span>
 					</Button>
-					<Button v-slot="{}" v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
+					<Button v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
 						{{ __('Resume Video') }}
 					</Button>
 				</div>
@@ -284,7 +284,7 @@
 						{{ __('Try Again') }}
 					</span>
 				</Button>
-				<Button v-slot="{}" v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
+				<Button v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
 					{{ __('Resume Video') }}
 				</Button>
 			</div>
@@ -327,8 +327,9 @@ import { CheckCircle, XCircle, MinusCircle } from 'lucide-vue-next'
 import { timeAgo } from '@/utils'
 import { useRouter } from 'vue-router'
 import ProgressBar from '@/components/ProgressBar.vue'
+import { usersStore } from '@/stores/user'
 
-const user = inject('$user')
+const user = inject('$user') || usersStore().userResource
 const activeQuestion = ref(0)
 const currentQuestion = ref('')
 const selectedOptions = reactive([0, 0, 0, 0])
@@ -358,11 +359,12 @@ const props = defineProps({
 })
 
 const isPassed = computed(() => {
-	if (quizSubmission.data && Math.ceil(quizSubmission.data.percentage) >= (quiz.data?.passing_percentage || 0)) {
+	const passingPercent = quiz.data?.passing_percentage || 0
+	if (quizSubmission.data && Math.ceil(quizSubmission.data.percentage) >= passingPercent) {
 		return true
 	}
 	if (attempts.data && attempts.data.length > 0) {
-		return attempts.data.some(att => Math.ceil(att.percentage) >= (att.passing_percentage || 0))
+		return attempts.data.some(att => Math.ceil(att.percentage) >= passingPercent)
 	}
 	return false
 })

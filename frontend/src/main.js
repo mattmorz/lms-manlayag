@@ -22,11 +22,12 @@ app.use(translationPlugin)
 app.use(pageMetaPlugin)
 app.provide('$dayjs', dayjs)
 app.provide('$socket', initSocket())
-app.mount('#app')
 
 const { userResource, allUsers } = usersStore()
 app.provide('$user', userResource)
 app.provide('$allUsers', allUsers)
+
+app.mount('#app')
 
 watch(userResource, () => {
 	if (userResource.data) {
