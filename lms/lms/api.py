@@ -485,6 +485,7 @@ def update_lesson_index(lesson: str, sourceChapter: str, targetChapter: str, idx
 	hasMoved = sourceChapter == targetChapter
 	update_source_chapter(lesson, sourceChapter, idx, hasMoved)
 	if not hasMoved:
+		frappe.db.set_value("Course Lesson", lesson, "chapter", targetChapter)
 		update_target_chapter(lesson, targetChapter, idx)
 
 

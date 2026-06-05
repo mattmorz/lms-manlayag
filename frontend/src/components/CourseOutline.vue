@@ -34,7 +34,7 @@
 				@end="updateChapterOrder"
 			>
 				<template #item="{ element: chapter, index }">
-					<div class="chapter-item">
+					<div class="chapter-item" :data-chapter="chapter.name">
 						<Disclosure
 							v-slot="{ open }"
 							:key="chapter.name"
@@ -92,6 +92,7 @@
 											:class="
 												isActiveLesson(lesson.number) ? 'bg-surface-gray-3' : ''
 											"
+											:data-lesson="lesson.name"
 										>
 											<router-link
 													v-if="!lesson.locked || allowEdit"
@@ -315,6 +316,7 @@ const updateLessonIndex = createResource({
 		}
 	},
 	onSuccess() {
+		outline.reload()
 		toast.success(__('Lesson moved successfully'))
 	},
 })
@@ -329,6 +331,7 @@ const updateChapterIndex = createResource({
 		}
 	},
 	onSuccess() {
+		outline.reload()
 		toast.success(__('Chapter moved successfully'))
 	},
 })
@@ -370,8 +373,9 @@ const getCurrentChapter = () => {
 }
 
 const updateOutline = (e) => {
+	const lessonName = e.item.getAttribute('data-lesson')
 	updateLessonIndex.submit({
-		lesson: e.item.__draggable_context.element.name,
+		lesson: lessonName,
 		sourceChapter: e.from.dataset.chapter,
 		targetChapter: e.to.dataset.chapter,
 		idx: e.newIndex,
@@ -379,8 +383,9 @@ const updateOutline = (e) => {
 }
 
 const updateChapterOrder = (e) => {
+	const chapterName = e.item.getAttribute('data-chapter')
 	updateChapterIndex.submit({
-		chapter: e.item.__draggable_context.element.name,
+		chapter: chapterName,
 		course: props.courseName,
 		idx: e.newIndex,
 	})
