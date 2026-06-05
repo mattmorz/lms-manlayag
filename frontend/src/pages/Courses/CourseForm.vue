@@ -483,11 +483,14 @@ const deleteCourse = createResource({
 		router.push({ name: 'Courses' })
 	},
 	onError(err) {
-		const errorMsg =
+		let errorMsg =
 			err.message ||
 			(err.messages && err.messages[0]) ||
 			err ||
 			__('Unknown error')
+		if (typeof errorMsg === 'string') {
+			errorMsg = errorMsg.replace(/<[^>]*>/g, '')
+		}
 		toast.error(__('Failed to delete course: {0}').format(errorMsg))
 	},
 })

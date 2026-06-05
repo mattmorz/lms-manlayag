@@ -183,11 +183,14 @@ const handleImportFile = (event) => {
 					courses.reload()
 				})
 				.catch((err) => {
-					const errorMsg =
+					let errorMsg =
 						err.message ||
 						(err.messages && err.messages[0]) ||
 						err ||
 						__('Unknown error')
+					if (typeof errorMsg === 'string') {
+						errorMsg = errorMsg.replace(/<[^>]*>/g, '')
+					}
 					toast.error(
 						__('Failed to import course: {0}').format(errorMsg)
 					)
