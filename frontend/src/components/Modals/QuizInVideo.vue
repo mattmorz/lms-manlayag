@@ -20,7 +20,13 @@
 						v-model="quiz.quiz"
 						:label="__('Quiz')"
 						doctype="LMS Quiz"
-						class="flex-1"
+						class="flex-2"
+					/>
+					<FormControl
+						:label="__('Require Pass')"
+						v-model="quiz.enforce_pass"
+						type="checkbox"
+						class="mb-2"
 					/>
 					<Button @click="addQuiz()" variant="solid">
 						<template #prefix>
@@ -66,6 +72,9 @@
 									>
 										<div v-if="column.key == 'time'" class="leading-5 text-sm">
 											{{ formatTimestamp(row[column.key as keyof Quiz]) }}
+										</div>
+										<div v-else-if="column.key == 'enforce_pass'" class="leading-5 text-sm">
+											{{ row[column.key as keyof Quiz] ? __('Yes') : __('No') }}
 										</div>
 										<div v-else class="leading-5 text-sm">
 											{{ row[column.key as keyof Quiz] }}
@@ -119,6 +128,7 @@ import Link from '@/components/Controls/Link.vue'
 type Quiz = {
 	time: string
 	quiz: string
+	enforce_pass?: boolean
 }
 
 const show = defineModel()
@@ -126,6 +136,7 @@ const allQuizzes = ref<Quiz[]>([])
 const quiz = reactive<Quiz>({
 	time: '',
 	quiz: '',
+	enforce_pass: false,
 })
 
 const props = defineProps({
@@ -150,12 +161,14 @@ const addQuiz = () => {
 	allQuizzes.value.push({
 		time: quiz.time,
 		quiz: quiz.quiz,
+		enforce_pass: quiz.enforce_pass,
 	})
 
 	props.saveQuizzes(allQuizzes.value)
 
 	quiz.time = ''
 	quiz.quiz = ''
+	quiz.enforce_pass = false
 }
 
 const getTimeInSeconds = () => {
@@ -218,6 +231,11 @@ const columns = computed(() => {
 		{
 			key: 'time',
 			label: __('Time in Video (minutes)'),
+			align: 'center',
+		},
+		{
+			key: 'enforce_pass',
+			label: __('Enforce Pass'),
 			align: 'center',
 		},
 	]

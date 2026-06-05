@@ -114,6 +114,7 @@
 			v-if="showQuiz"
 			:quizName="currentQuiz"
 			:inVideo="true"
+			:enforcePass="currentQuizObj.enforce_pass"
 			:backToVideo="resumeVideo"
 		/>
 		<div v-if="!readOnly" @click="showQuizModal = true">
@@ -194,6 +195,11 @@ const props = defineProps({
 		type: Function,
 		default: () => {},
 	},
+})
+
+const currentQuizObj = computed(() => {
+	const quizzes = props.quizzes || []
+	return quizzes.find(q => q.quiz === currentQuiz.value) || {}
 })
 
 onMounted(() => {

@@ -81,7 +81,7 @@
 							{{ inVideo ? __('Start the Quiz') : __('Start') }}
 						</span>
 					</Button>
-					<Button v-if="inVideo" @click="props.backToVideo()">
+					<Button v-slot="{}" v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
 						{{ __('Resume Video') }}
 					</Button>
 				</div>
@@ -284,7 +284,7 @@
 						{{ __('Try Again') }}
 					</span>
 				</Button>
-				<Button v-if="inVideo" @click="props.backToVideo()">
+				<Button v-slot="{}" v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
 					{{ __('Resume Video') }}
 				</Button>
 			</div>
@@ -347,10 +347,24 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	enforcePass: {
+		type: Boolean,
+		default: false,
+	},
 	backToVideo: {
 		type: Function,
 		default: () => {},
 	},
+})
+
+const isPassed = computed(() => {
+	if (quizSubmission.data && Math.ceil(quizSubmission.data.percentage) >= (quiz.data?.passing_percentage || 0)) {
+		return true
+	}
+	if (attempts.data && attempts.data.length > 0) {
+		return attempts.data.some(att => Math.ceil(att.percentage) >= (att.passing_percentage || 0))
+	}
+	return false
 })
 
 const quiz = createResource({

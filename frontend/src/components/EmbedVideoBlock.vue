@@ -31,6 +31,7 @@
 			v-if="showQuiz"
 			:quizName="currentQuiz"
 			:inVideo="true"
+			:enforcePass="currentQuizObj.enforce_pass"
 			:backToVideo="resumeVideo"
 		/>
 		<div v-if="!readOnly" class="mt-2 text-center" @click="showQuizModal = true">
@@ -101,6 +102,11 @@ const props = defineProps({
 
 const duration = ref(0)
 const currentTime = ref(0)
+
+const currentQuizObj = computed(() => {
+	const quizzes = props.data.quizzes || []
+	return quizzes.find(q => q.quiz === currentQuiz.value) || {}
+})
 
 let checkInterval = null
 
