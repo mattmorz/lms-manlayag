@@ -132,9 +132,57 @@ import { formatSeconds, formatTimestamp } from '@/utils'
 import QuizInVideo from '@/components/Modals/QuizInVideo.vue'
 import { usersStore } from '@/stores/user'
 
+const props = defineProps({
+	data: {
+		type: Object,
+		required: true,
+	},
+	readOnly: {
+		type: Boolean,
+		default: true,
+	},
+	saveQuizzes: {
+		type: Function,
+		default: () => {},
+	},
+})
+
+// Refs
+const plyrElement = ref(null)
+const videoContainer = ref(null)
+const showQuizModal = ref(false)
+const showQuiz = ref(false)
+const showQuizLoader = ref(false)
+const quizLoadTimer = ref(0)
+const currentQuiz = ref(null)
+const nextQuiz = ref({})
+const duration = ref(0)
+const currentTime = ref(0)
 const showTranscript = ref(false)
 const transcriptContainer = ref(null)
 
+let player = null
+let checkInterval = null
+
+// Inject / User Store
+const user = inject('$user') || usersStore().userResource
+
+// Resources
+const passedQuizzes = createResource({
+	url: 'frappe.client.get_list',
+	makeParams() {
+		return {
+			doctype: 'LMS Quiz Submission',
+			filters: {
+				member: user.data?.name,
+				quiz: ['in', (props.data.quizzes || []).map(q => q.quiz)],
+			},
+			fields: ['quiz', 'percentage', 'passing_percentage'],
+		}
+	},
+})
+
+// Computed Properties for Transcripts
 const hasTranscript = computed(() => {
 	const service = props.data.service || ''
 	return service.toLowerCase() === 'youtube' || service.toLowerCase() === 'vimeo'
@@ -174,15 +222,22 @@ const transcriptResource = createResource({
 	auto: false
 })
 
-watch(
-	() => [videoId.value, props.data.service],
-	([vid, svc]) => {
-		if (vid && svc && hasTranscript.value) {
-			transcriptResource.submit()
+const passedQuizNames = computed(() => {
+	const submissions = passedQuizzes.data || []
+	const passed = new Set()
+	submissions.forEach(sub => {
+		const passingPercent = sub.passing_percentage || 0
+		if (Math.ceil(sub.percentage) >= passingPercent) {
+			passed.add(sub.quiz)
 		}
-	},
-	{ immediate: true }
-)
+	})
+	return passed
+})
+
+const currentQuizObj = computed(() => {
+	const quizzes = props.data.quizzes || []
+	return quizzes.find(q => q.quiz === currentQuiz.value) || {}
+})
 
 const wordsList = computed(() => {
 	if (!transcriptResource.data) return []
@@ -218,162 +273,13 @@ const activeWordIndex = computed(() => {
 	return activeIndex
 })
 
+// Methods / Actions
 const seekToWord = (start) => {
 	if (player) {
 		player.currentTime = start
 		player.play()
 	}
 }
-
-watch(activeWordIndex, (newIndex) => {
-	if (newIndex === -1 || !transcriptContainer.value) return
-	const container = transcriptContainer.value
-	const activeWordEl = container.querySelector(`#word-${newIndex}`)
-	if (activeWordEl) {
-		const containerRect = container.getBoundingClientRect()
-		const elRect = activeWordEl.getBoundingClientRect()
-		
-		const relativeTop = elRect.top - containerRect.top
-		const scrollTarget = container.scrollTop + relativeTop - (containerRect.height / 2) + (elRect.height / 2)
-		
-		container.scrollTo({
-			top: scrollTarget,
-			behavior: 'smooth'
-		})
-	}
-})
-
-const plyrElement = ref(null)
-const videoContainer = ref(null)
-const showQuizModal = ref(false)
-const showQuiz = ref(false)
-const showQuizLoader = ref(false)
-const quizLoadTimer = ref(0)
-const currentQuiz = ref(null)
-const nextQuiz = ref({})
-let player = null
-
-const user = inject('$user') || usersStore().userResource
-
-const passedQuizzes = createResource({
-	url: 'frappe.client.get_list',
-	makeParams() {
-		return {
-			doctype: 'LMS Quiz Submission',
-			filters: {
-				member: user.data?.name,
-				quiz: ['in', (props.data.quizzes || []).map(q => q.quiz)],
-			},
-			fields: ['quiz', 'percentage', 'passing_percentage'],
-		}
-	},
-})
-
-const passedQuizNames = computed(() => {
-	const submissions = passedQuizzes.data || []
-	const passed = new Set()
-	submissions.forEach(sub => {
-		const passingPercent = sub.passing_percentage || 0
-		if (Math.ceil(sub.percentage) >= passingPercent) {
-			passed.add(sub.quiz)
-		}
-	})
-	return passed
-})
-
-watch(
-	() => [props.data.quizzes, user.data?.name],
-	([quizzes, username]) => {
-		if (quizzes && quizzes.length > 0 && username) {
-			passedQuizzes.reload()
-		}
-	},
-	{ immediate: true }
-)
-
-watch(passedQuizNames, () => {
-	updateNextQuiz()
-})
-
-const props = defineProps({
-	data: {
-		type: Object,
-		required: true,
-	},
-	readOnly: {
-		type: Boolean,
-		default: true,
-	},
-	saveQuizzes: {
-		type: Function,
-		default: () => {},
-	},
-})
-
-const duration = ref(0)
-const currentTime = ref(0)
-
-const currentQuizObj = computed(() => {
-	const quizzes = props.data.quizzes || []
-	return quizzes.find(q => q.quiz === currentQuiz.value) || {}
-})
-
-let checkInterval = null
-
-onMounted(() => {
-	checkInterval = setInterval(() => {
-		if (plyrElement.value && plyrElement.value.plyr) {
-			clearInterval(checkInterval)
-			player = plyrElement.value.plyr
-			setupPlayer(player)
-		}
-	}, 100)
-})
-
-onBeforeUnmount(() => {
-	if (checkInterval) clearInterval(checkInterval)
-})
-
-const setupPlayer = (plyrInstance) => {
-	if (plyrInstance.duration) {
-		duration.value = plyrInstance.duration
-		updateMarkers()
-		updateNextQuiz()
-	}
-
-	plyrInstance.on('ready', () => {
-		duration.value = plyrInstance.duration
-		updateMarkers()
-		updateNextQuiz()
-	})
-
-	plyrInstance.on('timeupdate', () => {
-		if (!duration.value && plyrInstance.duration) {
-			duration.value = plyrInstance.duration
-			updateMarkers()
-		}
-		currentTime.value = plyrInstance.currentTime
-		
-		// If we hit the next quiz, pause and trigger loading
-		if (nextQuiz.value?.time && currentTime.value >= nextQuiz.value.time) {
-			plyrInstance.pause()
-			currentQuiz.value = nextQuiz.value.quiz
-			quizLoadTimer.value = 7
-		}
-	})
-}
-
-watch(quizLoadTimer, () => {
-	if (quizLoadTimer.value > 0) {
-		showQuizLoader.value = true
-		setTimeout(() => {
-			quizLoadTimer.value -= 1
-		}, 1000)
-	} else {
-		showQuizLoader.value = false
-		showQuiz.value = true
-	}
-})
 
 const resumeVideo = () => {
 	showQuiz.value = false
@@ -459,10 +365,109 @@ const updateMarkers = () => {
 	})
 }
 
+const setupPlayer = (plyrInstance) => {
+	if (plyrInstance.duration) {
+		duration.value = plyrInstance.duration
+		updateMarkers()
+		updateNextQuiz()
+	}
+
+	plyrInstance.on('ready', () => {
+		duration.value = plyrInstance.duration
+		updateMarkers()
+		updateNextQuiz()
+	})
+
+	plyrInstance.on('timeupdate', () => {
+		if (!duration.value && plyrInstance.duration) {
+			duration.value = plyrInstance.duration
+			updateMarkers()
+		}
+		currentTime.value = plyrInstance.currentTime
+		
+		// If we hit the next quiz, pause and trigger loading
+		if (nextQuiz.value?.time && currentTime.value >= nextQuiz.value.time) {
+			plyrInstance.pause()
+			currentQuiz.value = nextQuiz.value.quiz
+			quizLoadTimer.value = 7
+		}
+	})
+}
+
+// Watchers
+watch(
+	() => [props.data.quizzes, user.data?.name],
+	([quizzes, username]) => {
+		if (quizzes && quizzes.length > 0 && username) {
+			passedQuizzes.reload()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(passedQuizNames, () => {
+	updateNextQuiz()
+})
+
+watch(quizLoadTimer, () => {
+	if (quizLoadTimer.value > 0) {
+		showQuizLoader.value = true
+		setTimeout(() => {
+			quizLoadTimer.value -= 1
+		}, 1000)
+	} else {
+		showQuizLoader.value = false
+		showQuiz.value = true
+	}
+})
+
+watch(
+	() => [videoId.value, props.data.service],
+	([vid, svc]) => {
+		if (vid && svc && hasTranscript.value) {
+			transcriptResource.submit()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(activeWordIndex, (newIndex) => {
+	if (newIndex === -1 || !transcriptContainer.value) return
+	const container = transcriptContainer.value
+	const activeWordEl = container.querySelector(`#word-${newIndex}`)
+	if (activeWordEl) {
+		const containerRect = container.getBoundingClientRect()
+		const elRect = activeWordEl.getBoundingClientRect()
+		
+		const relativeTop = elRect.top - containerRect.top
+		const scrollTarget = container.scrollTop + relativeTop - (containerRect.height / 2) + (elRect.height / 2)
+		
+		container.scrollTo({
+			top: scrollTarget,
+			behavior: 'smooth'
+		})
+	}
+})
+
 watch(() => props.data.quizzes, () => {
 	updateNextQuiz()
 	updateMarkers()
 }, { deep: true })
+
+// Lifecycle hooks
+onMounted(() => {
+	checkInterval = setInterval(() => {
+		if (plyrElement.value && plyrElement.value.plyr) {
+			clearInterval(checkInterval)
+			player = plyrElement.value.plyr
+			setupPlayer(player)
+		}
+	}, 100)
+})
+
+onBeforeUnmount(() => {
+	if (checkInterval) clearInterval(checkInterval)
+})
 </script>
 
 <style scoped>

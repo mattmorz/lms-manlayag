@@ -506,126 +506,7 @@ const showInlineMenu = ref(false)
 const currentTab = ref('Notes')
 let timerInterval
 
-const showLessonTranscript = ref(false)
-const lessonTranscriptContainer = ref(null)
-const currentVideoTime = ref(0)
-const activePlayer = ref(null)
 
-const hasLessonTranscript = computed(() => {
-	return !!lesson.data?.youtube
-})
-
-const lessonVideoService = computed(() => {
-	const url = lesson.data?.youtube || ''
-	if (url.includes('vimeo.com') || url.includes('player.vimeo.com')) {
-		return 'vimeo'
-	}
-	return 'youtube'
-})
-
-const lessonVideoId = computed(() => {
-	const embedUrl = lesson.data?.youtube
-	const service = lessonVideoService.value
-	if (!embedUrl) return ''
-	const s = String(embedUrl).trim()
-	if (service === 'youtube') {
-		try {
-			const urlObj = new URL(s)
-			if (urlObj.hostname.includes('youtube.com')) {
-				return urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop()
-			} else if (urlObj.hostname.includes('youtu.be')) {
-				return urlObj.pathname.split('/').pop()
-			}
-		} catch (e) {}
-		const match = s.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})/)
-		return match ? match[1] : s
-	} else if (service === 'vimeo') {
-		const match = s.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/)
-		return match ? match[1] : s
-	}
-	return s
-})
-
-const lessonTranscriptResource = createResource({
-	url: 'lms.lms.api.get_video_transcript',
-	makeParams() {
-		return {
-			video_id: lessonVideoId.value,
-			service: lessonVideoService.value
-		}
-	},
-	auto: false
-})
-
-watch(
-	() => [lessonVideoId.value, lessonVideoService.value],
-	([vid, svc]) => {
-		if (vid && svc && lesson.data?.youtube) {
-			lessonTranscriptResource.submit()
-		}
-	},
-	{ immediate: true }
-)
-
-const lessonWordsList = computed(() => {
-	if (!lessonTranscriptResource.data) return []
-	const words = []
-	lessonTranscriptResource.data.forEach((segment) => {
-		const segmentText = segment.text || ''
-		const segmentWords = segmentText.trim().split(/\s+/)
-		if (segmentWords.length === 0 || (segmentWords.length === 1 && segmentWords[0] === '')) return
-		
-		const wordDuration = segment.duration / segmentWords.length
-		segmentWords.forEach((wordText, index) => {
-			words.push({
-				text: wordText,
-				start: segment.start + (index * wordDuration),
-				duration: wordDuration
-			})
-		})
-	})
-	return words
-})
-
-const activeLessonWordIndex = computed(() => {
-	const time = currentVideoTime.value
-	let activeIndex = -1
-	for (let i = 0; i < lessonWordsList.value.length; i++) {
-		const word = lessonWordsList.value[i]
-		if (word.start <= time) {
-			activeIndex = i
-		} else {
-			break
-		}
-	}
-	return activeIndex
-})
-
-const seekToLessonWord = (start) => {
-	const player = activePlayer.value || (plyrSources.value && plyrSources.value[0])
-	if (player) {
-		player.currentTime = start
-		player.play()
-	}
-}
-
-watch(activeLessonWordIndex, (newIndex) => {
-	if (newIndex === -1 || !lessonTranscriptContainer.value) return
-	const container = lessonTranscriptContainer.value
-	const activeWordEl = container.querySelector(`#lesson-word-${newIndex}`)
-	if (activeWordEl) {
-		const containerRect = container.getBoundingClientRect()
-		const elRect = activeWordEl.getBoundingClientRect()
-		
-		const relativeTop = elRect.top - containerRect.top
-		const scrollTarget = container.scrollTop + relativeTop - (containerRect.height / 2) + (elRect.height / 2)
-		
-		container.scrollTo({
-			top: scrollTarget,
-			behavior: 'smooth'
-		})
-	}
-})
 
 const tabs = ref([
 	{
@@ -692,6 +573,127 @@ const lesson = createResource({
 
 const lessonLocked = computed(() => {
     return lesson.data?.locked
+})
+
+const showLessonTranscript = ref(false)
+const lessonTranscriptContainer = ref(null)
+const currentVideoTime = ref(0)
+const activePlayer = ref(null)
+
+const hasLessonTranscript = computed(() => {
+	return !!lesson.data?.youtube
+})
+
+const lessonVideoService = computed(() => {
+	const url = lesson.data?.youtube || ''
+	if (url.includes('vimeo.com') || url.includes('player.vimeo.com')) {
+		return 'vimeo'
+	}
+	return 'youtube'
+})
+
+const lessonVideoId = computed(() => {
+	const embedUrl = lesson.data?.youtube
+	const service = lessonVideoService.value
+	if (!embedUrl) return ''
+	const s = String(embedUrl).trim()
+	if (service === 'youtube') {
+		try {
+			const urlObj = new URL(s)
+			if (urlObj.hostname.includes('youtube.com')) {
+				return urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop()
+			} else if (urlObj.hostname.includes('youtu.be')) {
+				return urlObj.pathname.split('/').pop()
+			}
+		} catch (e) {}
+		const match = s.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})/)
+		return match ? match[1] : s
+	} else if (service === 'vimeo') {
+		const match = s.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/)
+		return match ? match[1] : s
+	}
+	return s
+})
+
+const lessonTranscriptResource = createResource({
+	url: 'lms.lms.api.get_video_transcript',
+	makeParams() {
+		return {
+			video_id: lessonVideoId.value,
+			service: lessonVideoService.value
+		}
+	},
+	auto: false
+})
+
+const lessonWordsList = computed(() => {
+	if (!lessonTranscriptResource.data) return []
+	const words = []
+	lessonTranscriptResource.data.forEach((segment) => {
+		const segmentText = segment.text || ''
+		const segmentWords = segmentText.trim().split(/\s+/)
+		if (segmentWords.length === 0 || (segmentWords.length === 1 && segmentWords[0] === '')) return
+		
+		const wordDuration = segment.duration / segmentWords.length
+		segmentWords.forEach((wordText, index) => {
+			words.push({
+				text: wordText,
+				start: segment.start + (index * wordDuration),
+				duration: wordDuration
+			})
+		})
+	})
+	return words
+})
+
+const activeLessonWordIndex = computed(() => {
+	const time = currentVideoTime.value
+	let activeIndex = -1
+	for (let i = 0; i < lessonWordsList.value.length; i++) {
+		const word = lessonWordsList.value[i]
+		if (word.start <= time) {
+			activeIndex = i
+		} else {
+			break
+		}
+	}
+	return activeIndex
+})
+
+const seekToLessonWord = (start) => {
+	const player = activePlayer.value || (plyrSources.value && plyrSources.value[0])
+	if (player) {
+		player.currentTime = start
+		player.play()
+	}
+}
+
+watch(
+	() => [lessonVideoId.value, lessonVideoService.value],
+	([vid, svc]) => {
+		if (vid && svc && lesson.data?.youtube) {
+			lessonTranscriptResource.submit()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(activeLessonWordIndex, (newIndex) => {
+	if (newIndex === -1 || !lessonTranscriptContainer.value) return
+	const container = lessonTranscriptContainer.value
+	const activeWordEl = container.querySelector(`#lesson-word-${newIndex}`)
+	if (activeWordEl) {
+		const containerRect = container.getBoundingClientRect()
+		const elRect = activeWordEl.getBoundingClientRect()
+		
+		const relativeTop = elRect.top - containerRect.top
+		const scrollTarget = container.scrollTop + relativeTop - (containerRect.height / 2) + (elRect.height / 2)
+		
+		container.scrollTo({
+			top: scrollTarget,
+			behavior: 'smooth'
+		})
+	}
 })
 
 const setupLesson = (data) => {
