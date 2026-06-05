@@ -70,10 +70,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
-import { Button, Dialog } from 'frappe-ui'
+import { ref, onMounted, computed, watch, onBeforeUnmount, inject } from 'vue'
+import { Button, Dialog, createResource } from 'frappe-ui'
 import { formatSeconds, formatTimestamp } from '@/utils'
 import QuizInVideo from '@/components/Modals/QuizInVideo.vue'
+import { usersStore } from '@/stores/user'
 
 const plyrElement = ref(null)
 const videoContainer = ref(null)
@@ -84,6 +85,48 @@ const quizLoadTimer = ref(0)
 const currentQuiz = ref(null)
 const nextQuiz = ref({})
 let player = null
+
+const user = inject('$user') || usersStore().userResource
+
+const passedQuizzes = createResource({
+	url: 'frappe.client.get_list',
+	makeParams() {
+		return {
+			doctype: 'LMS Quiz Submission',
+			filters: {
+				member: user.data?.name,
+				quiz: ['in', (props.data.quizzes || []).map(q => q.quiz)],
+			},
+			fields: ['quiz', 'percentage', 'passing_percentage'],
+		}
+	},
+})
+
+const passedQuizNames = computed(() => {
+	const submissions = passedQuizzes.data || []
+	const passed = new Set()
+	submissions.forEach(sub => {
+		const passingPercent = sub.passing_percentage || 0
+		if (Math.ceil(sub.percentage) >= passingPercent) {
+			passed.add(sub.quiz)
+		}
+	})
+	return passed
+})
+
+watch(
+	() => [props.data.quizzes, user.data?.name],
+	([quizzes, username]) => {
+		if (quizzes && quizzes.length > 0 && username) {
+			passedQuizzes.reload()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(passedQuizNames, () => {
+	updateNextQuiz()
+})
 
 const props = defineProps({
 	data: {
@@ -168,6 +211,7 @@ watch(quizLoadTimer, () => {
 const resumeVideo = () => {
 	showQuiz.value = false
 	currentQuiz.value = null
+	passedQuizzes.reload()
 	if (player) {
 		player.play()
 	}
@@ -192,7 +236,7 @@ const updateNextQuiz = () => {
 	quizzes.sort((a, b) => a.time - b.time)
 
 	const nextQuizIndex = quizzes.findIndex(
-		(quiz) => quiz.time > currentTime.value
+		(quiz) => quiz.time > currentTime.value && !passedQuizNames.value.has(quiz.quiz)
 	)
 	if (nextQuizIndex !== -1) {
 		nextQuiz.value = quizzes[nextQuizIndex]

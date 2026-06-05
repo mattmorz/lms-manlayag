@@ -152,13 +152,14 @@
 	</Dialog>
 </template>
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, inject } from 'vue'
 import { Pause, Maximize, Volume2, VolumeX } from 'lucide-vue-next'
-import { Button, Dialog } from 'frappe-ui'
+import { Button, Dialog, createResource } from 'frappe-ui'
 import { formatSeconds, formatTimestamp } from '@/utils'
 import { useSettings } from '@/stores/settings'
 import Play from '@/components/Icons/Play.vue'
 import QuizInVideo from '@/components/Modals/QuizInVideo.vue'
+import { usersStore } from '@/stores/user'
 
 const videoRef = ref(null)
 const videoContainer = ref(null)
@@ -173,6 +174,47 @@ const quizLoadTimer = ref(0)
 const currentQuiz = ref(null)
 const nextQuiz = ref({})
 const { settings } = useSettings()
+const user = inject('$user') || usersStore().userResource
+
+const passedQuizzes = createResource({
+	url: 'frappe.client.get_list',
+	makeParams() {
+		return {
+			doctype: 'LMS Quiz Submission',
+			filters: {
+				member: user.data?.name,
+				quiz: ['in', props.quizzes.map(q => q.quiz)],
+			},
+			fields: ['quiz', 'percentage', 'passing_percentage'],
+		}
+	},
+})
+
+const passedQuizNames = computed(() => {
+	const submissions = passedQuizzes.data || []
+	const passed = new Set()
+	submissions.forEach(sub => {
+		const passingPercent = sub.passing_percentage || 0
+		if (Math.ceil(sub.percentage) >= passingPercent) {
+			passed.add(sub.quiz)
+		}
+	})
+	return passed
+})
+
+watch(
+	() => [props.quizzes, user.data?.name],
+	([quizzes, username]) => {
+		if (quizzes && quizzes.length > 0 && username) {
+			passedQuizzes.reload()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(passedQuizNames, () => {
+	updateNextQuiz()
+})
 
 const props = defineProps({
 	file: {
@@ -240,6 +282,7 @@ watch(quizLoadTimer, () => {
 const resumeVideo = (restart = false) => {
 	showQuiz.value = false
 	currentQuiz.value = null
+	passedQuizzes.reload()
 	updateCurrentTime()
 	setTimeout(() => {
 		videoRef.value.currentTime = restart ? 0 : currentTime.value
@@ -263,7 +306,7 @@ const updateNextQuiz = () => {
 	props.quizzes.sort((a, b) => a.time - b.time)
 
 	const nextQuizIndex = props.quizzes.findIndex(
-		(quiz) => quiz.time > currentTime.value
+		(quiz) => quiz.time > currentTime.value && !passedQuizNames.value.has(quiz.quiz)
 	)
 	if (nextQuizIndex !== -1) {
 		nextQuiz.value = props.quizzes[nextQuizIndex]
