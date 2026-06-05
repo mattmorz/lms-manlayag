@@ -2215,3 +2215,170 @@ def get_assessment_from_lesson(course: str, assessmentType: str):
 					assessments.append(quiz_name)
 
 	return assessments
+
+
+@frappe.whitelist(allow_guest=True)
+def get_video_transcript(video_id: str, service: str):
+	"""Get transcript for a YouTube or Vimeo video, auto-generating/scraping it and caching the result."""
+	cache_key = f"video_transcript_{service}_{video_id}"
+	cached_val = frappe.cache().get_value(cache_key)
+	if cached_val:
+		return json.loads(cached_val)
+
+	transcript = None
+	if service == "youtube":
+		transcript = fetch_youtube_transcript(video_id)
+	elif service == "vimeo":
+		transcript = fetch_vimeo_transcript(video_id)
+
+	if transcript:
+		frappe.cache().set_value(cache_key, json.dumps(transcript), expires_in_sec=86400 * 7) # Cache for 7 days
+		return transcript
+	else:
+		frappe.throw(_("Could not retrieve transcript for this video."))
+
+
+def fetch_youtube_transcript(video_id):
+	import requests
+	import re
+	import json
+	from html import unescape
+
+	try:
+		# First attempt: check if youtube_transcript_api is installed and use it
+		try:
+			from youtube_transcript_api import YouTubeTranscriptApi
+			transcript_list = YouTubeTranscriptApi().fetch(video_id)
+			return [{
+				"text": unescape(t.text),
+				"start": t.start,
+				"duration": t.duration
+			} for t in transcript_list]
+		except Exception:
+			pass
+
+		# Second attempt: scrape YouTube initial player response
+		headers = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+		}
+		r = requests.get(f"https://www.youtube.com/watch?v={video_id}", headers=headers, timeout=10)
+		match = re.search(r'ytInitialPlayerResponse\s*=\s*({.+?});', r.text)
+		if not match:
+			match = re.search(r'ytInitialPlayerResponse\s*=\s*({.+?})\s*</script>', r.text)
+		
+		if match:
+			player_response = json.loads(match.group(1))
+			captions = player_response.get('captions', {}).get('playerCaptionsTracklistRenderer', {}).get('captionTracks', [])
+			if captions:
+				# Find English track if possible, otherwise use the first available
+				track_url = None
+				for track in captions:
+					if 'en' in track.get('languageCode', ''):
+						track_url = track.get('baseUrl')
+						break
+				if not track_url:
+					track_url = captions[0].get('baseUrl')
+
+				if track_url:
+					xml_r = requests.get(track_url, timeout=10)
+					root = ET.fromstring(xml_r.text)
+					transcript = []
+					for text_el in root.findall('text'):
+						start = float(text_el.attrib.get('start', 0))
+						duration = float(text_el.attrib.get('dur', 0))
+						text = unescape("".join(text_el.itertext()))
+						text = " ".join(text.split())
+						transcript.append({
+							'text': text,
+							'start': start,
+							'duration': duration
+						})
+					return transcript
+	except Exception as e:
+		frappe.log_error(f"Error fetching YouTube transcript: {str(e)}")
+	return None
+
+
+def fetch_vimeo_transcript(video_id):
+	import requests
+	import re
+	import json
+
+	try:
+		headers = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+		}
+		r = requests.get(f"https://player.vimeo.com/video/{video_id}/config", headers=headers, timeout=10)
+		if r.status_code == 200:
+			config = r.json()
+			text_tracks = config.get("request", {}).get("text_tracks", [])
+			if text_tracks:
+				track_url = None
+				for track in text_tracks:
+					if track.get("lang") == "en" or "en" in track.get("lang", ""):
+						track_url = track.get("url")
+						break
+				if not track_url:
+					track_url = text_tracks[0].get("url")
+
+				if track_url:
+					vtt_r = requests.get(f"https://player.vimeo.com{track_url}" if track_url.startswith("/") else track_url, headers=headers, timeout=10)
+					if vtt_r.status_code == 200:
+						return parse_vtt(vtt_r.text)
+	except Exception as e:
+		frappe.log_error(f"Error fetching Vimeo transcript: {str(e)}")
+	return None
+
+
+def parse_vtt(vtt_text):
+	import re
+	lines = vtt_text.split('\n')
+	transcript = []
+	current_time = None
+	current_text = []
+
+	def parse_time(time_str):
+		parts = time_str.split(':')
+		seconds_parts = parts[-1].split('.')
+		seconds = float(seconds_parts[0])
+		milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+		minutes = float(parts[-2]) if len(parts) > 1 else 0
+		hours = float(parts[-3]) if len(parts) > 2 else 0
+		return hours * 3600 + minutes * 60 + seconds + milliseconds
+
+	for line in lines:
+		line = line.strip()
+		if not line:
+			if current_time and current_text:
+				transcript.append({
+					'text': " ".join(current_text),
+					'start': current_time[0],
+					'duration': current_time[1]
+				})
+				current_time = None
+				current_text = []
+			continue
+		
+		if line.startswith("WEBVTT") or line.startswith("STYLE") or line.startswith("NOTE"):
+			continue
+
+		if '-->' in line:
+			match = re.search(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)', line)
+			if match:
+				start = parse_time(match.group(1))
+				end = parse_time(match.group(2))
+				current_time = (start, end - start)
+		elif not line.isdigit() and current_time:
+			line_cleaned = re.sub(r'<[^>]*>', '', line)
+			if line_cleaned:
+				current_text.append(line_cleaned)
+
+	if current_time and current_text:
+		transcript.append({
+			'text': " ".join(current_text),
+			'start': current_time[0],
+			'duration': current_time[1]
+		})
+
+	return transcript
+

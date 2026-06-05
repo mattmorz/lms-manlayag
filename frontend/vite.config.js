@@ -2,11 +2,20 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
 
 export default defineConfig(async ({ mode }) => {
 	const isDev = mode === 'development'
 	console.log(mode, isDev)
 	const frappeui = await importFrappeUIPlugin(isDev)
+
+	const resolveAlias = {
+		'@': path.resolve(__dirname, 'src'),
+	}
+	const realConfigPath = path.resolve(__dirname, '../../../../sites/common_site_config.json')
+	if (!fs.existsSync(realConfigPath)) {
+		resolveAlias['../../../../sites/common_site_config.json'] = path.resolve(__dirname, 'src/mock_common_site_config.json')
+	}
 
 	const config = {
 		define: {
@@ -51,9 +60,7 @@ export default defineConfig(async ({ mode }) => {
 			allowedHosts: true,
 		},
 		resolve: {
-			alias: {
-				'@': path.resolve(__dirname, 'src'),
-			},
+			alias: resolveAlias,
 		},
 		optimizeDeps: {
 			include: [

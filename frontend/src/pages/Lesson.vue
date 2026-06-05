@@ -309,6 +309,60 @@
 								:quizId="lesson.data.quiz_id"
 							/>
 						</div>
+
+						<div v-if="hasLessonTranscript" class="mt-6">
+							<Button
+								variant="ghost"
+								class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+								@click="showLessonTranscript = !showLessonTranscript"
+							>
+								<template #prefix>
+									<FileText class="w-4 h-4 stroke-1.5" />
+								</template>
+								<span>{{ showLessonTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
+							</Button>
+							
+							<div 
+								v-show="showLessonTranscript" 
+								class="mt-2 border border-outline-gray-2 rounded-md bg-surface-gray-2 p-4 transition-all duration-300"
+							>
+								<div 
+									v-if="lessonTranscriptResource.loading" 
+									class="flex items-center justify-center py-6 text-sm text-ink-gray-5"
+								>
+									<LoadingIndicator class="w-5 h-5 mr-2" />
+									<span>{{ __('Loading transcript...') }}</span>
+								</div>
+								<div 
+									v-else-if="lessonTranscriptResource.error" 
+									class="text-sm text-red-500 py-2 text-center"
+								>
+									{{ __('Could not load transcript for this video.') }}
+								</div>
+								<div 
+									v-else-if="lessonWordsList.length === 0" 
+									class="text-sm text-ink-gray-5 py-2 text-center"
+								>
+									{{ __('No transcript available.') }}
+								</div>
+								<div 
+									v-else
+									ref="lessonTranscriptContainer"
+									class="relative overflow-y-auto max-h-48 scrollbar-thin scroll-smooth text-base leading-relaxed pr-2"
+								>
+									<span 
+										v-for="(word, index) in lessonWordsList" 
+										:key="index"
+										:id="'lesson-word-' + index"
+										class="inline-block mr-1 cursor-pointer transition-colors duration-150 rounded px-0.5 select-none"
+										:class="index === activeLessonWordIndex ? 'bg-yellow-200/80 text-ink-gray-9 font-bold dark:bg-yellow-900/50 dark:text-yellow-100' : 'text-ink-gray-7 hover:bg-gray-100 dark:hover:bg-gray-800'"
+										@click="seekToLessonWord(word.start)"
+									>
+										{{ word.text }}
+									</span>
+								</div>
+							</div>
+						</div>
 					</div>
 					<div
 						v-if="lesson.data"
@@ -388,6 +442,7 @@ import {
 	call,
 	createListResource,
 	createResource,
+	LoadingIndicator,
 	TabButtons,
 	Tooltip,
 	usePageMeta,
@@ -406,6 +461,7 @@ import { useRouter, useRoute } from 'vue-router'
 import {
 	ChevronLeft,
 	ChevronRight,
+	FileText,
 	LockKeyholeIcon,
 	LogIn,
 	Focus,
@@ -449,6 +505,127 @@ const plyrSources = ref([])
 const showInlineMenu = ref(false)
 const currentTab = ref('Notes')
 let timerInterval
+
+const showLessonTranscript = ref(false)
+const lessonTranscriptContainer = ref(null)
+const currentVideoTime = ref(0)
+const activePlayer = ref(null)
+
+const hasLessonTranscript = computed(() => {
+	return !!lesson.data?.youtube
+})
+
+const lessonVideoService = computed(() => {
+	const url = lesson.data?.youtube || ''
+	if (url.includes('vimeo.com') || url.includes('player.vimeo.com')) {
+		return 'vimeo'
+	}
+	return 'youtube'
+})
+
+const lessonVideoId = computed(() => {
+	const embedUrl = lesson.data?.youtube
+	const service = lessonVideoService.value
+	if (!embedUrl) return ''
+	const s = String(embedUrl).trim()
+	if (service === 'youtube') {
+		try {
+			const urlObj = new URL(s)
+			if (urlObj.hostname.includes('youtube.com')) {
+				return urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop()
+			} else if (urlObj.hostname.includes('youtu.be')) {
+				return urlObj.pathname.split('/').pop()
+			}
+		} catch (e) {}
+		const match = s.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})/)
+		return match ? match[1] : s
+	} else if (service === 'vimeo') {
+		const match = s.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/)
+		return match ? match[1] : s
+	}
+	return s
+})
+
+const lessonTranscriptResource = createResource({
+	url: 'lms.lms.api.get_video_transcript',
+	makeParams() {
+		return {
+			video_id: lessonVideoId.value,
+			service: lessonVideoService.value
+		}
+	},
+	auto: false
+})
+
+watch(
+	() => [lessonVideoId.value, lessonVideoService.value],
+	([vid, svc]) => {
+		if (vid && svc && lesson.data?.youtube) {
+			lessonTranscriptResource.submit()
+		}
+	},
+	{ immediate: true }
+)
+
+const lessonWordsList = computed(() => {
+	if (!lessonTranscriptResource.data) return []
+	const words = []
+	lessonTranscriptResource.data.forEach((segment) => {
+		const segmentText = segment.text || ''
+		const segmentWords = segmentText.trim().split(/\s+/)
+		if (segmentWords.length === 0 || (segmentWords.length === 1 && segmentWords[0] === '')) return
+		
+		const wordDuration = segment.duration / segmentWords.length
+		segmentWords.forEach((wordText, index) => {
+			words.push({
+				text: wordText,
+				start: segment.start + (index * wordDuration),
+				duration: wordDuration
+			})
+		})
+	})
+	return words
+})
+
+const activeLessonWordIndex = computed(() => {
+	const time = currentVideoTime.value
+	let activeIndex = -1
+	for (let i = 0; i < lessonWordsList.value.length; i++) {
+		const word = lessonWordsList.value[i]
+		if (word.start <= time) {
+			activeIndex = i
+		} else {
+			break
+		}
+	}
+	return activeIndex
+})
+
+const seekToLessonWord = (start) => {
+	const player = activePlayer.value || (plyrSources.value && plyrSources.value[0])
+	if (player) {
+		player.currentTime = start
+		player.play()
+	}
+}
+
+watch(activeLessonWordIndex, (newIndex) => {
+	if (newIndex === -1 || !lessonTranscriptContainer.value) return
+	const container = lessonTranscriptContainer.value
+	const activeWordEl = container.querySelector(`#lesson-word-${newIndex}`)
+	if (activeWordEl) {
+		const containerRect = container.getBoundingClientRect()
+		const elRect = activeWordEl.getBoundingClientRect()
+		
+		const relativeTop = elRect.top - containerRect.top
+		const scrollTarget = container.scrollTop + relativeTop - (containerRect.height / 2) + (elRect.height / 2)
+		
+		container.scrollTo({
+			top: scrollTarget,
+			behavior: 'smooth'
+		})
+	}
+})
 
 const tabs = ref([
 	{
@@ -815,6 +992,9 @@ const getPlyrSource = async () => {
 		})
 
 		plyrSource.on('timeupdate', () => {
+			currentVideoTime.value = plyrSource.currentTime
+			activePlayer.value = plyrSource
+
 			if (plyrSource.duration && plyrSource.currentTime >= 0.9 * plyrSource.duration) {
 				markProgress()
 			}
@@ -834,6 +1014,8 @@ const getPlyrSource = async () => {
 		})
 
 		video.addEventListener('timeupdate', () => {
+			currentVideoTime.value = video.currentTime
+
 			if (video.duration && video.currentTime >= 0.9 * video.duration) {
 				markProgress()
 			}
