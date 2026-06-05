@@ -6,11 +6,12 @@ import { createDialog } from '@/utils/dialogs'
 
 export class CustomEmbed {
 	constructor({ data, api, readOnly, config }) {
-		this.data = data
+		this.data = data || {}
 		this.api = api
 		this.readOnly = readOnly
 		this.config = config
 		this.embedTool = new EmbedTool({ data, api, readOnly, config })
+		this.resolveServiceFromSource()
 	}
 
 	static get toolbox() {
@@ -22,7 +23,10 @@ export class CustomEmbed {
 	}
 
 	static get conversionConfig() {
-		return EmbedTool.conversionConfig
+		return {
+			import: 'source',
+			export: 'source'
+		}
 	}
 
 	static get pasteConfig() {
@@ -31,6 +35,41 @@ export class CustomEmbed {
 
 	static get sanitize() {
 		return EmbedTool.sanitize
+	}
+
+	static prepare(options) {
+		EmbedTool.prepare(options)
+	}
+
+	resolveServiceFromSource() {
+		if (this.data && this.data.source && !this.data.service) {
+			const source = this.data.source.trim()
+			const services = EmbedTool.services || {}
+			for (const [name, service] of Object.entries(services)) {
+				const match = service.regex.exec(source)
+				if (match) {
+					const idFn = service.id || ((c) => c.shift())
+					const matchedGroups = match.slice(1)
+					const remoteId = idFn(matchedGroups)
+					const embedUrl = service.embedUrl.replace(/<%= remote_id %>/g, remoteId)
+					
+					this.data.service = name
+					this.data.embed = embedUrl
+					this.data.width = service.width
+					this.data.height = service.height
+					
+					this.embedTool.data = {
+						service: name,
+						source: source,
+						embed: embedUrl,
+						width: service.width,
+						height: service.height,
+						caption: this.data.caption || ''
+					}
+					break
+				}
+			}
+		}
 	}
 
 	render() {
