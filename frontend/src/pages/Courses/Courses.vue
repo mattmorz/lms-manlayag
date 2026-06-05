@@ -173,14 +173,23 @@ const handleImportFile = (event) => {
 			const courseData = JSON.parse(e.target.result)
 			call('lms.lms.api.import_course', { course_data: courseData })
 				.then((newCourseName) => {
-					toast.success(__('Course imported successfully: {0}', [newCourseName]))
+					toast.success(
+						__('Course "{0}" imported successfully.', [
+							newCourseName,
+						])
+					)
 					courses.reload()
 				})
 				.catch((err) => {
-					toast.error(err.message || __('Failed to import course'))
+					const errorMsg =
+						err.message ||
+						(err.messages && err.messages[0]) ||
+						err ||
+						__('Unknown error')
+					toast.error(__('Failed to import course: {0}', [errorMsg]))
 				})
 		} catch (err) {
-			toast.error(__('Invalid JSON file'))
+			toast.error(__('Failed to parse file: Invalid JSON format.'))
 		}
 	}
 	reader.readAsText(file)

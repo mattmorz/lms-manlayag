@@ -2648,6 +2648,17 @@ def import_course(course_data):
 		})
 		chapter_doc.insert(ignore_permissions=True)
 		new_chapter_name = chapter_doc.name
+
+		# Create Chapter Reference child row in the course
+		chapter_ref_doc = frappe.get_doc({
+			"doctype": "Chapter Reference",
+			"parent": new_course_name,
+			"parenttype": "LMS Course",
+			"parentfield": "chapters",
+			"chapter": new_chapter_name,
+			"idx": ch.get("idx")
+		})
+		chapter_ref_doc.insert(ignore_permissions=True)
 		
 		for les in ch.get("lessons", []):
 			cleaned_lesson = les.copy()
