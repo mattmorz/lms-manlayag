@@ -107,23 +107,23 @@
 												>
 												<div class="flex items-center text-sm leading-5 group">
 													<MonitorPlay
-														v-if="lesson.icon === 'icon-youtube'"
+														v-if="!lesson.locked && lesson.icon === 'icon-youtube'"
 														class="h-4 w-4 stroke-1 mr-2"
 													/>
 													<HelpCircle
-														v-else-if="lesson.icon === 'icon-quiz'"
+														v-else-if="!lesson.locked && lesson.icon === 'icon-quiz'"
 														class="h-4 w-4 stroke-1 mr-2"
 													/>
 													<NotebookPen
-														v-else-if="lesson.icon === 'icon-assignment'"
+														v-else-if="!lesson.locked && lesson.icon === 'icon-assignment'"
 														class="h-4 w-4 stroke-1 mr-2"
 													/>
 													<SquareCode
-														v-else-if="lesson.icon === 'icon-code'"
+														v-else-if="!lesson.locked && lesson.icon === 'icon-code'"
 														class="h-4 w-4 stroke-1 mr-2"
 													/>
 													<FileText
-														v-else-if="lesson.icon === 'icon-list'"
+														v-else-if="!lesson.locked && lesson.icon === 'icon-list'"
 														class="h-4 w-4 text-ink-gray-9 stroke-1 mr-2"
 													/>
 													<LockKeyhole
@@ -148,26 +148,6 @@
 												v-else
 												class="flex items-center text-sm leading-5 opacity-60 cursor-not-allowed"
 											>
-												<MonitorPlay
-													v-if="lesson.icon === 'icon-youtube'"
-													class="h-4 w-4 stroke-1 mr-2"
-												/>
-												<HelpCircle
-													v-else-if="lesson.icon === 'icon-quiz'"
-													class="h-4 w-4 stroke-1 mr-2"
-												/>
-												<NotebookPen
-													v-else-if="lesson.icon === 'icon-assignment'"
-													class="h-4 w-4 stroke-1 mr-2"
-												/>
-												<SquareCode
-													v-else-if="lesson.icon === 'icon-code'"
-													class="h-4 w-4 stroke-1 mr-2"
-												/>
-												<FileText
-													v-else-if="lesson.icon === 'icon-list'"
-													class="h-4 w-4 text-ink-gray-9 stroke-1 mr-2"
-												/>
 												<LockKeyhole
 													class="h-4 w-4 text-orange-600 mr-2"
 												/>
