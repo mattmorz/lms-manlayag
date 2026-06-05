@@ -114,7 +114,7 @@
 			v-if="showQuiz"
 			:quizName="currentQuiz"
 			:inVideo="true"
-			:enforcePass="currentQuizObj.enforce_pass"
+			:enforce-pass="currentQuizObj.enforce_pass"
 			:backToVideo="resumeVideo"
 		/>
 		<div v-if="!readOnly" @click="showQuizModal = true">

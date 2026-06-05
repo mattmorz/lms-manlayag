@@ -31,7 +31,7 @@
 			v-if="showQuiz"
 			:quizName="currentQuiz"
 			:inVideo="true"
-			:enforcePass="currentQuizObj.enforce_pass"
+			:enforce-pass="currentQuizObj.enforce_pass"
 			:backToVideo="resumeVideo"
 		/>
 		<div v-if="!readOnly" class="mt-2 text-center" @click="showQuizModal = true">
