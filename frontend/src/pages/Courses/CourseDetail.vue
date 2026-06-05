@@ -8,6 +8,12 @@
 				<Badge v-if="childRef?.isDirty" theme="orange">
 					{{ __('Not Saved') }}
 				</Badge>
+				<Button @click="exportCourse()">
+					<template #prefix>
+						<Download class="w-4 h-4 stroke-1.5" />
+					</template>
+					{{ __('Export') }}
+				</Button>
 				<Button @click="childRef.trashCourse()">
 					<template #icon>
 						<Trash2 class="w-4 h-4 stroke-1.5" />
@@ -32,15 +38,17 @@
 import {
 	Badge,
 	Button,
+	call,
 	createResource,
 	Breadcrumbs,
 	Tabs,
 	usePageMeta,
+	toast,
 } from 'frappe-ui'
 import { computed, inject, markRaw, onMounted, ref, watch } from 'vue'
 import { sessionStore } from '@/stores/session'
 import { useRouter, useRoute } from 'vue-router'
-import { List, Settings2, Trash2, TrendingUp } from 'lucide-vue-next'
+import { List, Settings2, Trash2, TrendingUp, Download } from 'lucide-vue-next'
 import CourseOverview from '@/pages/Courses/CourseOverview.vue'
 import CourseDashboard from '@/pages/Courses/CourseDashboard.vue'
 import CourseForm from '@/pages/Courses/CourseForm.vue'
@@ -51,6 +59,25 @@ const route = useRoute()
 const user = inject('$user')
 const tabIndex = ref(0)
 const childRef = ref(null)
+
+const exportCourse = () => {
+	call('lms.lms.api.export_course', { course_name: props.courseName })
+		.then((data) => {
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+			const url = URL.createObjectURL(blob)
+			const downloadAnchor = document.createElement('a')
+			downloadAnchor.href = url
+			downloadAnchor.download = `${props.courseName}.json`
+			document.body.appendChild(downloadAnchor)
+			downloadAnchor.click()
+			downloadAnchor.remove()
+			URL.revokeObjectURL(url)
+			toast.success(__('Course exported successfully'))
+		})
+		.catch((err) => {
+			toast.error(err.message || __('Failed to export course'))
+		})
+}
 
 const props = defineProps({
 	courseName: {

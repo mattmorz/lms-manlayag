@@ -20,10 +20,7 @@
 					label: __('Import Course'),
 					icon: 'upload',
 					onClick() {
-						router.push({
-							name: 'NewDataImport',
-							params: { doctype: 'LMS Course' },
-						})
+						triggerImportFileInput()
 					},
 				},
 			]"
@@ -111,6 +108,13 @@
 		v-model="showCourseModal"
 		:courses="courses"
 	/>
+	<input
+		ref="importFileInput"
+		type="file"
+		accept=".json"
+		class="hidden"
+		@change="handleImportFile"
+	/>
 </template>
 <script setup>
 import {
@@ -123,6 +127,7 @@ import {
 	Select,
 	TabButtons,
 	usePageMeta,
+	toast,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { ChevronDown, Plus } from 'lucide-vue-next'
@@ -152,6 +157,35 @@ const { brand } = sessionStore()
 const courseCount = ref(0)
 const router = useRouter()
 const showCourseModal = ref(false)
+const importFileInput = ref(null)
+
+const triggerImportFileInput = () => {
+	importFileInput.value?.click()
+}
+
+const handleImportFile = (event) => {
+	const file = event.target.files[0]
+	if (!file) return
+
+	const reader = new FileReader()
+	reader.onload = (e) => {
+		try {
+			const courseData = JSON.parse(e.target.result)
+			call('lms.lms.api.import_course', { course_data: courseData })
+				.then((newCourseName) => {
+					toast.success(__('Course imported successfully: {0}', [newCourseName]))
+					courses.reload()
+				})
+				.catch((err) => {
+					toast.error(err.message || __('Failed to import course'))
+				})
+		} catch (err) {
+			toast.error(__('Invalid JSON file'))
+		}
+	}
+	reader.readAsText(file)
+	event.target.value = ''
+}
 
 onMounted(() => {
 	setFiltersFromQuery()

@@ -2384,3 +2384,334 @@ def parse_vtt(vtt_text):
 
 	return transcript
 
+
+@frappe.whitelist()
+def export_course(course_name: str):
+	if not can_modify_course(course_name):
+		frappe.throw(_("You do not have permission to export this course."), frappe.PermissionError)
+
+	course_doc = frappe.get_doc("LMS Course", course_name)
+	course_dict = course_doc.as_dict()
+
+	exclude_fields = [
+		"name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", 
+		"status", "rating", "enrollments", "lessons", "notification_sent",
+		"instructors", "chapters", "related_courses"
+	]
+	cleaned_course = {k: v for k, v in course_dict.items() if k not in exclude_fields}
+
+	chapters = []
+	chapter_refs = frappe.get_all(
+		"Chapter Reference", 
+		filters={"parent": course_name, "parenttype": "LMS Course"}, 
+		fields=["chapter", "idx"],
+		order_by="idx"
+	)
+	
+	quiz_names = set()
+	assignment_names = set()
+
+	for ref in chapter_refs:
+		if not frappe.db.exists("Course Chapter", ref.chapter):
+			continue
+		chapter_doc = frappe.get_doc("Course Chapter", ref.chapter)
+		chapter_dict = chapter_doc.as_dict()
+		cleaned_chapter = {
+			"title": chapter_dict.get("title"),
+			"idx": ref.get("idx"),
+			"is_scorm_package": chapter_dict.get("is_scorm_package"),
+			"scorm_package": chapter_dict.get("scorm_package"),
+			"scorm_package_path": chapter_dict.get("scorm_package_path"),
+			"manifest_file": chapter_dict.get("manifest_file"),
+			"launch_file": chapter_dict.get("launch_file"),
+			"lessons": []
+		}
+		
+		lesson_refs = frappe.get_all(
+			"Lesson Reference",
+			filters={"parent": ref.chapter, "parenttype": "Course Chapter"},
+			fields=["lesson", "idx"],
+			order_by="idx"
+		)
+		
+		for l_ref in lesson_refs:
+			if not frappe.db.exists("Course Lesson", l_ref.lesson):
+				continue
+			lesson_doc = frappe.get_doc("Course Lesson", l_ref.lesson)
+			lesson_dict = lesson_doc.as_dict()
+			cleaned_lesson = {
+				"title": lesson_dict.get("title"),
+				"idx": l_ref.get("idx"),
+				"include_in_preview": lesson_dict.get("include_in_preview"),
+				"body": lesson_dict.get("body"),
+				"content": lesson_dict.get("content"),
+				"instructor_notes": lesson_dict.get("instructor_notes"),
+				"instructor_content": lesson_dict.get("instructor_content"),
+				"youtube": lesson_dict.get("youtube"),
+				"quiz_id": lesson_dict.get("quiz_id"),
+				"require_quiz_pass": lesson_dict.get("require_quiz_pass"),
+				"question": lesson_dict.get("question"),
+				"file_type": lesson_dict.get("file_type")
+			}
+			
+			if lesson_dict.get("quiz_id"):
+				for q_id in [q.strip() for q in lesson_dict.get("quiz_id").split(",") if q.strip()]:
+					quiz_names.add(q_id)
+					
+			for content_field in ["content", "instructor_content"]:
+				if lesson_dict.get(content_field):
+					try:
+						content = json.loads(lesson_dict.get(content_field))
+						for block in content.get("blocks", []):
+							if block.get("type") == "quiz":
+								q_id = block.get("data", {}).get("quiz")
+								if q_id:
+									quiz_names.add(q_id)
+							elif block.get("type") == "assignment":
+								a_id = block.get("data", {}).get("assignment")
+								if a_id:
+									assignment_names.add(a_id)
+					except Exception:
+						pass
+					
+			cleaned_chapter["lessons"].append(cleaned_lesson)
+			
+		chapters.append(cleaned_chapter)
+
+	course_assignments = frappe.get_all(
+		"LMS Assignment",
+		filters={"course": course_name},
+		fields=["name"]
+	)
+	for ass in course_assignments:
+		assignment_names.add(ass.name)
+
+	quizzes = []
+	questions_to_export = set()
+	for q_name in quiz_names:
+		if frappe.db.exists("LMS Quiz", q_name):
+			q_doc = frappe.get_doc("LMS Quiz", q_name)
+			q_dict = q_doc.as_dict()
+			
+			cleaned_q_questions = []
+			for qq in q_doc.questions:
+				cleaned_q_questions.append({
+					"question": qq.question,
+					"marks": qq.marks
+				})
+				questions_to_export.add(qq.question)
+				
+			quizzes.append({
+				"name": q_doc.name,
+				"title": q_dict.get("title"),
+				"max_attempts": q_dict.get("max_attempts"),
+				"show_answers": q_dict.get("show_answers"),
+				"show_submission_history": q_dict.get("show_submission_history"),
+				"passing_percentage": q_dict.get("passing_percentage"),
+				"shuffle_questions": q_dict.get("shuffle_questions"),
+				"limit_questions_to": q_dict.get("limit_questions_to"),
+				"enable_negative_marking": q_dict.get("enable_negative_marking"),
+				"marks_to_cut": q_dict.get("marks_to_cut"),
+				"duration": q_dict.get("duration"),
+				"questions": cleaned_q_questions
+			})
+
+	questions = []
+	for qst_name in questions_to_export:
+		if frappe.db.exists("LMS Question", qst_name):
+			qst_doc = frappe.get_doc("LMS Question", qst_name)
+			qst_dict = qst_doc.as_dict()
+			exclude_q_fields = ["name", "owner", "creation", "modified", "modified_by", "docstatus", "idx"]
+			cleaned_qst = {k: v for k, v in qst_dict.items() if k not in exclude_q_fields}
+			cleaned_qst["name"] = qst_doc.name
+			questions.append(cleaned_qst)
+
+	assignments = []
+	for ass_name in assignment_names:
+		if frappe.db.exists("LMS Assignment", ass_name):
+			ass_doc = frappe.get_doc("LMS Assignment", ass_name)
+			ass_dict = ass_doc.as_dict()
+			exclude_ass_fields = ["name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", "course"]
+			cleaned_ass = {k: v for k, v in ass_dict.items() if k not in exclude_ass_fields}
+			cleaned_ass["name"] = ass_doc.name
+			assignments.append(cleaned_ass)
+
+	return {
+		"course": cleaned_course,
+		"chapters": chapters,
+		"quizzes": quizzes,
+		"questions": questions,
+		"assignments": assignments
+	}
+
+
+@frappe.whitelist()
+def import_course(course_data):
+	if isinstance(course_data, str):
+		data = json.loads(course_data)
+	else:
+		data = course_data
+
+	question_name_map = {}
+	for qst in data.get("questions", []):
+		old_name = qst.get("name")
+		cleaned_qst = qst.copy()
+		cleaned_qst.pop("name", None)
+		
+		new_qst_doc = frappe.get_doc({
+			"doctype": "LMS Question",
+			**cleaned_qst
+		})
+		new_qst_doc.insert(ignore_permissions=True)
+		question_name_map[old_name] = new_qst_doc.name
+		
+	quiz_name_map = {}
+	for quiz in data.get("quizzes", []):
+		old_name = quiz.get("name")
+		cleaned_quiz = quiz.copy()
+		cleaned_quiz.pop("name", None)
+		
+		original_title = cleaned_quiz.get("title")
+		title = original_title
+		suffix = 1
+		while frappe.db.exists("LMS Quiz", {"title": title}):
+			suffix += 1
+			title = f"{original_title} ({suffix})"
+		cleaned_quiz["title"] = title
+		
+		new_questions = []
+		for qq in cleaned_quiz.get("questions", []):
+			old_q_ref = qq.get("question")
+			new_q_ref = question_name_map.get(old_q_ref, old_q_ref)
+			new_questions.append({
+				"question": new_q_ref,
+				"marks": qq.get("marks", 1)
+			})
+		cleaned_quiz["questions"] = new_questions
+		
+		new_quiz_doc = frappe.get_doc({
+			"doctype": "LMS Quiz",
+			**cleaned_quiz
+		})
+		new_quiz_doc.insert(ignore_permissions=True)
+		quiz_name_map[old_name] = new_quiz_doc.name
+
+	assignment_name_map = {}
+	for ass in data.get("assignments", []):
+		old_name = ass.get("name")
+		cleaned_ass = ass.copy()
+		cleaned_ass.pop("name", None)
+		
+		new_ass_doc = frappe.get_doc({
+			"doctype": "LMS Assignment",
+			**cleaned_ass
+		})
+		new_ass_doc.insert(ignore_permissions=True)
+		assignment_name_map[old_name] = new_ass_doc.name
+
+	course_info = data.get("course")
+	cleaned_course = course_info.copy()
+	
+	original_course_title = cleaned_course.get("title")
+	course_title = original_course_title
+	suffix = 1
+	while frappe.db.exists("LMS Course", {"title": course_title}):
+		suffix += 1
+		course_title = f"{original_course_title} ({suffix})"
+	cleaned_course["title"] = course_title
+	
+	current_user = frappe.session.user
+	cleaned_course["instructors"] = [{"instructor": current_user}]
+	cleaned_course["owner"] = current_user
+	
+	course_doc = frappe.get_doc({
+		"doctype": "LMS Course",
+		**cleaned_course
+	})
+	course_doc.insert(ignore_permissions=True)
+	new_course_name = course_doc.name
+
+	for old_ass_name, new_ass_name in assignment_name_map.items():
+		frappe.db.set_value("LMS Assignment", new_ass_name, "course", new_course_name)
+
+	for ch in data.get("chapters", []):
+		chapter_doc = frappe.get_doc({
+			"doctype": "Course Chapter",
+			"course": new_course_name,
+			"title": ch.get("title"),
+			"idx": ch.get("idx"),
+			"is_scorm_package": ch.get("is_scorm_package"),
+			"scorm_package": ch.get("scorm_package"),
+			"scorm_package_path": ch.get("scorm_package_path"),
+			"manifest_file": ch.get("manifest_file"),
+			"launch_file": ch.get("launch_file")
+		})
+		chapter_doc.insert(ignore_permissions=True)
+		new_chapter_name = chapter_doc.name
+		
+		for les in ch.get("lessons", []):
+			cleaned_lesson = les.copy()
+			
+			old_quiz_ids = [q.strip() for q in (cleaned_lesson.get("quiz_id") or "").split(",") if q.strip()]
+			new_quiz_ids = [quiz_name_map.get(q, q) for q in old_quiz_ids]
+			cleaned_lesson["quiz_id"] = ", ".join(new_quiz_ids)
+			
+			for content_field in ["content", "instructor_content"]:
+				if cleaned_lesson.get(content_field):
+					try:
+						content = json.loads(cleaned_lesson[content_field])
+						for block in content.get("blocks", []):
+							if block.get("type") == "quiz":
+								q_ref = block.get("data", {}).get("quiz")
+								if q_ref in quiz_name_map:
+									block["data"]["quiz"] = quiz_name_map[q_ref]
+							elif block.get("type") == "assignment":
+								a_ref = block.get("data", {}).get("assignment")
+								if a_ref in assignment_name_map:
+									block["data"]["assignment"] = assignment_name_map[a_ref]
+						cleaned_lesson[content_field] = json.dumps(content)
+					except Exception:
+						pass
+			
+			lesson_doc = frappe.get_doc({
+				"doctype": "Course Lesson",
+				"chapter": new_chapter_name,
+				"course": new_course_name,
+				"title": cleaned_lesson.get("title"),
+				"include_in_preview": cleaned_lesson.get("include_in_preview"),
+				"body": cleaned_lesson.get("body"),
+				"content": cleaned_lesson.get("content"),
+				"instructor_notes": cleaned_lesson.get("instructor_notes"),
+				"instructor_content": cleaned_lesson.get("instructor_content"),
+				"youtube": cleaned_lesson.get("youtube"),
+				"require_quiz_pass": cleaned_lesson.get("require_quiz_pass"),
+				"quiz_id": cleaned_lesson.get("quiz_id"),
+				"question": cleaned_lesson.get("question"),
+				"file_type": cleaned_lesson.get("file_type")
+			})
+			lesson_doc.insert(ignore_permissions=True)
+			new_lesson_name = lesson_doc.name
+			
+			lesson_ref_doc = frappe.get_doc({
+				"doctype": "Lesson Reference",
+				"parent": new_chapter_name,
+				"parenttype": "Course Chapter",
+				"parentfield": "lessons",
+				"lesson": new_lesson_name,
+				"idx": les.get("idx")
+			})
+			lesson_ref_doc.insert(ignore_permissions=True)
+
+			for new_q_ref in new_quiz_ids:
+				if frappe.db.exists("LMS Quiz", new_q_ref):
+					frappe.db.set_value(
+						"LMS Quiz",
+						new_q_ref,
+						{
+							"course": new_course_name,
+							"lesson": new_lesson_name
+						}
+					)
+
+	return new_course_name
+
