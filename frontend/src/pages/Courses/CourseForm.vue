@@ -482,6 +482,14 @@ const deleteCourse = createResource({
 		toast.success(__('Course deleted successfully'))
 		router.push({ name: 'Courses' })
 	},
+	onError(err) {
+		const errorMsg =
+			err.message ||
+			(err.messages && err.messages[0]) ||
+			err ||
+			__('Unknown error')
+		toast.error(__('Failed to delete course: {0}').format(errorMsg))
+	},
 })
 
 const trashCourse = () => {
