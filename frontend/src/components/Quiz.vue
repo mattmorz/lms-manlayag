@@ -472,9 +472,9 @@ watch(
 	() => {
 		if (quiz.data) {
 			populateQuestions()
+			attempts.reload()
 		}
 		if (quiz.data && quiz.data.max_attempts) {
-			attempts.reload()
 			resetQuiz()
 		}
 	}
@@ -639,7 +639,7 @@ const createSubmission = () => {
 		{
 			onSuccess(data) {
 				markLessonProgress()
-				if (quiz.data && quiz.data.max_attempts) attempts.reload()
+				attempts.reload()
 				if (quiz.data.duration) clearInterval(timerInterval)
 			},
 			onError(err) {
