@@ -16,7 +16,7 @@
 			</div>
 		</div>
 		<div
-			v-if="!showQuiz"
+			v-show="!showQuiz"
 			ref="videoContainer"
 			class="video-block relative group"
 		>

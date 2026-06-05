@@ -3,6 +3,7 @@ import EmbedVideoBlock from '@/components/EmbedVideoBlock.vue'
 import { createApp } from 'vue'
 import translationPlugin from '../translation'
 import { createDialog } from '@/utils/dialogs'
+import { usersStore } from '@/stores/user'
 
 export class CustomEmbed {
 	constructor({ data, api, readOnly, config }) {
@@ -78,6 +79,7 @@ export class CustomEmbed {
 			this.wrapper = document.createElement('div')
 			this.wrapper.className = 'custom-video-embed-wrapper w-full'
 			
+			const { userResource } = usersStore()
 			const app = createApp(EmbedVideoBlock, {
 				data: this.data,
 				readOnly: this.readOnly,
@@ -86,6 +88,7 @@ export class CustomEmbed {
 					this.data.quizzes = quizzes
 				},
 			})
+			app.provide('$user', userResource)
 			app.use(translationPlugin)
 			app.config.globalProperties.$dialog = createDialog
 			app.mount(this.wrapper)

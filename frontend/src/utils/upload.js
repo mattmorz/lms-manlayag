@@ -5,6 +5,7 @@ import { h, createApp } from 'vue'
 import { Upload as UploadIcon } from 'lucide-vue-next'
 import { createDialog } from '@/utils/dialogs'
 import translationPlugin from '../translation'
+import { usersStore } from '@/stores/user'
 
 export class Upload {
 	constructor({ data, api, readOnly }) {
@@ -45,6 +46,7 @@ export class Upload {
 
 	renderFile(file) {
 		if (this.isVideo(file.file_type)) {
+			const { userResource } = usersStore()
 			const app = createApp(VideoBlock, {
 				file: file.file_url,
 				readOnly: this.readOnly,
@@ -54,6 +56,7 @@ export class Upload {
 					this.data.quizzes = quizzes
 				},
 			})
+			app.provide('$user', userResource)
 			app.use(translationPlugin)
 			app.config.globalProperties.$dialog = createDialog
 			app.mount(this.wrapper)
