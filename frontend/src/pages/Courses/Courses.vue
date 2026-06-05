@@ -178,9 +178,7 @@ const handleImportFile = (event) => {
 							? response.message || response.name || JSON.stringify(response)
 							: response
 					toast.success(
-						__('Course "{0}" imported successfully.', [
-							courseName,
-						])
+						__('Course "{0}" imported successfully.').format(courseName)
 					)
 					courses.reload()
 				})
@@ -190,7 +188,9 @@ const handleImportFile = (event) => {
 						(err.messages && err.messages[0]) ||
 						err ||
 						__('Unknown error')
-					toast.error(__('Failed to import course: {0}', [errorMsg]))
+					toast.error(
+						__('Failed to import course: {0}').format(errorMsg)
+					)
 				})
 		} catch (err) {
 			toast.error(__('Failed to parse file: Invalid JSON format.'))
