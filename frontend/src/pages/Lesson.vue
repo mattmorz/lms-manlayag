@@ -311,16 +311,38 @@
 						</div>
 
 						<div v-if="hasLessonTranscript" class="mt-6">
-							<Button
-								variant="ghost"
-								class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
-								@click="showLessonTranscript = !showLessonTranscript"
-							>
-								<template #prefix>
-									<FileText class="w-4 h-4 stroke-1.5" />
-								</template>
-								<span>{{ showLessonTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
-							</Button>
+							<div class="flex items-center space-x-2">
+								<Button
+									variant="ghost"
+									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									@click="showLessonTranscript = !showLessonTranscript"
+								>
+									<template #prefix>
+										<FileText class="w-4 h-4 stroke-1.5" />
+									</template>
+									<span>{{ showLessonTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
+								</Button>
+
+								<Button
+									v-if="isAdmin"
+									variant="ghost"
+									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									@click="triggerTranscriptUpload"
+								>
+									<template #prefix>
+										<Upload class="w-4 h-4 stroke-1.5" />
+									</template>
+									<span>{{ __('Upload Transcript') }}</span>
+								</Button>
+
+								<input
+									ref="transcriptFileInput"
+									type="file"
+									accept=".vtt,.srt,.json"
+									class="hidden"
+									@change="handleTranscriptFile"
+								/>
+							</div>
 							
 							<div 
 								v-show="showLessonTranscript" 
@@ -468,6 +490,7 @@ import {
 	Info,
 	MessageCircleQuestion,
 	TrendingUp,
+	Upload,
 } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr, highlightText } from '@/utils'
 import { sessionStore } from '@/stores/session'
@@ -579,6 +602,46 @@ const showLessonTranscript = ref(false)
 const lessonTranscriptContainer = ref(null)
 const currentVideoTime = ref(0)
 const activePlayer = ref(null)
+const transcriptFileInput = ref(null)
+
+const triggerTranscriptUpload = () => {
+	transcriptFileInput.value?.click()
+}
+
+const uploadTranscriptResource = createResource({
+	url: 'lms.lms.api.upload_video_transcript',
+	onSuccess(data) {
+		toast.success(__('Transcript uploaded successfully.'))
+		lessonTranscriptResource.reload()
+		showLessonTranscript.value = true
+		if (transcriptFileInput.value) {
+			transcriptFileInput.value.value = ''
+		}
+	},
+	onError(err) {
+		toast.error(err.messages?.[0] || err || __('Failed to upload transcript.'))
+		if (transcriptFileInput.value) {
+			transcriptFileInput.value.value = ''
+		}
+	}
+})
+
+const handleTranscriptFile = (event) => {
+	const file = event.target.files?.[0]
+	if (!file) return
+
+	const reader = new FileReader()
+	reader.onload = (e) => {
+		const content = e.target.result
+		uploadTranscriptResource.submit({
+			lesson_name: lesson.data.name,
+			video_id: lessonVideoId.value,
+			file_content: content,
+			file_name: file.name,
+		})
+	}
+	reader.readAsText(file)
+}
 
 const hasLessonTranscript = computed(() => {
 	return !!lesson.data?.youtube

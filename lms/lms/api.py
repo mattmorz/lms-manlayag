@@ -2479,6 +2479,132 @@ def parse_vtt(vtt_text):
 	return transcript
 
 
+def parse_srt(srt_text):
+	import re
+	blocks = srt_text.replace('\r\n', '\n').split('\n\n')
+	transcript = []
+	
+	def parse_time(time_str):
+		time_str = time_str.replace(',', '.')
+		parts = time_str.split(':')
+		seconds_parts = parts[-1].split('.')
+		seconds = float(seconds_parts[0])
+		milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+		minutes = float(parts[-2]) if len(parts) > 1 else 0
+		hours = float(parts[-3]) if len(parts) > 2 else 0
+		return hours * 3600 + minutes * 60 + seconds + milliseconds
+
+	for block in blocks:
+		block = block.strip()
+		if not block:
+			continue
+		lines = block.split('\n')
+		if len(lines) < 2:
+			continue
+		
+		time_line_idx = -1
+		for i, line in enumerate(lines):
+			if '-->' in line:
+				time_line_idx = i
+				break
+		
+		if time_line_idx == -1:
+			continue
+			
+		time_line = lines[time_line_idx]
+		text_lines = lines[time_line_idx + 1:]
+		
+		match = re.search(r'(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)\s*-->\s*(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)', time_line)
+		if match:
+			try:
+				start = parse_time(match.group(1))
+				end = parse_time(match.group(2))
+				text = " ".join([re.sub(r'<[^>]*>', '', l.strip()) for l in text_lines if l.strip()])
+				if text:
+					transcript.append({
+						'text': text,
+						'start': start,
+						'duration': max(0.0, end - start)
+					})
+			except Exception:
+				pass
+	return transcript
+
+
+@frappe.whitelist()
+def upload_video_transcript(lesson_name: str, video_id: str, file_content: str, file_name: str):
+	from lms.lms.utils import can_modify_course
+	import json
+
+	course = frappe.db.get_value("Course Lesson", lesson_name, "course")
+	if not course or not can_modify_course(course):
+		frappe.throw(_("You do not have permission to modify this course."))
+
+	if not video_id:
+		frappe.throw(_("Video ID is required to upload a transcript."))
+
+	file_name_lower = file_name.lower()
+	if file_name_lower.endswith('.json'):
+		try:
+			transcript = json.loads(file_content)
+			if not isinstance(transcript, list):
+				frappe.throw(_("JSON transcript must be a list of segment objects."))
+			for idx, item in enumerate(transcript):
+				if not isinstance(item, dict) or "text" not in item or "start" not in item:
+					frappe.throw(_("Segment at index {0} is missing 'text' or 'start'.").format(idx))
+				if "duration" not in item:
+					item["duration"] = 0
+		except Exception as e:
+			frappe.throw(_("Failed to parse JSON file: {0}").format(str(e)))
+	elif file_name_lower.endswith('.srt'):
+		transcript = parse_srt(file_content)
+	elif file_name_lower.endswith('.vtt'):
+		transcript = parse_vtt(file_content)
+	else:
+		frappe.throw(_("Unsupported file format. Please upload a .vtt, .srt, or .json file."))
+
+	if not transcript:
+		frappe.throw(_("No transcript segments found or failed to parse the file."))
+
+	ensure_video_transcript_field()
+	stored_val = frappe.db.get_value("Course Lesson", lesson_name, "video_transcript")
+	transcripts_dict = {}
+	if stored_val:
+		try:
+			data = json.loads(stored_val)
+			if isinstance(data, dict):
+				transcripts_dict = data
+			elif isinstance(data, list):
+				youtube_url = frappe.db.get_value("Course Lesson", lesson_name, "youtube")
+				primary_video_id = video_id
+				if youtube_url:
+					import re
+					if "vimeo" in youtube_url:
+						vm_match = re.search(r'(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)', youtube_url)
+						if vm_match:
+							primary_video_id = vm_match.group(1)
+					else:
+						yt_match = re.search(r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})', youtube_url)
+						if yt_match:
+							primary_video_id = yt_match.group(1)
+				transcripts_dict = {primary_video_id: data}
+		except Exception:
+			pass
+
+	transcripts_dict[video_id] = transcript
+
+	frappe.db.set_value("Course Lesson", lesson_name, "video_transcript", json.dumps(transcripts_dict))
+	frappe.db.commit()
+
+	cache_key = f"video_transcript_v4_youtube_{video_id}"
+	frappe.cache().delete_value(cache_key)
+	cache_key_vimeo = f"video_transcript_v4_vimeo_{video_id}"
+	frappe.cache().delete_value(cache_key_vimeo)
+
+	return transcript
+
+
+
 @frappe.whitelist()
 def export_course(course_name: str):
 	if not can_modify_course(course_name):

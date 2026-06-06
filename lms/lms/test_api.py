@@ -172,3 +172,67 @@ class TestLMSAPI(BaseTestUtils):
 		lesson.delete()
 		unpassed_quiz.delete()
 		frappe.session.user = "Administrator"
+
+	def test_upload_video_transcript(self):
+		import json
+		# Create a mock lesson
+		lesson = frappe.new_doc("Course Lesson")
+		lesson.title = "Test Transcript Lesson"
+		lesson.course = self.course.name
+		lesson.youtube = "https://www.youtube.com/watch?v=mockytid"
+		lesson.insert()
+
+		# Log in as moderator/instructor
+		frappe.session.user = self.admin.email
+
+		# 1. Test SRT parsing
+		srt_content = """1
+00:00:01,000 --> 00:00:04,500
+Hello World!
+
+2
+00:00:05,100 --> 00:00:08,200
+This is a test.
+"""
+		from lms.lms.api import upload_video_transcript
+		res = upload_video_transcript(lesson.name, "mockytid", srt_content, "subtitles.srt")
+		
+		# Verify parsed result
+		self.assertEqual(len(res), 2)
+		self.assertEqual(res[0]["text"], "Hello World!")
+		self.assertEqual(res[0]["start"], 1.0)
+		self.assertEqual(res[0]["duration"], 3.5)
+		self.assertEqual(res[1]["text"], "This is a test.")
+		self.assertEqual(res[1]["start"], 5.1)
+		self.assertEqual(res[1]["duration"], 3.1)
+
+		# Verify it is saved in DB correctly
+		stored_transcript_str = frappe.db.get_value("Course Lesson", lesson.name, "video_transcript")
+		stored_transcript = json.loads(stored_transcript_str)
+		self.assertIn("mockytid", stored_transcript)
+		self.assertEqual(len(stored_transcript["mockytid"]), 2)
+
+		# 2. Test VTT parsing
+		vtt_content = """WEBVTT
+
+00:00:01.000 --> 00:00:04.500
+Hello VTT!
+
+00:00:05.100 --> 00:00:08.200
+This is vtt test.
+"""
+		res2 = upload_video_transcript(lesson.name, "mockytid", vtt_content, "subtitles.vtt")
+		self.assertEqual(len(res2), 2)
+		self.assertEqual(res2[0]["text"], "Hello VTT!")
+
+		# 3. Test JSON parsing
+		json_content = json.dumps([
+			{"text": "Hello JSON!", "start": 1.0, "duration": 3.5}
+		])
+		res3 = upload_video_transcript(lesson.name, "mockytid", json_content, "subtitles.json")
+		self.assertEqual(len(res3), 1)
+		self.assertEqual(res3[0]["text"], "Hello JSON!")
+
+		# Clean up
+		lesson.delete()
+		frappe.session.user = "Administrator"
