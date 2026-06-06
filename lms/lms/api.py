@@ -2220,25 +2220,90 @@ def get_assessment_from_lesson(course: str, assessmentType: str):
 	return assessments
 
 
+def ensure_video_transcript_field():
+	if not frappe.db.exists("Custom Field", {"dt": "Course Lesson", "fieldname": "video_transcript"}):
+		try:
+			from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+			create_custom_field("Course Lesson", {
+				"fieldname": "video_transcript",
+				"label": "Video Transcript",
+				"fieldtype": "Long Text",
+				"read_only": 1
+			})
+			frappe.db.commit()
+		except Exception:
+			try:
+				doc = frappe.new_doc("Custom Field")
+				doc.dt = "Course Lesson"
+				doc.fieldname = "video_transcript"
+				doc.label = "Video Transcript"
+				doc.fieldtype = "Long Text"
+				doc.read_only = 1
+				doc.insert(ignore_permissions=True)
+				frappe.db.commit()
+			except Exception as e:
+				frappe.log_error(f"Error creating custom field video_transcript: {str(e)}")
+
+
 @frappe.whitelist(allow_guest=True)
 def get_video_transcript(video_id: str, service: str):
-	"""Get transcript for a YouTube or Vimeo video, auto-generating/scraping it and caching the result."""
-	cache_key = f"video_transcript_{service}_{video_id}"
+	"""Get transcript for a YouTube or Vimeo video, auto-generating/scraping it and caching/persisting the result."""
+	import json
+	if not video_id:
+		return []
+
+	# Ensure DB column exists dynamically
+	ensure_video_transcript_field()
+
+	# Check Redis cache first (high performance)
+	cache_key = f"video_transcript_v3_{service}_{video_id}"
 	cached_val = frappe.cache().get_value(cache_key)
 	if cached_val:
-		return json.loads(cached_val)
+		try:
+			return json.loads(cached_val)
+		except Exception:
+			pass
 
+	# Find the Course Lesson name by matching the youtube video URL containing video_id
+	lesson_name = None
+	if video_id:
+		lesson_name = frappe.db.get_value("Course Lesson", {"youtube": ["like", f"%{video_id}%"]}, "name")
+
+	# Check Database persistent storage
+	if lesson_name:
+		try:
+			stored_transcript = frappe.db.get_value("Course Lesson", lesson_name, "video_transcript")
+			if stored_transcript:
+				parsed = json.loads(stored_transcript)
+				if parsed:
+					# Cache it in Redis for subsequent requests
+					frappe.cache().set_value(cache_key, stored_transcript, expires_in_sec=86400 * 7)
+					return parsed
+		except Exception as db_err:
+			frappe.log_error(f"Error reading video_transcript from DB: {str(db_err)}")
+
+	# Fetch from External API / scraping
 	transcript = None
 	if service == "youtube":
 		transcript = fetch_youtube_transcript(video_id)
 	elif service == "vimeo":
 		transcript = fetch_vimeo_transcript(video_id)
 
-	if transcript is None:
-		transcript = []
+	# Save to Database and Cache if successful
+	if transcript:
+		serialized = json.dumps(transcript)
+		# Cache in Redis
+		frappe.cache().set_value(cache_key, serialized, expires_in_sec=86400 * 7)
+		# Persist in Database
+		if lesson_name:
+			try:
+				frappe.db.set_value("Course Lesson", lesson_name, "video_transcript", serialized)
+				frappe.db.commit()
+			except Exception as save_err:
+				frappe.log_error(f"Failed to persist transcript to DB: {str(save_err)}")
+		return transcript
 
-	frappe.cache().set_value(cache_key, json.dumps(transcript), expires_in_sec=86400 * 7) # Cache for 7 days
-	return transcript
+	return []
 
 
 def fetch_youtube_transcript(video_id):
@@ -2284,7 +2349,7 @@ def fetch_youtube_transcript(video_id):
 					track_url = captions[0].get('baseUrl')
 
 				if track_url:
-					xml_r = requests.get(track_url, timeout=10)
+					xml_r = requests.get(track_url, headers=headers, timeout=10)
 					root = ET.fromstring(xml_r.text)
 					transcript = []
 					for text_el in root.findall('text'):

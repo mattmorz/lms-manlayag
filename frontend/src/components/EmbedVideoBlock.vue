@@ -425,7 +425,7 @@ watch(
 	() => [videoId.value, props.data.service],
 	([vid, svc]) => {
 		if (vid && svc && hasTranscript.value) {
-			transcriptResource.submit()
+			transcriptResource.reload()
 		}
 	},
 	{ immediate: true }

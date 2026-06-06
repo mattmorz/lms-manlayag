@@ -672,7 +672,7 @@ watch(
 	() => [lessonVideoId.value, lessonVideoService.value],
 	([vid, svc]) => {
 		if (vid && svc && lesson.data?.youtube) {
-			lessonTranscriptResource.submit()
+			lessonTranscriptResource.reload()
 		}
 	},
 	{ immediate: true }

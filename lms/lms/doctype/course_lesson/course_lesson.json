@@ -22,6 +22,7 @@
   "instructor_notes",
   "section_break_6",
   "youtube",
+  "video_transcript",
   "column_break_9",
   "quiz_id",
   "require_quiz_pass",
@@ -112,6 +113,12 @@
    "fieldname": "youtube",
    "fieldtype": "Data",
    "label": "YouTube Video URL"
+  },
+  {
+   "fieldname": "video_transcript",
+   "fieldtype": "Long Text",
+   "label": "Video Transcript",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_16",
