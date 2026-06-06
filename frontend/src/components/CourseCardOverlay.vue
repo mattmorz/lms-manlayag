@@ -15,7 +15,7 @@
 						:to="{
 							name: 'Lesson',
 							params: {
-								courseName: course.name,
+								courseName: course.data.name,
 								chapterNumber: course.data.current_lesson
 									? course.data.current_lesson.split('-')[0]
 									: 1,

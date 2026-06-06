@@ -2249,6 +2249,7 @@ def ensure_video_transcript_field():
 def get_video_transcript(video_id: str, service: str):
 	"""Get transcript for a YouTube or Vimeo video, auto-generating/scraping it and caching/persisting the result."""
 	import json
+	import re
 	if not video_id:
 		return []
 
@@ -2256,7 +2257,7 @@ def get_video_transcript(video_id: str, service: str):
 	ensure_video_transcript_field()
 
 	# Check Redis cache first (high performance)
-	cache_key = f"video_transcript_v3_{service}_{video_id}"
+	cache_key = f"video_transcript_v4_{service}_{video_id}"
 	cached_val = frappe.cache().get_value(cache_key)
 	if cached_val:
 		try:
@@ -2264,21 +2265,51 @@ def get_video_transcript(video_id: str, service: str):
 		except Exception:
 			pass
 
-	# Find the Course Lesson name by matching the youtube video URL containing video_id
+	# Find the Course Lesson name by matching the video_id in youtube, body, content, or instructor_notes fields
 	lesson_name = None
 	if video_id:
-		lesson_name = frappe.db.get_value("Course Lesson", {"youtube": ["like", f"%{video_id}%"]}, "name")
+		like_str = f"%{video_id}%"
+		results = frappe.db.sql(
+			"""
+			select name from `tabCourse Lesson`
+			where youtube like %s or body like %s or content like %s or instructor_notes like %s
+			limit 1
+			""",
+			(like_str, like_str, like_str, like_str),
+			as_dict=True
+		)
+		if results:
+			lesson_name = results[0].name
 
 	# Check Database persistent storage
+	transcripts_dict = {}
 	if lesson_name:
 		try:
-			stored_transcript = frappe.db.get_value("Course Lesson", lesson_name, "video_transcript")
-			if stored_transcript:
-				parsed = json.loads(stored_transcript)
-				if parsed:
-					# Cache it in Redis for subsequent requests
-					frappe.cache().set_value(cache_key, stored_transcript, expires_in_sec=86400 * 7)
-					return parsed
+			stored_val = frappe.db.get_value("Course Lesson", lesson_name, "video_transcript")
+			if stored_val:
+				data = json.loads(stored_val)
+				if isinstance(data, dict):
+					transcripts_dict = data
+				elif isinstance(data, list):
+					# Convert old list format to new dictionary format
+					youtube_url = frappe.db.get_value("Course Lesson", lesson_name, "youtube")
+					# Extract primary video id to use as key
+					primary_video_id = video_id
+					if youtube_url:
+						if "vimeo" in youtube_url:
+							vm_match = re.search(r'(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)', youtube_url)
+							if vm_match:
+								primary_video_id = vm_match.group(1)
+						else:
+							yt_match = re.search(r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})', youtube_url)
+							if yt_match:
+								primary_video_id = yt_match.group(1)
+					transcripts_dict = {primary_video_id: data}
+
+				# If our specific video ID is in the dictionary, cache and return it
+				if video_id in transcripts_dict:
+					frappe.cache().set_value(cache_key, json.dumps(transcripts_dict[video_id]), expires_in_sec=86400 * 7)
+					return transcripts_dict[video_id]
 		except Exception as db_err:
 			frappe.log_error(f"Error reading video_transcript from DB: {str(db_err)}")
 
@@ -2291,13 +2322,13 @@ def get_video_transcript(video_id: str, service: str):
 
 	# Save to Database and Cache if successful
 	if transcript:
-		serialized = json.dumps(transcript)
 		# Cache in Redis
-		frappe.cache().set_value(cache_key, serialized, expires_in_sec=86400 * 7)
+		frappe.cache().set_value(cache_key, json.dumps(transcript), expires_in_sec=86400 * 7)
 		# Persist in Database
 		if lesson_name:
 			try:
-				frappe.db.set_value("Course Lesson", lesson_name, "video_transcript", serialized)
+				transcripts_dict[video_id] = transcript
+				frappe.db.set_value("Course Lesson", lesson_name, "video_transcript", json.dumps(transcripts_dict))
 				frappe.db.commit()
 			except Exception as save_err:
 				frappe.log_error(f"Failed to persist transcript to DB: {str(save_err)}")
@@ -2316,7 +2347,15 @@ def fetch_youtube_transcript(video_id):
 	try:
 		# First attempt: check if youtube_transcript_api is installed and use it
 		try:
-			from youtube_transcript_api import YouTubeTranscriptApi
+			try:
+				from youtube_transcript_api import YouTubeTranscriptApi
+			except ImportError:
+				import subprocess
+				import sys
+				# Try installing it on the fly
+				subprocess.check_call([sys.executable, "-m", "pip", "install", "youtube-transcript-api"])
+				from youtube_transcript_api import YouTubeTranscriptApi
+
 			transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
 			return [{
 				"text": unescape(t["text"]),

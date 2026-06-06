@@ -1296,6 +1296,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 		progress = 0
 	else:
 		progress = get_progress(course, lesson_details.name)
+		if membership:
+			frappe.db.set_value("LMS Enrollment", membership.get("name"), "current_lesson", lesson_name)
+			frappe.db.commit()
 
 	lesson_details.chapter_title = frappe.db.get_value("Course Chapter", chapter_name, "title")
 	neighbours = get_neighbour_lesson(course, chapter, lesson)
