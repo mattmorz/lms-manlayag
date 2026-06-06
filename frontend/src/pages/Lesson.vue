@@ -500,8 +500,8 @@
 					/>
 					<textarea
 						v-model="segment.text"
-						rows="1"
-						class="flex-1 border rounded px-2 py-1 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
+						rows="2"
+						class="flex-1 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
 					/>
 					<Button
 						variant="ghost"
