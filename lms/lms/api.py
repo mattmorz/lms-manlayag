@@ -1411,18 +1411,6 @@ def add_an_evaluator(email: str):
 	return evaluator
 
 
-@frappe.whitelist()
-def capture_user_persona(responses: str):
-	frappe.only_for("System Manager")
-	data = frappe.parse_json(responses)
-	data = json.dumps(data)
-	response = frappe.integrations.utils.make_post_request(
-		"https://school.frappe.io/api/method/capture-persona",
-		data={"response": data},
-	)
-	if response.get("message").get("name"):
-		frappe.db.set_single_value("LMS Settings", "persona_captured", True)
-	return response
 
 
 @frappe.whitelist()

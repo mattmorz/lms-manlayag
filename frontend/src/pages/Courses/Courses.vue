@@ -154,7 +154,6 @@ const certification = ref(false)
 const filters = ref({})
 const currentTab = ref('live')
 const { brand } = sessionStore()
-const courseCount = ref(0)
 const router = useRouter()
 const showCourseModal = ref(false)
 const importFileInput = ref(null)
@@ -206,7 +205,6 @@ const handleImportFile = (event) => {
 onMounted(() => {
 	setFiltersFromQuery()
 	updateCourses()
-	getCourseCount()
 })
 
 const setFiltersFromQuery = () => {
@@ -237,36 +235,6 @@ const setCategories = (data) => {
 	}
 }
 
-const isPersonaCaptured = async () => {
-	let persona = await call('frappe.client.get_single_value', {
-		doctype: 'LMS Settings',
-		field: 'persona_captured',
-	})
-	return persona
-}
-
-const identifyUserPersona = async () => {
-	if (user.data?.is_system_manager && !user.data?.developer_mode) {
-		let personaCaptured = await isPersonaCaptured()
-		if (personaCaptured) return
-		if (!courseCount.value) {
-			router.push({
-				name: 'PersonaForm',
-			})
-		}
-	}
-}
-
-const getCourseCount = () => {
-	if (!user.data) return
-	if (!user.data.is_moderator) return
-	call('frappe.client.get_count', {
-		doctype: 'LMS Course',
-	}).then((data) => {
-		courseCount.value = data
-		identifyUserPersona()
-	})
-}
 
 const updateCourses = () => {
 	updateFilters()
