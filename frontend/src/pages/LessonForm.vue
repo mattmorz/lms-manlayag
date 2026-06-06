@@ -51,6 +51,34 @@
 								/>
 							</div>
 						</div>
+
+						<div class="grid grid-cols-3 gap-6 mt-4 pt-4 border-t border-dashed">
+							<!-- Left Column (Exclusion) -->
+							<div class="col-span-1">
+								<FormControl
+									v-model="lesson.exclude_from_course"
+									type="checkbox"
+									:label="__('Exclude from Course')"
+								/>
+							</div>
+
+							<!-- Right Column (Scheduling) -->
+							<div class="col-span-2">
+								<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">{{ __('Scheduled Release') }}</label>
+								<div class="grid grid-cols-2 gap-4">
+									<FormControl
+										type="date"
+										v-model="lesson.release_date"
+										:label="__('Release Date')"
+									/>
+									<FormControl
+										type="time"
+										v-model="lesson.release_time"
+										:label="__('Release Time')"
+									/>
+								</div>
+							</div>
+						</div>
 					</div>
 					<div class="border-t mt-4">
 						<div class="w-5/6 mx-auto pt-4">
@@ -182,6 +210,9 @@ const lesson = reactive({
 	content: '',
 	quiz_id: '',
 	require_quiz_pass: false,
+	exclude_from_course: false,
+	release_date: '',
+	release_time: '',
 })
 
 const lessonDetails = createResource({
@@ -201,6 +232,9 @@ const lessonDetails = createResource({
 				? true
 				: false
 			lesson.require_quiz_pass = data?.lesson?.require_quiz_pass ? true : false
+			lesson.exclude_from_course = data?.lesson?.exclude_from_course ? true : false
+			lesson.release_date = data?.lesson?.release_date || ''
+			lesson.release_time = data?.lesson?.release_time || ''
 			requiredQuizzes.value = getRequiredQuizzes(data?.lesson?.quiz_id)
 			addLessonContent(data)
 			addInstructorNotes(data)

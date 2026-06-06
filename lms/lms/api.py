@@ -920,14 +920,25 @@ def give_discussions_permission():
 				).save()
 
 
+
+
+
 @frappe.whitelist()
 def upsert_chapter(
-	title: str, course: str, is_scorm_package: bool, scorm_package: dict = None, name: str = None
+	title: str, course: str, is_scorm_package: bool, scorm_package: dict = None, name: str = None,
+	exclude_from_course: bool = False, release_date: str = None, release_time: str = None
 ):
 	if not can_modify_course(course):
 		frappe.throw(_("You do not have permission to modify this chapter."), frappe.PermissionError)
 
-	values = frappe._dict({"title": title, "course": course, "is_scorm_package": is_scorm_package})
+	values = frappe._dict({
+		"title": title,
+		"course": course,
+		"is_scorm_package": is_scorm_package,
+		"exclude_from_course": exclude_from_course,
+		"release_date": release_date,
+		"release_time": release_time
+	})
 
 	if is_scorm_package:
 		scorm_package = frappe._dict(scorm_package)

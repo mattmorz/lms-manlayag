@@ -14,6 +14,9 @@
   "chapter",
   "is_scorm_package",
   "course",
+  "exclude_from_course",
+  "release_date",
+  "release_time",
   "section_break_11",
   "content",
   "body",
@@ -173,6 +176,22 @@
    "fieldtype": "Check",
    "label": "Is SCORM Package",
    "read_only": 1
+  },
+  {
+   "fieldname": "release_date",
+   "fieldtype": "Date",
+   "label": "Release Date"
+  },
+  {
+   "fieldname": "release_time",
+   "fieldtype": "Time",
+   "label": "Release Time"
+  },
+  {
+   "default": "0",
+   "fieldname": "exclude_from_course",
+   "fieldtype": "Check",
+   "label": "Exclude From Course"
   }
  ],
  "index_web_pages_for_search": 1,

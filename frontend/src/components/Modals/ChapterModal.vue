@@ -27,6 +27,28 @@
 					"
 					v-model="chapter.is_scorm_package"
 				/>
+				<Switch
+					size="sm"
+					:label="__('Exclude from Course')"
+					:description="
+						__(
+							'Completely hide this chapter from the course outline for students.'
+						)
+					"
+					v-model="chapter.exclude_from_course"
+				/>
+				<div class="grid grid-cols-2 gap-4">
+					<FormControl
+						type="date"
+						:label="__('Release Date')"
+						v-model="chapter.release_date"
+					/>
+					<FormControl
+						type="time"
+						:label="__('Release Time')"
+						v-model="chapter.release_time"
+					/>
+				</div>
 				<div v-if="chapter.is_scorm_package">
 					<FileUploader
 						v-if="!chapter.scorm_package"
@@ -103,6 +125,9 @@ const chapter = reactive({
 	title: '',
 	is_scorm_package: 0,
 	scorm_package: null,
+	exclude_from_course: false,
+	release_date: '',
+	release_time: '',
 })
 
 const chapterResource = createResource({
@@ -114,6 +139,9 @@ const chapterResource = createResource({
 			is_scorm_package: chapter.is_scorm_package,
 			scorm_package: chapter.scorm_package,
 			name: props.chapterDetail?.name,
+			exclude_from_course: chapter.exclude_from_course ? 1 : 0,
+			release_date: chapter.release_date || null,
+			release_time: chapter.release_time || null,
 		}
 	},
 })
@@ -180,6 +208,9 @@ const cleanChapter = () => {
 	chapter.title = ''
 	chapter.is_scorm_package = 0
 	chapter.scorm_package = null
+	chapter.exclude_from_course = false
+	chapter.release_date = ''
+	chapter.release_time = ''
 }
 
 const editChapter = (close) => {
@@ -209,6 +240,9 @@ watch(
 		chapter.title = newChapter?.title
 		chapter.is_scorm_package = newChapter?.is_scorm_package
 		chapter.scorm_package = newChapter?.scorm_package
+		chapter.exclude_from_course = newChapter?.exclude_from_course ? true : false
+		chapter.release_date = newChapter?.release_date || ''
+		chapter.release_time = newChapter?.release_time || ''
 	}
 )
 

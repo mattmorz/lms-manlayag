@@ -54,10 +54,28 @@
 									class="h-4 w-4 text-ink-gray-9 stroke-1"
 								/>
 								<div
-									class="text-base text-left text-ink-gray-9 font-medium leading-5 ml-2"
+									class="text-base text-left text-ink-gray-9 font-medium leading-5 ml-2 flex items-center flex-wrap gap-2"
 									@click="redirectToChapter(chapter)"
 								>
-									{{ chapter.title }}
+									<span>{{ chapter.title }}</span>
+									<template v-if="allowEdit">
+										<Badge
+											v-if="chapter.exclude_from_course"
+											theme="red"
+											variant="subtle"
+											size="sm"
+										>
+											{{ __('Excluded') }}
+										</Badge>
+										<Badge
+											v-if="chapter.release_date"
+											theme="blue"
+											variant="subtle"
+											size="sm"
+										>
+											{{ __('Scheduled: {0} {1}').replace('{0}', chapter.release_date).replace('{1}', chapter.release_time || '') }}
+										</Badge>
+									</template>
 								</div>
 								<div class="flex ml-auto space-x-4">
 									<Tooltip :text="__('Edit Chapter')" placement="bottom">
@@ -130,7 +148,27 @@
 														v-if="lesson.locked"
 														class="h-4 w-4 text-orange-600 mr-2"
 													/>
-													{{ lesson.title }}
+													<span class="mr-2">{{ lesson.title }}</span>
+													<template v-if="allowEdit">
+														<Badge
+															v-if="lesson.exclude_from_course"
+															theme="red"
+															variant="subtle"
+															size="sm"
+															class="mr-2"
+														>
+															{{ __('Excluded') }}
+														</Badge>
+														<Badge
+															v-if="lesson.release_date"
+															theme="blue"
+															variant="subtle"
+															size="sm"
+															class="mr-2"
+														>
+															{{ __('Scheduled: {0} {1}').replace('{0}', lesson.release_date).replace('{1}', lesson.release_time || '') }}
+														</Badge>
+													</template>
 													<Trash2
 														v-if="allowEdit"
 														@click.prevent="
@@ -189,7 +227,7 @@
 	/>
 </template>
 <script setup>
-import { Button, createResource, Tooltip, toast } from 'frappe-ui'
+import { Button, createResource, Tooltip, toast, Badge } from 'frappe-ui'
 import { getCurrentInstance, inject, ref, watch } from 'vue'
 import Draggable from 'vuedraggable'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'

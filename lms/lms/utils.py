@@ -111,20 +111,47 @@ def get_membership(course: str, member: str = None):
 	return False
 
 
+def check_release_status(release_date, release_time) -> bool:
+	"""Returns True if the release date/time has passed, False otherwise."""
+	if not release_date:
+		return True
+
+	time_str = release_time or "00:00:00"
+	if not isinstance(time_str, str):
+		time_str = str(time_str)
+	date_str = str(release_date)
+
+	release_datetime_str = f"{date_str} {time_str}"
+
+	try:
+		release_dt = get_datetime(release_datetime_str)
+	except Exception:
+		return True
+
+	from frappe.utils import now_datetime
+	return now_datetime() >= release_dt
+
+
 def get_chapters(course: str):
 	"""Returns all chapters of this course."""
 	if not course:
 		return []
 	chapters = frappe.get_all("Chapter Reference", {"parent": course}, ["idx", "chapter"], order_by="idx")
+	res = []
 	for chapter in chapters:
 		chapter_details = frappe.db.get_value(
 			"Course Chapter",
 			{"name": chapter.chapter},
-			["name", "title"],
+			["name", "title", "exclude_from_course", "release_date", "release_time"],
 			as_dict=True,
 		)
+		if not chapter_details:
+			continue
+		if chapter_details.get("exclude_from_course") and not can_modify_course(course):
+			continue
 		chapter.update(chapter_details)
-	return chapters
+		res.append(chapter)
+	return res
 
 
 def get_lessons(course: str, chapter: str = None, get_details: bool = True, progress: bool = False):
@@ -133,24 +160,51 @@ def get_lessons(course: str, chapter: str = None, get_details: bool = True, prog
 	lessons = []
 	lesson_count = 0
 	if chapter:
+		chapter_name = chapter if isinstance(chapter, str) else chapter.get("name")
+		chapter_dict = chapter if isinstance(chapter, dict) else frappe.db.get_value("Course Chapter", chapter_name, ["name", "course", "idx"], as_dict=True)
 		if get_details:
-			return get_lesson_details(chapter, progress=progress)
+			return get_lesson_details(chapter_dict, progress=progress)
 		else:
-			return frappe.db.count("Lesson Reference", {"parent": chapter.name})
+			if not can_modify_course(course):
+				# Count only non-excluded lessons in this chapter
+				lessons_in_chapter = frappe.get_all(
+					"Lesson Reference", {"parent": chapter_name}, ["lesson"]
+				)
+				count = 0
+				for l in lessons_in_chapter:
+					if not frappe.db.get_value("Course Lesson", l.lesson, "exclude_from_course"):
+						count += 1
+				return count
+			else:
+				return frappe.db.count("Lesson Reference", {"parent": chapter_name})
 
-	for chapter in get_chapters(course):
+	for chapter_item in get_chapters(course):
 		if get_details:
-			lessons += get_lesson_details(chapter, progress=progress)
+			lessons += get_lesson_details(chapter_item, progress=progress)
 		else:
-			lesson_count += frappe.db.count("Lesson Reference", {"parent": chapter.name})
+			if not can_modify_course(course):
+				lessons_in_chapter = frappe.get_all(
+					"Lesson Reference", {"parent": chapter_item.name}, ["lesson"]
+				)
+				for l in lessons_in_chapter:
+					if not frappe.db.get_value("Course Lesson", l.lesson, "exclude_from_course"):
+						lesson_count += 1
+			else:
+				lesson_count += frappe.db.count("Lesson Reference", {"parent": chapter_item.name})
 
 	return lessons if get_details else lesson_count
 
 
 def get_lesson_details(chapter: dict, progress: bool = False):
 	lessons = []
+	chapter_name = chapter.get("name") if isinstance(chapter, dict) else chapter.name
+	course = chapter.get("course") if isinstance(chapter, dict) else chapter.course
+	chapter_idx = chapter.get("idx") if isinstance(chapter, dict) else chapter.idx
+	if not course:
+		course = frappe.db.get_value("Course Chapter", chapter_name, "course")
+
 	lesson_list = frappe.get_all(
-		"Lesson Reference", {"parent": chapter.name}, ["lesson", "idx"], order_by="idx"
+		"Lesson Reference", {"parent": chapter_name}, ["lesson", "idx"], order_by="idx"
 	)
 	for row in lesson_list:
 		lesson_details = frappe.db.get_value(
@@ -171,32 +225,27 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 				"chapter",
 				"content",
 				"require_quiz_pass",
+				"exclude_from_course",
+				"release_date",
+				"release_time",
 			],
 			as_dict=True,
 		)
-		lesson_details.number = f"{chapter.idx}-{row.idx}"
+		if not lesson_details:
+			continue
+
+		if lesson_details.get("exclude_from_course") and not can_modify_course(course):
+			continue
+
+		lesson_details.number = f"{chapter_idx}-{row.idx}"
 		lesson_details.icon = get_lesson_icon(lesson_details.body, lesson_details.content)
+		lesson_details.locked = False
 
 		if progress:
 			lesson_details.is_complete = get_progress(
 				lesson_details.course,
 				lesson_details.name
 			)
-
-			# Default
-			lesson_details.locked = False
-
-			# First lesson of first chapter is always accessible
-			'''
-			if not (chapter.idx == 1 and row.idx == 1):
-				lesson_details.locked = not is_previous_lesson_completed(
-					lesson_details.course,
-					chapter.idx,
-					row.idx,
-				)
-			'''
-		else:
-			lesson_details.locked = False
 
 		lessons.append(lesson_details)
 	return lessons
@@ -979,9 +1028,24 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 		chapter_details = frappe.db.get_value(
 			"Course Chapter",
 			chapter.chapter,
-			["name", "title", "is_scorm_package", "launch_file", "scorm_package"],
+			[
+				"name",
+				"title",
+				"is_scorm_package",
+				"launch_file",
+				"scorm_package",
+				"exclude_from_course",
+				"release_date",
+				"release_time"
+			],
 			as_dict=True,
 		)
+		if not chapter_details:
+			continue
+
+		if chapter_details.get("exclude_from_course") and not can_modify_course(course):
+			continue
+
 		chapter_details["idx"] = chapter.idx
 		chapter_details.lessons = get_lessons(course, chapter_details, progress=progress)
 
@@ -995,27 +1059,37 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 
 		outline.append(chapter_details)
 
-	if progress and frappe.session.user != "Guest" and not can_modify_course(course):
-		membership = get_membership(course)
-		if membership:
-			try:
-				enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
-			except Exception:
-				enable_sequential = 1
+	if not can_modify_course(course):
+		try:
+			enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
+		except Exception:
+			enable_sequential = 1
 
-			if enable_sequential:
-				completed_lessons = set(
-					frappe.db.get_all(
-						"LMS Course Progress",
-						filters={"course": course, "member": frappe.session.user, "status": "Complete"},
-						pluck="lesson"
-					)
+		if enable_sequential is None:
+			enable_sequential = 1
+
+		completed_lessons = set()
+		if frappe.session.user != "Guest":
+			completed_lessons = set(
+				frappe.db.get_all(
+					"LMS Course Progress",
+					filters={"course": course, "member": frappe.session.user, "status": "Complete"},
+					pluck="lesson"
 				)
+			)
 
-				previous_lesson_accessible = True
+		previous_lesson_accessible = True
 
-				for chapter_idx, chapter in enumerate(outline):
-					for lesson_idx, lesson in enumerate(chapter.lessons):
+		for chapter_idx, chapter in enumerate(outline):
+			is_chapter_released = check_release_status(chapter.get("release_date"), chapter.get("release_time"))
+			for lesson_idx, lesson in enumerate(chapter.lessons):
+				is_lesson_released = check_release_status(lesson.get("release_date"), lesson.get("release_time"))
+
+				if not is_chapter_released or not is_lesson_released:
+					lesson.locked = True
+					previous_lesson_accessible = False
+				else:
+					if enable_sequential:
 						if chapter_idx == 0 and lesson_idx == 0:
 							lesson.locked = False
 						else:
@@ -1036,6 +1110,10 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 									previous_lesson_accessible = True
 							else:
 								previous_lesson_accessible = True
+					else:
+						lesson.locked = False
+
+	return outline
 	return outline
 
 
@@ -1131,6 +1209,26 @@ def has_passed_quiz(quiz_id: str, user: str) -> bool:
 
 def get_lesson_lock_reason(course: str, chapter: int, lesson: int) -> dict:
 	"""Get the reason why a lesson is locked, if any"""
+	chapter_name = frappe.db.get_value(
+		"Chapter Reference", {"parent": course, "idx": int(chapter)}, "chapter"
+	)
+	if chapter_name:
+		chapter_release_date, chapter_release_time = frappe.db.get_value(
+			"Course Chapter", chapter_name, ["release_date", "release_time"]
+		)
+		if not check_release_status(chapter_release_date, chapter_release_time):
+			return {"locked": True, "reason": "chapter_not_released"}
+
+	lesson_name = frappe.db.get_value(
+		"Lesson Reference", {"parent": chapter_name, "idx": int(lesson)}, "lesson"
+	)
+	if lesson_name:
+		lesson_release_date, lesson_release_time = frappe.db.get_value(
+			"Course Lesson", lesson_name, ["release_date", "release_time"]
+		)
+		if not check_release_status(lesson_release_date, lesson_release_time):
+			return {"locked": True, "reason": "lesson_not_released"}
+
 	# First lesson is always accessible
 	if int(chapter) == 1 and int(lesson) == 1:
 		return {"locked": False}
@@ -1140,6 +1238,9 @@ def get_lesson_lock_reason(course: str, chapter: int, lesson: int) -> dict:
 		enable_sequential = frappe.db.get_value("LMS Course", course, "enable_sequential_lessons")
 	except Exception:
 		enable_sequential = 1  # Default to enabled during migration
+
+	if enable_sequential is None:
+		enable_sequential = 1
 
 	if not enable_sequential:
 		return {"locked": False}
@@ -1197,12 +1298,53 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
 		lesson_name,
-		["include_in_preview", "title", "is_scorm_package"],
+		["include_in_preview", "title", "is_scorm_package", "exclude_from_course", "release_date", "release_time"],
 		as_dict=1,
 	)
 
 	if not lesson_details:
 		return {}
+
+	if not can_modify_course(course):
+		if lesson_details.get("exclude_from_course"):
+			frappe.throw(_("This lesson is not available."), frappe.PermissionError)
+
+		chapter_exclude = frappe.db.get_value("Course Chapter", chapter_name, "exclude_from_course")
+		if chapter_exclude:
+			frappe.throw(_("This lesson is not available."), frappe.PermissionError)
+
+		chapter_release_date, chapter_release_time = frappe.db.get_value(
+			"Course Chapter", chapter_name, ["release_date", "release_time"]
+		)
+		if not check_release_status(chapter_release_date, chapter_release_time):
+			course_info = frappe.db.get_value("LMS Course", course, ["title", "disable_self_learning"], as_dict=1)
+			neighbours = get_neighbour_lesson(course, chapter, lesson)
+			return {
+				"name": lesson_name,
+				"locked": 1,
+				"message": _("This chapter is not released yet."),
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"chapter_title": frappe.db.get_value("Course Chapter", chapter_name, "title"),
+				"prev": neighbours["prev"],
+				"next": neighbours["next"],
+				"disable_self_learning": course_info.disable_self_learning,
+			}
+
+		if not check_release_status(lesson_details.get("release_date"), lesson_details.get("release_time")):
+			course_info = frappe.db.get_value("LMS Course", course, ["title", "disable_self_learning"], as_dict=1)
+			neighbours = get_neighbour_lesson(course, chapter, lesson)
+			return {
+				"name": lesson_name,
+				"locked": 1,
+				"message": _("This lesson is not released yet."),
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"chapter_title": frappe.db.get_value("Course Chapter", chapter_name, "title"),
+				"prev": neighbours["prev"],
+				"next": neighbours["next"],
+				"disable_self_learning": course_info.disable_self_learning,
+			}
 
 	if lesson_details.is_scorm_package:
 		return {
@@ -1236,6 +1378,10 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 				message = _("Please pass the quiz in '{0}' before accessing this lesson.").format(
 					quiz_lesson_title
 				)
+			elif lock_info.get("reason") == "chapter_not_released":
+				message = _("This chapter is not released yet.")
+			elif lock_info.get("reason") == "lesson_not_released":
+				message = _("This lesson is not released yet.")
 			else:
 				message = _("Please complete the previous lesson before proceeding.")
 
@@ -1289,6 +1435,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			"course",
 			"content",
 			"instructor_content",
+			"exclude_from_course",
+			"release_date",
+			"release_time"
 		],
 		as_dict=True,
 	)
@@ -1328,14 +1477,28 @@ def get_video_details(lesson_name: str) -> list:
 def get_neighbour_lesson(course: str, chapter: int, lesson: int) -> dict:
 	numbers = []
 	current = f"{chapter}.{lesson}"
+	is_instructor = can_modify_course(course)
+
 	chapters = frappe.get_all("Chapter Reference", {"parent": course}, ["idx", "chapter"])
-	for chapter in chapters:
-		lessons = frappe.get_all("Lesson Reference", {"parent": chapter.chapter}, pluck="idx")
-		for lesson in lessons:
-			numbers.append(f"{chapter.idx}.{lesson}")
+	for chapter_ref in chapters:
+		if not is_instructor:
+			exclude = frappe.db.get_value("Course Chapter", chapter_ref.chapter, "exclude_from_course")
+			if exclude:
+				continue
+
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref.chapter}, ["idx", "lesson"])
+		for lesson_ref in lessons:
+			if not is_instructor:
+				exclude = frappe.db.get_value("Course Lesson", lesson_ref.lesson, "exclude_from_course")
+				if exclude:
+					continue
+			numbers.append(f"{chapter_ref.idx}.{lesson_ref.idx}")
+
+	if current not in numbers:
+		numbers.append(current)
 
 	tuples_list = [tuple(int(x) for x in s.split(".")) for s in numbers]
-	sorted_tuples = sorted(tuples_list)
+	sorted_tuples = sorted(list(set(tuples_list)))
 	sorted_numbers = [".".join(str(num) for num in t) for t in sorted_tuples]
 	index = sorted_numbers.index(current)
 
@@ -2084,6 +2247,7 @@ def get_lesson_creation_details(course: str, chapter: int, lesson: int) -> dict:
 	chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course, "idx": chapter}, "chapter")
 	lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter_name, "idx": lesson}, "lesson")
 
+	lesson_details = None
 	if lesson_name:
 		lesson_details = frappe.db.get_value(
 			"Course Lesson",
@@ -2099,6 +2263,9 @@ def get_lesson_creation_details(course: str, chapter: int, lesson: int) -> dict:
 				"youtube",
 				"quiz_id",
 				"require_quiz_pass",
+				"exclude_from_course",
+				"release_date",
+				"release_time",
 			],
 			as_dict=1,
 		)

@@ -19,6 +19,9 @@
   "column_break_dlnw",
   "manifest_file",
   "launch_file",
+  "exclude_from_course",
+  "release_date",
+  "release_time",
   "section_break_5",
   "lessons"
  ],
@@ -101,6 +104,22 @@
    "fieldtype": "Data",
    "label": "Course Title",
    "read_only": 1
+  },
+  {
+   "fieldname": "release_date",
+   "fieldtype": "Date",
+   "label": "Release Date"
+  },
+  {
+   "fieldname": "release_time",
+   "fieldtype": "Time",
+   "label": "Release Time"
+  },
+  {
+   "default": "0",
+   "fieldname": "exclude_from_course",
+   "fieldtype": "Check",
+   "label": "Exclude From Course"
   }
  ],
  "grid_page_length": 50,

@@ -108,6 +108,103 @@ class TestLMSUtils(BaseTestUtils):
 		progress_doc.delete()
 		frappe.session.user = "Administrator"
 
+	def test_chapter_and_lesson_exclusion(self):
+		# Login as student1
+		frappe.session.user = self.student1.email
+
+		# Get active chapter and lesson reference names to edit
+		chapter_ref = self.course.chapters[0].chapter
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson"])
+		self.assertTrue(len(lessons) > 0)
+		lesson_name = lessons[0].lesson
+
+		# 1. Test chapter exclusion
+		frappe.db.set_value("Course Chapter", chapter_ref, "exclude_from_course", 1)
+
+		# For students, outline shouldn't contain the excluded chapter
+		outline = get_course_outline(self.course.name)
+		chapter_names = [ch.name for ch in outline]
+		self.assertNotIn(chapter_ref, chapter_names)
+
+		# But for instructor, it should still be visible
+		frappe.session.user = "frappe@example.com" # instructor
+		outline = get_course_outline(self.course.name)
+		chapter_names = [ch.name for ch in outline]
+		self.assertIn(chapter_ref, chapter_names)
+
+		# Reset chapter exclusion
+		frappe.db.set_value("Course Chapter", chapter_ref, "exclude_from_course", 0)
+
+		# 2. Test lesson exclusion
+		frappe.session.user = self.student1.email
+		frappe.db.set_value("Course Lesson", lesson_name, "exclude_from_course", 1)
+
+		# For students, the excluded lesson should not be in the chapter lessons details
+		outline = get_course_outline(self.course.name)
+		lessons_in_chapter = outline[0].lessons
+		lesson_names = [l.name for l in lessons_in_chapter]
+		self.assertNotIn(lesson_name, lesson_names)
+
+		# For instructors, it should be visible
+		frappe.session.user = "frappe@example.com"
+		outline = get_course_outline(self.course.name)
+		lessons_in_chapter = outline[0].lessons
+		lesson_names = [l.name for l in lessons_in_chapter]
+		self.assertIn(lesson_name, lesson_names)
+
+		# Clean up
+		frappe.db.set_value("Course Lesson", lesson_name, "exclude_from_course", 0)
+		frappe.session.user = "Administrator"
+
+	def test_chapter_and_lesson_rolling_release(self):
+		# Get active chapter and lesson reference names
+		chapter_ref = self.course.chapters[0].chapter
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson"])
+		self.assertTrue(len(lessons) > 0)
+		lesson_name = lessons[0].lesson
+
+		# Login as student1
+		frappe.session.user = self.student1.email
+
+		# 1. Test future release date locks chapter
+		from frappe.utils import add_days, now_datetime
+		future_date = add_days(now_datetime(), 2)
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_date", future_date)
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_time", "12:00:00")
+
+		outline = get_course_outline(self.course.name)
+		first_chapter = outline[0]
+		self.assertTrue(first_chapter.lessons[0].locked)
+
+		# 2. Test past release date unlocks chapter
+		past_date = add_days(now_datetime(), -2)
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_date", past_date)
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_time", "00:00:00")
+
+		# Reset lesson dates to be sure
+		frappe.db.set_value("Course Lesson", lesson_name, "release_date", None)
+		frappe.db.set_value("Course Lesson", lesson_name, "release_time", None)
+
+		outline = get_course_outline(self.course.name)
+		first_chapter = outline[0]
+		# The first lesson of the first chapter should be unlocked (assuming no other lock reasons)
+		self.assertFalse(first_chapter.lessons[0].locked)
+
+		# 3. Test future release date locks lesson
+		frappe.db.set_value("Course Lesson", lesson_name, "release_date", future_date)
+		frappe.db.set_value("Course Lesson", lesson_name, "release_time", "12:00:00")
+
+		outline = get_course_outline(self.course.name)
+		first_chapter = outline[0]
+		self.assertTrue(first_chapter.lessons[0].locked)
+
+		# Clean up
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_date", None)
+		frappe.db.set_value("Course Chapter", chapter_ref, "release_time", None)
+		frappe.db.set_value("Course Lesson", lesson_name, "release_date", None)
+		frappe.db.set_value("Course Lesson", lesson_name, "release_time", None)
+		frappe.session.user = "Administrator"
+
 	def test_get_instructors(self):
 		instructors = get_instructors("LMS Course", self.course.name)
 		self.assertEqual(len(instructors), len(self.course.instructors))
