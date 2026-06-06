@@ -151,7 +151,6 @@ import { ref, onMounted, computed, watch, onBeforeUnmount, inject } from 'vue'
 import { Button, Dialog, LoadingIndicator, createResource, toast } from 'frappe-ui'
 import { FileText, Upload } from 'lucide-vue-next'
 import { formatSeconds, formatTimestamp } from '@/utils'
-import { useRoute } from 'vue-router'
 import QuizInVideo from '@/components/Modals/QuizInVideo.vue'
 import { usersStore } from '@/stores/user'
 
@@ -183,11 +182,23 @@ const duration = ref(0)
 const currentTime = ref(0)
 const showTranscript = ref(false)
 const transcriptContainer = ref(null)
-const route = useRoute()
 const transcriptFileInput = ref(null)
 
 const triggerTranscriptUpload = () => {
 	transcriptFileInput.value?.click()
+}
+
+const getRouteParams = () => {
+	const path = window.location.pathname
+	const match = path.match(/courses\/([^\/]+)\/learn\/([^\/\-]+)-([^\/\-]+)/)
+	if (match) {
+		return {
+			courseName: match[1],
+			chapterNumber: match[2],
+			lessonNumber: match[3],
+		}
+	}
+	return {}
 }
 
 const isAdmin = computed(() => {
@@ -223,10 +234,11 @@ const handleTranscriptFile = (event) => {
 	const reader = new FileReader()
 	reader.onload = (e) => {
 		const content = e.target.result
+		const params = getRouteParams()
 		uploadTranscriptResource.submit({
-			course_name: route.params.courseName,
-			chapter_number: route.params.chapterNumber,
-			lesson_number: route.params.lessonNumber,
+			course_name: params.courseName,
+			chapter_number: params.chapterNumber,
+			lesson_number: params.lessonNumber,
 			video_id: videoId.value,
 			file_content: content,
 			file_name: file.name,
