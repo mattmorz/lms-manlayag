@@ -2532,9 +2532,36 @@ def parse_srt(srt_text):
 
 
 @frappe.whitelist()
-def upload_video_transcript(lesson_name: str, video_id: str, file_content: str, file_name: str):
+def upload_video_transcript(video_id: str, file_content: str, file_name: str, lesson_name: str = None, course_name: str = None, chapter_number: str = None, lesson_number: str = None):
 	from lms.lms.utils import can_modify_course
 	import json
+
+	if not lesson_name and course_name and chapter_number and lesson_number:
+		try:
+			ch_idx = int(chapter_number)
+			ls_idx = int(lesson_number)
+			chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course_name, "idx": ch_idx}, "chapter")
+			if chapter_name:
+				lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter_name, "idx": ls_idx}, "lesson")
+		except (ValueError, TypeError):
+			pass
+
+	if not lesson_name and video_id:
+		like_str = f"%{video_id}%"
+		results = frappe.db.sql(
+			"""
+			select name from `tabCourse Lesson`
+			where youtube like %s or body like %s or content like %s or instructor_notes like %s
+			limit 1
+			""",
+			(like_str, like_str, like_str, like_str),
+			as_dict=True
+		)
+		if results:
+			lesson_name = results[0].name
+
+	if not lesson_name:
+		frappe.throw(_("Could not resolve lesson from request parameters."))
 
 	course = frappe.db.get_value("Course Lesson", lesson_name, "course")
 	if not course or not can_modify_course(course):
@@ -2602,7 +2629,6 @@ def upload_video_transcript(lesson_name: str, video_id: str, file_content: str, 
 	frappe.cache().delete_value(cache_key_vimeo)
 
 	return transcript
-
 
 
 @frappe.whitelist()

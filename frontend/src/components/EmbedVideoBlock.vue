@@ -29,16 +29,38 @@
 		</div>
 
 		<div v-if="hasTranscript" class="mt-4">
-			<Button
-				variant="ghost"
-				class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
-				@click="showTranscript = !showTranscript"
-			>
-				<template #prefix>
-					<FileText class="w-4 h-4 stroke-1.5" />
-				</template>
-				<span>{{ showTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
-			</Button>
+			<div class="flex items-center space-x-2">
+				<Button
+					variant="ghost"
+					class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+					@click="showTranscript = !showTranscript"
+				>
+					<template #prefix>
+						<FileText class="w-4 h-4 stroke-1.5" />
+					</template>
+					<span>{{ showTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
+				</Button>
+
+				<Button
+					v-if="isAdmin"
+					variant="ghost"
+					class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+					@click="triggerTranscriptUpload"
+				>
+					<template #prefix>
+						<Upload class="w-4 h-4 stroke-1.5" />
+					</template>
+					<span>{{ __('Upload Transcript') }}</span>
+				</Button>
+
+				<input
+					ref="transcriptFileInput"
+					type="file"
+					accept=".vtt,.srt,.json"
+					class="hidden"
+					@change="handleTranscriptFile"
+				/>
+			</div>
 			
 			<div 
 				v-show="showTranscript" 
@@ -126,9 +148,10 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, onBeforeUnmount, inject } from 'vue'
-import { Button, Dialog, LoadingIndicator, createResource } from 'frappe-ui'
-import { FileText } from 'lucide-vue-next'
+import { Button, Dialog, LoadingIndicator, createResource, toast } from 'frappe-ui'
+import { FileText, Upload } from 'lucide-vue-next'
 import { formatSeconds, formatTimestamp } from '@/utils'
+import { useRoute } from 'vue-router'
 import QuizInVideo from '@/components/Modals/QuizInVideo.vue'
 import { usersStore } from '@/stores/user'
 
@@ -160,6 +183,57 @@ const duration = ref(0)
 const currentTime = ref(0)
 const showTranscript = ref(false)
 const transcriptContainer = ref(null)
+const route = useRoute()
+const transcriptFileInput = ref(null)
+
+const triggerTranscriptUpload = () => {
+	transcriptFileInput.value?.click()
+}
+
+const isAdmin = computed(() => {
+	return (
+		user.data?.is_instructor ||
+		user.data?.is_moderator ||
+		user.data?.is_evaluator
+	)
+})
+
+const uploadTranscriptResource = createResource({
+	url: 'lms.lms.api.upload_video_transcript',
+	onSuccess(data) {
+		toast.success(__('Transcript uploaded successfully.'))
+		transcriptResource.reload()
+		showTranscript.value = true
+		if (transcriptFileInput.value) {
+			transcriptFileInput.value.value = ''
+		}
+	},
+	onError(err) {
+		toast.error(err.messages?.[0] || err || __('Failed to upload transcript.'))
+		if (transcriptFileInput.value) {
+			transcriptFileInput.value.value = ''
+		}
+	}
+})
+
+const handleTranscriptFile = (event) => {
+	const file = event.target.files?.[0]
+	if (!file) return
+
+	const reader = new FileReader()
+	reader.onload = (e) => {
+		const content = e.target.result
+		uploadTranscriptResource.submit({
+			course_name: route.params.courseName,
+			chapter_number: route.params.chapterNumber,
+			lesson_number: route.params.lessonNumber,
+			video_id: videoId.value,
+			file_content: content,
+			file_name: file.name,
+		})
+	}
+	reader.readAsText(file)
+}
 
 let player = null
 let checkInterval = null
