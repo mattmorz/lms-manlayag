@@ -90,7 +90,7 @@
 					/>
 				</div>
 
-				<Button v-if="isSessionUser()" @click="showSlotsTemplate = 1">
+				<Button v-if="isSessionUser() && evaluator.data" @click="showSlotsTemplate = 1">
 					<template #prefix>
 						<Plus class="w-4 h-4 stroke-1.5 text-ink-gray-7" />
 					</template>
@@ -304,6 +304,8 @@ const update = (name, field, value) => {
 }
 
 const add = () => {
+	if (createSlot.loading) return
+	if (!evaluator.data?.slots?.name) return
 	if (!newSlot.day || !newSlot.start_time || !newSlot.end_time) {
 		return
 	}
