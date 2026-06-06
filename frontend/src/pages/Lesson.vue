@@ -1037,6 +1037,10 @@ const switchLesson = (direction) => {
 const canProceedToNext = () => {
     if (!lesson.data?.next) return true
 
+    if (lesson.data?.enable_sequential_lessons === 0 || lesson.data?.enable_sequential_lessons === false) {
+        return true
+    }
+
     // Moderators/Instructors can bypass
     if (
         user.data?.is_moderator ||

@@ -1222,7 +1222,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			course_info = frappe.db.get_value(
 				"LMS Course",
 				course,
-				["title", "paid_certificate", "disable_self_learning"],
+				["title", "paid_certificate", "disable_self_learning", "enable_sequential_lessons"],
 				as_dict=1,
 			)
 
@@ -1245,6 +1245,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 				"message": message,
 				"title": lesson_details.title,
 				"course_title": course_info.title,
+				"enable_sequential_lessons": 1 if course_info.get("enable_sequential_lessons") is None else course_info.enable_sequential_lessons,
 				"chapter_title": frappe.db.get_value(
 					"Course Chapter",
 					chapter_name,
@@ -1259,7 +1260,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	course_info = frappe.db.get_value(
 		"LMS Course",
 		course,
-		["title", "paid_certificate", "disable_self_learning"],
+		["title", "paid_certificate", "disable_self_learning", "enable_sequential_lessons"],
 		as_dict=1,
 	)
 
@@ -1309,6 +1310,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	lesson_details.icon = get_lesson_icon(lesson_details.body, lesson_details.content)
 	lesson_details.instructors = get_instructors("LMS Course", course)
 	lesson_details.course_title = course_info.title
+	lesson_details.enable_sequential_lessons = 1 if course_info.get("enable_sequential_lessons") is None else course_info.enable_sequential_lessons
 	lesson_details.paid_certificate = course_info.paid_certificate
 	lesson_details.disable_self_learning = course_info.disable_self_learning
 	lesson_details.videos = get_video_details(lesson_name)
