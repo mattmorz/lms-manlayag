@@ -335,6 +335,18 @@
 									<span>{{ __('Upload Transcript') }}</span>
 								</Button>
 
+								<Button
+									v-if="isAdmin && lessonWordsList.length > 0"
+									variant="ghost"
+									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									@click="openEditTranscriptModal"
+								>
+									<template #prefix>
+										<Edit class="w-4 h-4 stroke-1.5" />
+									</template>
+									<span>{{ __('Edit Transcript') }}</span>
+								</Button>
+
 								<input
 									ref="transcriptFileInput"
 									type="file"
@@ -455,6 +467,67 @@
 		:lessonName="lesson.data?.name"
 		:lessonTitle="lesson.data?.title"
 	/>
+	<Dialog
+		v-model="showEditTranscriptModal"
+		:options="{
+			title: __('Edit Transcript'),
+			size: 'xl',
+			actions: [
+				{
+					label: __('Save'),
+					variant: 'solid',
+					onClick: () => saveEditedTranscript(),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+				<div 
+					v-for="(segment, index) in editableSegments" 
+					:key="index"
+					class="flex items-center space-x-3 border-b pb-2 last:border-0"
+				>
+					<span class="text-xs text-ink-gray-5 w-16 shrink-0 font-mono">
+						{{ formatSeconds(segment.start) }}
+					</span>
+					<input
+						v-model="segment.start"
+						type="number"
+						step="0.1"
+						class="w-16 border rounded px-1.5 py-0.5 text-xs text-center font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+						title="Start Time (seconds)"
+					/>
+					<textarea
+						v-model="segment.text"
+						rows="1"
+						class="flex-1 border rounded px-2 py-1 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
+					/>
+					<Button
+						variant="ghost"
+						class="text-red-500 hover:text-red-700 p-1"
+						@click="removeSegment(index)"
+					>
+						<template #icon>
+							<Trash2 class="size-4" />
+						</template>
+					</Button>
+				</div>
+				<div class="pt-2">
+					<Button
+						variant="outline"
+						class="w-full flex justify-center items-center py-2"
+						@click="addSegment"
+					>
+						<template #prefix>
+							<Plus class="size-4" />
+						</template>
+						{{ __('Add Segment') }}
+					</Button>
+				</div>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup>
 import {
@@ -464,6 +537,7 @@ import {
 	call,
 	createListResource,
 	createResource,
+	Dialog,
 	LoadingIndicator,
 	TabButtons,
 	Tooltip,
@@ -491,6 +565,9 @@ import {
 	MessageCircleQuestion,
 	TrendingUp,
 	Upload,
+	Edit,
+	Trash2,
+	Plus,
 } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr, highlightText } from '@/utils'
 import { sessionStore } from '@/stores/session'
@@ -611,9 +688,10 @@ const triggerTranscriptUpload = () => {
 const uploadTranscriptResource = createResource({
 	url: 'lms.lms.api.upload_video_transcript',
 	onSuccess(data) {
-		toast.success(__('Transcript uploaded successfully.'))
+		toast.success(__('Transcript saved successfully.'))
 		lessonTranscriptResource.reload()
 		showLessonTranscript.value = true
+		showEditTranscriptModal.value = false
 		if (transcriptFileInput.value) {
 			transcriptFileInput.value.value = ''
 		}
@@ -625,6 +703,52 @@ const uploadTranscriptResource = createResource({
 		}
 	}
 })
+
+const showEditTranscriptModal = ref(false)
+const editableSegments = ref([])
+
+const formatSeconds = (time) => {
+	const minutes = Math.floor(time / 60)
+	const seconds = Math.floor(time % 60)
+	return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
+}
+
+const openEditTranscriptModal = () => {
+	editableSegments.value = JSON.parse(JSON.stringify(lessonTranscriptResource.data || []))
+	showEditTranscriptModal.value = true
+}
+
+const removeSegment = (index) => {
+	editableSegments.value.splice(index, 1)
+}
+
+const addSegment = () => {
+	let lastStart = 0
+	if (editableSegments.value.length > 0) {
+		const lastSeg = editableSegments.value[editableSegments.value.length - 1]
+		lastStart = parseFloat(lastSeg.start) + 5
+	}
+	editableSegments.value.push({
+		text: '',
+		start: lastStart,
+		duration: 5
+	})
+}
+
+const saveEditedTranscript = () => {
+	const sorted = [...editableSegments.value].sort((a, b) => parseFloat(a.start) - parseFloat(b.start))
+	sorted.forEach(s => {
+		s.start = parseFloat(s.start) || 0
+		s.duration = parseFloat(s.duration) || 0
+	})
+
+	uploadTranscriptResource.submit({
+		lesson_name: lesson.data.name,
+		video_id: lessonVideoId.value,
+		file_content: JSON.stringify(sorted),
+		file_name: 'transcript.json',
+	})
+}
 
 const handleTranscriptFile = (event) => {
 	const file = event.target.files?.[0]
