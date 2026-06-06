@@ -36,6 +36,7 @@
 				<div
 					v-if="evaluator.data"
 					v-for="slot in evaluator.data.slots.schedule"
+					:key="slot.name"
 					class="grid grid-cols-3 md:grid-cols-4 gap-4 mb-4 group"
 				>
 					<FormControl
@@ -108,10 +109,12 @@
 						:disabled="!isSessionUser()"
 						@blur="
 							() => {
-								updateUnavailability.submit({
-									field: 'unavailable_from',
-									value: from,
-								})
+								if (evaluator.data?.slots?.name) {
+									updateUnavailability.submit({
+										field: 'unavailable_from',
+										value: from,
+									})
+								}
 							}
 						"
 					/>
@@ -122,10 +125,12 @@
 						:disabled="!isSessionUser()"
 						@blur="
 							() => {
-								updateUnavailability.submit({
-									field: 'unavailable_to',
-									value: to,
-								})
+								if (evaluator.data?.slots?.name) {
+									updateUnavailability.submit({
+										field: 'unavailable_to',
+										value: to,
+									})
+								}
 							}
 						"
 					/>
@@ -281,6 +286,7 @@ const updateUnavailability = createResource({
 })
 
 const update = (name, field, value) => {
+	if (!name) return
 	updateSlot.submit(
 		{
 			name,
