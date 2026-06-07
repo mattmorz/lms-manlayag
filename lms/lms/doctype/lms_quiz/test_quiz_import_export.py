@@ -9,6 +9,19 @@ from lms.lms.api import import_quiz, export_quiz
 class TestQuizImportExport(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
+		# Clean up any leftover test quizzes/questions from prior aborted runs
+		for title in ["Import Export Test Quiz", "GIFT Test Quiz"]:
+			quizzes = frappe.get_all("LMS Quiz", {"title": title}, pluck="name")
+			for q_name in quizzes:
+				frappe.delete_doc("LMS Quiz", q_name, force=True)
+		
+		# Also delete test questions
+		for pattern in ["%Import Export Test Quiz%", "%is abbreviation%", "%Paris?%", "%Two plus two%", "%2 + 2%"]:
+			questions = frappe.get_all("LMS Question", {"question": ["like", pattern]}, pluck="name")
+			for qst_name in questions:
+				frappe.delete_doc("LMS Question", qst_name, force=True)
+		frappe.db.commit()
+
 		# Create a test quiz
 		cls.quiz = frappe.get_doc({
 			"doctype": "LMS Quiz",
@@ -17,6 +30,10 @@ class TestQuizImportExport(unittest.TestCase):
 		}).insert(ignore_permissions=True)
 
 	def test_import_export_aiken(self):
+		# Clean up any existing questions in self.quiz
+		self.quiz.questions = []
+		self.quiz.save(ignore_permissions=True)
+
 		aiken_content = (
 			"What is 2 + 2?\n"
 			"A. 3\n"
@@ -58,42 +75,51 @@ class TestQuizImportExport(unittest.TestCase):
 			"passing_percentage": 50
 		}).insert(ignore_permissions=True)
 
-		gift_content = (
-			"::Q1:: Moodle is an abbreviation for? {\n"
-			"    =Modular Object-Oriented Dynamic Learning Environment\n"
-			"    ~Modular Object-Oriented Digital Learning Environment\n"
-			"}\n\n"
-			"::Q2:: Is capital of France Paris? {T}\n\n"
-			"::Q3:: Two plus two is? {=4 =four}\n"
-		)
+		try:
+			gift_content = (
+				"::Q1:: Moodle is an abbreviation for? {\n"
+				"    =Modular Object-Oriented Dynamic Learning Environment\n"
+				"    ~Modular Object-Oriented Digital Learning Environment\n"
+				"}\n\n"
+				"::Q2:: Is capital of France Paris? {T}\n\n"
+				"::Q3:: Two plus two is? {=4 =four}\n"
+			)
 
-		import_quiz(gift_quiz.name, gift_content, "GIFT")
+			import_quiz(gift_quiz.name, gift_content, "GIFT")
 
-		gift_quiz.reload()
-		self.assertEqual(len(gift_quiz.questions), 3)
+			gift_quiz.reload()
+			self.assertEqual(len(gift_quiz.questions), 3)
 
-		# Q1
-		q1 = frappe.get_doc("LMS Question", gift_quiz.questions[0].question)
-		self.assertEqual(q1.type, "Choices")
-		self.assertEqual(q1.option_1, "Modular Object-Oriented Dynamic Learning Environment")
-		self.assertEqual(q1.is_correct_1, 1)
+			# Q1
+			q1 = frappe.get_doc("LMS Question", gift_quiz.questions[0].question)
+			self.assertEqual(q1.type, "Choices")
+			self.assertEqual(q1.option_1, "Modular Object-Oriented Dynamic Learning Environment")
+			self.assertEqual(q1.is_correct_1, 1)
 
-		# Q2
-		q2 = frappe.get_doc("LMS Question", gift_quiz.questions[1].question)
-		self.assertEqual(q2.type, "Choices")
-		self.assertEqual(q2.option_1, "True")
-		self.assertEqual(q2.is_correct_1, 1)
+			# Q2
+			q2 = frappe.get_doc("LMS Question", gift_quiz.questions[1].question)
+			self.assertEqual(q2.type, "Choices")
+			self.assertEqual(q2.option_1, "True")
+			self.assertEqual(q2.is_correct_1, 1)
 
-		# Q3
-		q3 = frappe.get_doc("LMS Question", gift_quiz.questions[2].question)
-		self.assertEqual(q3.type, "User Input")
-		self.assertEqual(q3.possibility_1, "4")
-		self.assertEqual(q3.possibility_2, "four")
-
-		# Clean up
-		frappe.db.delete("LMS Quiz", gift_quiz.name)
+			# Q3
+			q3 = frappe.get_doc("LMS Question", gift_quiz.questions[2].question)
+			self.assertEqual(q3.type, "User Input")
+			self.assertEqual(q3.possibility_1, "4")
+			self.assertEqual(q3.possibility_2, "four")
+		finally:
+			# Clean up
+			if frappe.db.exists("LMS Quiz", gift_quiz.name):
+				frappe.delete_doc("LMS Quiz", gift_quiz.name, force=True)
 
 	@classmethod
 	def tearDownClass(cls) -> None:
-		frappe.db.delete("LMS Quiz", cls.quiz.name)
-		frappe.db.delete("LMS Question")
+		if frappe.db.exists("LMS Quiz", cls.quiz.name):
+			frappe.delete_doc("LMS Quiz", cls.quiz.name, force=True)
+		
+		# Deletes questions matching our pattern
+		for pattern in ["%Import Export Test Quiz%", "%is abbreviation%", "%Paris?%", "%Two plus two%", "%2 + 2%"]:
+			questions = frappe.get_all("LMS Question", {"question": ["like", pattern]}, pluck="name")
+			for qst_name in questions:
+				frappe.delete_doc("LMS Question", qst_name, force=True)
+		frappe.db.commit()

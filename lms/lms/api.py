@@ -2986,6 +2986,8 @@ def export_aiken(quiz_name):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 	lines = []
 	for q_ref in quiz.questions:
+		if not frappe.db.exists("LMS Question", q_ref.question):
+			continue
 		q = frappe.get_doc("LMS Question", q_ref.question)
 		if q.type != "Choices":
 			continue
@@ -3062,6 +3064,8 @@ def export_gift(quiz_name):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 	lines = []
 	for q_ref in quiz.questions:
+		if not frappe.db.exists("LMS Question", q_ref.question):
+			continue
 		q = frappe.get_doc("LMS Question", q_ref.question)
 		from frappe.utils.html_utils import clean_html
 		import html
@@ -3103,6 +3107,7 @@ def export_gift(quiz_name):
 def import_gift(quiz_name, file_content):
 	content_normalized = file_content.replace("\r\n", "\n")
 	blocks = [b.strip() for b in content_normalized.split("\n\n") if b.strip()]
+
 
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 
