@@ -3,7 +3,7 @@
 		<div class="grid grid-cols-4 gap-5 mb-5 text-ink-gray-9">
 			<NumberChartGraph
 				:title="__('Enrolled')"
-				:value="formatAmount(course.data?.enrollments)"
+				:value="formatAmount(totalEnrollments)"
 			/>
 			<NumberChartGraph
 				:title="__('Average Completion Rate')"
@@ -160,7 +160,9 @@
 								<Tooltip :text="row.value">
 									<div class="ml-auto">
 										{{
-											Math.round((row.value / course.data?.enrollments) * 100)
+											totalEnrollments
+												? Math.round((row.value / totalEnrollments) * 100)
+												: 0
 										}}%
 									</div>
 								</Tooltip>
@@ -231,10 +233,12 @@
 							<Tooltip :text="progress.completion_count">
 								<div>
 									{{
-										Math.ceil(
-											(progress.completion_count / course.data?.enrollments) *
-												100
-										)
+										totalEnrollments
+											? Math.ceil(
+													(progress.completion_count / totalEnrollments) *
+														100
+											  )
+											: 0
 									}}%
 								</div>
 							</Tooltip>
@@ -342,8 +346,8 @@ const lessonProgress = createResource({
 const updateLessonProgress = (value: string) => {
 	if (value == 'completion_rate') {
 		lessonProgress.data?.sort((a: any, b: any) => {
-			const rateA = a.completion_count / (props.course.data?.enrollments || 1)
-			const rateB = b.completion_count / (props.course.data?.enrollments || 1)
+			const rateA = a.completion_count / (totalEnrollments.value || 1)
+			const rateB = b.completion_count / (totalEnrollments.value || 1)
 			return rateB - rateA
 		})
 	} else if (value == 'index') {
@@ -368,6 +372,10 @@ watch([searchFilter], () => {
 		filters: filters,
 	})
 	progressList.reload()
+})
+
+const totalEnrollments = computed(() => {
+	return props.course.data?.enrollments || progressList.data?.length || 0
 })
 
 const averageCompletionRate = computed(() => {
