@@ -39,6 +39,18 @@
 					{{ __('Check Submissions') }}
 				</Button>
 			</router-link>
+			<Button @click="showImportModal = true">
+				<template #prefix>
+					<Upload class="size-4 stroke-1.5" />
+				</template>
+				{{ __('Import Quiz') }}
+			</Button>
+			<Button @click="showExportModal = true">
+				<template #prefix>
+					<Download class="size-4 stroke-1.5" />
+				</template>
+				{{ __('Export Quiz') }}
+			</Button>
 			<Button variant="solid" @click="submitQuiz()">
 				{{ __('Save') }}
 			</Button>
@@ -200,6 +212,73 @@
 				: __('Add a new question')
 		"
 	/>
+
+	<Dialog
+		v-model="showImportModal"
+		:options="{
+			title: __('Import Quiz'),
+			size: 'md',
+			actions: [
+				{
+					label: __('Import'),
+					variant: 'solid',
+					onClick: (dialog) => handleImport(dialog),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-4 text-base">
+				<FormControl
+					type="select"
+					:options="[
+						{ label: 'GIFT Format', value: 'GIFT' },
+						{ label: 'AIKEN Format', value: 'AIKEN' },
+					]"
+					v-model="importFormat"
+					:label="__('Format Type')"
+				/>
+				<div class="mt-4">
+					<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">{{ __('Select File') }}</label>
+					<input
+						type="file"
+						ref="importFileInput"
+						accept=".txt,.gift,.aiken"
+						class="w-full border rounded-md p-2 text-sm bg-surface-white"
+					/>
+				</div>
+			</div>
+		</template>
+	</Dialog>
+
+	<Dialog
+		v-model="showExportModal"
+		:options="{
+			title: __('Export Quiz'),
+			size: 'md',
+			actions: [
+				{
+					label: __('Export'),
+					variant: 'solid',
+					onClick: (dialog) => handleExport(dialog),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-4 text-base">
+				<FormControl
+					type="select"
+					:options="[
+						{ label: 'GIFT Format', value: 'GIFT' },
+						{ label: 'AIKEN Format', value: 'AIKEN' },
+					]"
+					v-model="exportFormat"
+					:label="__('Format Type')"
+				/>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup>
 import {
@@ -218,6 +297,7 @@ import {
 	toast,
 	createDocumentResource,
 	Badge,
+	Dialog,
 } from 'frappe-ui'
 import {
 	computed,
@@ -228,12 +308,18 @@ import {
 	onBeforeUnmount,
 } from 'vue'
 import { sessionStore } from '../stores/session'
-import { ClipboardList, ListChecks, Plus, Trash2 } from 'lucide-vue-next'
+import { ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { escapeHTML } from '@/utils'
 import Question from '@/components/Modals/Question.vue'
 
 const { brand } = sessionStore()
+const showImportModal = ref(false)
+const showExportModal = ref(false)
+const importFormat = ref('GIFT')
+const exportFormat = ref('GIFT')
+const importFileInput = ref(null)
+
 const showQuestionModal = ref(false)
 const currentQuestion = reactive({
 	question: '',
@@ -372,6 +458,72 @@ const deleteQuestions = (selections, unselectAll) => {
 				toast.success(__('Questions deleted successfully'))
 				quizDetails.reload()
 				unselectAll()
+			},
+		}
+	)
+}
+
+const importQuizResource = createResource({
+	url: 'lms.lms.api.import_quiz',
+})
+
+const exportQuizResource = createResource({
+	url: 'lms.lms.api.export_quiz',
+})
+
+const handleImport = (dialog) => {
+	const file = importFileInput.value?.files?.[0]
+	if (!file) {
+		toast.error(__('Please select a file to import'))
+		return
+	}
+
+	const reader = new FileReader()
+	reader.onload = (e) => {
+		const content = e.target.result
+		importQuizResource.submit(
+			{
+				quiz: props.quizID,
+				file_content: content,
+				format_type: importFormat.value,
+			},
+			{
+				onSuccess() {
+					toast.success(__('Quiz imported successfully'))
+					quizDetails.reload()
+					dialog.close()
+				},
+				onError(err) {
+					toast.error(err.messages?.[0] || err)
+				},
+			}
+		)
+	}
+	reader.readAsText(file)
+}
+
+const handleExport = (dialog) => {
+	exportQuizResource.submit(
+		{
+			quiz: props.quizID,
+			format_type: exportFormat.value,
+		},
+		{
+			onSuccess(content) {
+				const blob = new Blob([content], { type: 'text/plain' })
+				const url = URL.createObjectURL(blob)
+				const downloadAnchor = document.createElement('a')
+				downloadAnchor.href = url
+				downloadAnchor.download = `${quizDetails.doc.title || props.quizID}_export.txt`
+				document.body.appendChild(downloadAnchor)
+				downloadAnchor.click()
+				downloadAnchor.remove()
+				URL.revokeObjectURL(url)
+				toast.success(__('Quiz exported successfully'))
+				dialog.close()
+			},
+			onError(err) {
+				toast.error(err.messages?.[0] || err)
 			},
 		}
 	)

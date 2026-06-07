@@ -1,5 +1,8 @@
 import frappe
-from frappe.tests import UnitTestCase
+try:
+	from frappe.tests import UnitTestCase
+except ImportError:
+	from frappe.tests.utils import FrappeTestCase as UnitTestCase
 from frappe.utils import add_days, nowdate
 
 from lms.lms.doctype.lms_certificate.lms_certificate import get_default_certificate_template
@@ -12,6 +15,7 @@ class BaseTestUtils(UnitTestCase):
 	"""
 
 	def setUp(self):
+		frappe.set_user("Administrator")
 		self.cleanup_items = []
 
 	def tearDown(self):

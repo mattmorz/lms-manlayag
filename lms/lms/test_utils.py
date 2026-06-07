@@ -105,8 +105,8 @@ class TestLMSUtils(BaseTestUtils):
 				self.assertTrue(first_chapter.lessons[2].locked)
 
 		# Clean up progress doc
+		frappe.set_user("Administrator")
 		progress_doc.delete()
-		frappe.session.user = "Administrator"
 
 	def test_chapter_and_lesson_exclusion(self):
 		# Login as student1
@@ -114,7 +114,7 @@ class TestLMSUtils(BaseTestUtils):
 
 		# Get active chapter and lesson reference names to edit
 		chapter_ref = self.course.chapters[0].chapter
-		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson"])
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx")
 		self.assertTrue(len(lessons) > 0)
 		lesson_name = lessons[0].lesson
 
@@ -159,7 +159,7 @@ class TestLMSUtils(BaseTestUtils):
 	def test_chapter_and_lesson_rolling_release(self):
 		# Get active chapter and lesson reference names
 		chapter_ref = self.course.chapters[0].chapter
-		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson"])
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx")
 		self.assertTrue(len(lessons) > 0)
 		lesson_name = lessons[0].lesson
 

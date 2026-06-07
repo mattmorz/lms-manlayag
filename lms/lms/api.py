@@ -2981,3 +2981,251 @@ def import_course(course_data):
 
 	return new_course_name
 
+
+def export_aiken(quiz_name):
+	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	lines = []
+	for q_ref in quiz.questions:
+		q = frappe.get_doc("LMS Question", q_ref.question)
+		if q.type != "Choices":
+			continue
+
+		from frappe.utils.html_utils import clean_html
+		import html
+		q_text = html.unescape(clean_html(q.question)).strip()
+		lines.append(q_text)
+
+		options = []
+		correct_option_letter = None
+		letters = ['A', 'B', 'C', 'D']
+		for idx, letter in enumerate(letters):
+			option_text = q.get(f"option_{idx+1}")
+			is_correct = q.get(f"is_correct_{idx+1}")
+			if option_text:
+				lines.append(f"{letter}. {option_text.strip()}")
+				if is_correct:
+					correct_option_letter = letter
+
+		if correct_option_letter:
+			lines.append(f"ANSWER: {correct_option_letter}")
+		lines.append("")
+	return "\n".join(lines)
+
+
+def import_aiken(quiz_name, file_content):
+	lines = [line.strip() for line in file_content.split("\n") if line.strip()]
+	questions = []
+	current_question = None
+	current_options = []
+
+	for line in lines:
+		if line.startswith("ANSWER:") or line.startswith("ANSWER :"):
+			correct_ans = line.split(":", 1)[1].strip()
+			if current_question and current_options and correct_ans:
+				questions.append({
+					"question": current_question,
+					"options": current_options,
+					"correct": correct_ans
+				})
+			current_question = None
+			current_options = []
+		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]):
+			letter = line[0]
+			delimiter_idx = max(line.find("."), line.find(")"))
+			opt_text = line[delimiter_idx+1:].strip()
+			current_options.append((letter, opt_text))
+		else:
+			current_question = line
+			current_options = []
+
+	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	for q_data in questions:
+		lms_q = frappe.new_doc("LMS Question")
+		lms_q.type = "Choices"
+		lms_q.question = q_data["question"]
+
+		for idx, (letter, text) in enumerate(q_data["options"][:4]):
+			lms_q.set(f"option_{idx+1}", text)
+			if letter == q_data["correct"]:
+				lms_q.set(f"is_correct_{idx+1}", 1)
+
+		lms_q.insert(ignore_permissions=True)
+
+		quiz.append("questions", {
+			"question": lms_q.name,
+			"marks": 1
+		})
+	quiz.save(ignore_permissions=True)
+
+
+def export_gift(quiz_name):
+	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	lines = []
+	for q_ref in quiz.questions:
+		q = frappe.get_doc("LMS Question", q_ref.question)
+		from frappe.utils.html_utils import clean_html
+		import html
+		q_text = html.unescape(clean_html(q.question)).strip()
+
+		if q.type == "Choices":
+			options_str = []
+			for i in range(1, 5):
+				opt_text = q.get(f"option_{i}")
+				is_correct = q.get(f"is_correct_{i}")
+				explanation = q.get(f"explanation_{i}")
+				if opt_text:
+					prefix = "=" if is_correct else "~"
+					exp_str = f" #{explanation.strip()}" if explanation else ""
+					options_str.append(f"    {prefix}{opt_text.strip()}{exp_str}")
+
+			options_block = "\n".join(options_str)
+			lines.append(f"::Question::{q_text} {{\n{options_block}\n}}")
+
+		elif q.type == "User Input":
+			possibilities = []
+			for i in range(1, 5):
+				poss = q.get(f"possibility_{i}")
+				if poss:
+					possibilities.append(f"={poss.strip()}")
+			if possibilities:
+				poss_block = " ".join(possibilities)
+				lines.append(f"::Question::{q_text} {{{poss_block}}}")
+			else:
+				lines.append(f"::Question::{q_text} {{}}")
+
+		elif q.type == "Open Ended":
+			lines.append(f"::Question::{q_text} {{}}")
+
+		lines.append("")
+	return "\n".join(lines)
+
+
+def import_gift(quiz_name, file_content):
+	content_normalized = file_content.replace("\r\n", "\n")
+	blocks = [b.strip() for b in content_normalized.split("\n\n") if b.strip()]
+
+	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+
+	for block in blocks:
+		lines = [line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")]
+		if not lines:
+			continue
+
+		block_text = "\n".join(lines)
+
+		question_title = None
+		if block_text.startswith("::"):
+			parts = block_text.split("::", 2)
+			if len(parts) >= 3:
+				question_title = parts[1].strip()
+				block_text = parts[2].strip()
+
+		import re
+		match = re.search(r'\{(.*?)\}', block_text, re.DOTALL)
+		if not match:
+			q_text = block_text.strip()
+			q_type = "Open Ended"
+			answers = []
+		else:
+			q_text = block_text[:match.start()].strip() + block_text[match.end():].strip()
+			q_text = q_text.strip()
+			answer_content = match.group(1).strip()
+
+			if not answer_content:
+				q_type = "Open Ended"
+				answers = []
+			elif answer_content in ["T", "F", "TRUE", "FALSE"]:
+				q_type = "Choices"
+				is_true = answer_content in ["T", "TRUE"]
+				answers = [
+					{"text": "True", "is_correct": 1 if is_true else 0},
+					{"text": "False", "is_correct": 0 if is_true else 1}
+				]
+			else:
+				options = []
+				idx = 0
+				while idx < len(answer_content):
+					char = answer_content[idx]
+					if char in ["~", "="]:
+						is_correct = 1 if char == "=" else 0
+						next_idx = len(answer_content)
+						for next_prefix in ["~", "="]:
+							p_idx = answer_content.find(next_prefix, idx + 1)
+							if p_idx != -1 and p_idx < next_idx:
+								next_idx = p_idx
+						opt_content = answer_content[idx+1:next_idx].strip()
+						opt_text = opt_content
+						explanation = ""
+						if "#" in opt_content:
+							opt_parts = opt_content.split("#", 1)
+							opt_text = opt_parts[0].strip()
+							explanation = opt_parts[1].strip()
+
+						options.append({
+							"text": opt_text,
+							"is_correct": is_correct,
+							"explanation": explanation
+						})
+						idx = next_idx
+					else:
+						idx += 1
+
+				has_choice_prefix = "~" in answer_content
+				if has_choice_prefix:
+					q_type = "Choices"
+					answers = options
+				else:
+					q_type = "User Input"
+					answers = options
+
+		lms_q = frappe.new_doc("LMS Question")
+		lms_q.type = q_type
+		lms_q.question = q_text
+
+		if q_type == "Choices":
+			for idx, ans in enumerate(answers[:4]):
+				lms_q.set(f"option_{idx+1}", ans["text"])
+				lms_q.set(f"is_correct_{idx+1}", ans["is_correct"])
+				if ans.get("explanation"):
+					lms_q.set(f"explanation_{idx+1}", ans["explanation"])
+		elif q_type == "User Input":
+			for idx, ans in enumerate(answers[:4]):
+				lms_q.set(f"possibility_{idx+1}", ans["text"])
+
+		lms_q.insert(ignore_permissions=True)
+
+		quiz.append("questions", {
+			"question": lms_q.name,
+			"marks": 1
+		})
+
+	quiz.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def export_quiz(quiz: str, format_type: str) -> str:
+	quiz_doc = frappe.get_doc("LMS Quiz", quiz)
+	if not can_modify_course(quiz_doc.course):
+		frappe.throw(_("You do not have permission to export this quiz."), frappe.PermissionError)
+
+	if format_type.upper() == "AIKEN":
+		return export_aiken(quiz)
+	elif format_type.upper() == "GIFT":
+		return export_gift(quiz)
+	else:
+		frappe.throw(_("Unsupported format type. Use GIFT or AIKEN."))
+
+
+@frappe.whitelist()
+def import_quiz(quiz: str, file_content: str, format_type: str):
+	quiz_doc = frappe.get_doc("LMS Quiz", quiz)
+	if not can_modify_course(quiz_doc.course):
+		frappe.throw(_("You do not have permission to import to this quiz."), frappe.PermissionError)
+
+	if format_type.upper() == "AIKEN":
+		import_aiken(quiz, file_content)
+	elif format_type.upper() == "GIFT":
+		import_gift(quiz, file_content)
+	else:
+		frappe.throw(_("Unsupported format type. Use GIFT or AIKEN."))
+
