@@ -514,7 +514,12 @@ const handleExport = (dialog) => {
 		},
 		{
 			onSuccess(content) {
-				const blob = new Blob([content], { type: 'text/plain' })
+				const exportData = content || exportQuizResource.data
+				if (!exportData) {
+					toast.error(__('No content received from server'))
+					return
+				}
+				const blob = new Blob([exportData], { type: 'text/plain' })
 				const url = URL.createObjectURL(blob)
 				const downloadAnchor = document.createElement('a')
 				downloadAnchor.href = url

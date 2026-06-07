@@ -39,5 +39,5 @@ class TestLMSQuiz(unittest.TestCase):
 
 	@classmethod
 	def tearDownClass(cls) -> None:
-		frappe.db.delete("LMS Quiz", "test-quiz")
-		frappe.db.delete("LMS Question")
+		frappe.db.delete("LMS Quiz", {"name": "test-quiz"})
+		frappe.db.delete("LMS Question", {"question": "Question Multiple"})

@@ -2984,10 +2984,15 @@ def import_course(course_data):
 
 def export_aiken(quiz_name):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	if not quiz.questions:
+		frappe.throw(_("This quiz has no questions to export."))
+
 	lines = []
 	for q_ref in quiz.questions:
 		if not frappe.db.exists("LMS Question", q_ref.question):
-			continue
+			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
+				q_ref.question, q_ref.question_detail or _("Untitled")
+			))
 		q = frappe.get_doc("LMS Question", q_ref.question)
 		if q.type != "Choices":
 			continue
@@ -3011,7 +3016,11 @@ def export_aiken(quiz_name):
 		if correct_option_letter:
 			lines.append(f"ANSWER: {correct_option_letter}")
 		lines.append("")
-	return "\n".join(lines)
+
+	content = "\n".join(lines).strip()
+	if not content:
+		frappe.throw(_("No compatible questions found for AIKEN export. AIKEN format only supports multiple choice (Choices) questions."))
+	return content + "\n"
 
 
 def import_aiken(quiz_name, file_content):
@@ -3062,10 +3071,15 @@ def import_aiken(quiz_name, file_content):
 
 def export_gift(quiz_name):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	if not quiz.questions:
+		frappe.throw(_("This quiz has no questions to export."))
+
 	lines = []
 	for q_ref in quiz.questions:
 		if not frappe.db.exists("LMS Question", q_ref.question):
-			continue
+			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
+				q_ref.question, q_ref.question_detail or _("Untitled")
+			))
 		q = frappe.get_doc("LMS Question", q_ref.question)
 		from frappe.utils.html_utils import clean_html
 		import html
@@ -3101,7 +3115,11 @@ def export_gift(quiz_name):
 			lines.append(f"::Question::{q_text} {{}}")
 
 		lines.append("")
-	return "\n".join(lines)
+
+	content = "\n".join(lines).strip()
+	if not content:
+		frappe.throw(_("No compatible questions found for GIFT export."))
+	return content + "\n"
 
 
 def import_gift(quiz_name, file_content):
