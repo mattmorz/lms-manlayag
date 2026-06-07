@@ -3034,7 +3034,9 @@ def import_aiken(quiz_name, file_content):
 	for line in lines:
 		if line.startswith("ANSWER:") or line.startswith("ANSWER :"):
 			correct_ans = line.split(":", 1)[1].strip()
-			if current_question and current_options and correct_ans:
+			if current_question and correct_ans:
+				if len(current_options) < 2:
+					frappe.throw(_("Question '{0}' must have at least two options.").format(current_question))
 				questions.append({
 					"question": current_question,
 					"options": current_options,
@@ -3042,7 +3044,7 @@ def import_aiken(quiz_name, file_content):
 				})
 			current_question = None
 			current_options = []
-		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]):
+		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]):
 			letter = line[0]
 			delimiter_idx = max(line.find("."), line.find(")"))
 			opt_text = line[delimiter_idx+1:].strip()
@@ -3059,7 +3061,7 @@ def import_aiken(quiz_name, file_content):
 
 		for idx, (letter, text) in enumerate(q_data["options"][:4]):
 			lms_q.set(f"option_{idx+1}", text)
-			if letter == q_data["correct"]:
+			if letter.upper() == q_data["correct"].upper():
 				lms_q.set(f"is_correct_{idx+1}", 1)
 
 		lms_q.insert(ignore_permissions=True)

@@ -67,6 +67,34 @@ class TestQuizImportExport(unittest.TestCase):
 		self.assertIn("B. 4", exported_content)
 		self.assertIn("ANSWER: B", exported_content)
 
+		# Clean questions for next test
+		self.quiz.questions = []
+		self.quiz.save(ignore_permissions=True)
+
+		# Test lowercase prefixes and lowercase answer letter
+		lowercase_aiken = (
+			"What is c?\n"
+			"a. programming language\n"
+			"b. letter\n"
+			"ANSWER: a\n"
+		)
+		import_quiz(self.quiz.name, lowercase_aiken, "AIKEN")
+		self.quiz.reload()
+		self.assertEqual(len(self.quiz.questions), 1)
+		q_doc_lc = frappe.get_doc("LMS Question", self.quiz.questions[0].question)
+		self.assertEqual(q_doc_lc.option_1, "programming language")
+		self.assertEqual(q_doc_lc.option_2, "letter")
+		self.assertEqual(q_doc_lc.is_correct_1, 1)
+		self.assertEqual(q_doc_lc.is_correct_2, 0)
+
+		# Test validation throws if fewer than 2 options
+		invalid_aiken = (
+			"What is d?\n"
+			"a. single option\n"
+			"ANSWER: a\n"
+		)
+		self.assertRaises(frappe.ValidationError, import_quiz, self.quiz.name, invalid_aiken, "AIKEN")
+
 	def test_import_export_gift(self):
 		# Create a clean quiz
 		gift_quiz = frappe.get_doc({
