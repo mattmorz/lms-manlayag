@@ -503,6 +503,10 @@ const handleImport = (dialog) => {
 }
 
 const handleExport = (dialog) => {
+	if (!quizDetails.doc?.questions || quizDetails.doc.questions.length === 0) {
+		toast.error(__('This quiz has no questions to export'))
+		return
+	}
 	exportQuizResource.submit(
 		{
 			quiz: props.quizID,
