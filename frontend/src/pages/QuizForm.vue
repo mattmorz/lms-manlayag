@@ -39,18 +39,6 @@
 					{{ __('Check Submissions') }}
 				</Button>
 			</router-link>
-			<Button @click="showImportModal = true">
-				<template #prefix>
-					<Upload class="size-4 stroke-1.5" />
-				</template>
-				{{ __('Import Quiz') }}
-			</Button>
-			<Button @click="showExportModal = true">
-				<template #prefix>
-					<Download class="size-4 stroke-1.5" />
-				</template>
-				{{ __('Export Quiz') }}
-			</Button>
 			<Button variant="solid" @click="submitQuiz()">
 				{{ __('Save') }}
 			</Button>
@@ -142,12 +130,26 @@
 				<div class="text-lg font-semibold text-ink-gray-9">
 					{{ __('Questions') }}
 				</div>
-				<Button v-if="!readOnlyMode" @click="openQuestionModal()">
-					<template #prefix>
-						<Plus class="w-4 h-4" />
-					</template>
-					{{ __('New Question') }}
-				</Button>
+				<div class="flex items-center space-x-2">
+					<Button v-if="!readOnlyMode" @click="showImportModal = true">
+						<template #prefix>
+							<Upload class="size-4 stroke-1.5" />
+						</template>
+						{{ __('Import Quiz') }}
+					</Button>
+					<Button v-if="!readOnlyMode" @click="openExportModal()">
+						<template #prefix>
+							<Download class="size-4 stroke-1.5" />
+						</template>
+						{{ __('Export Quiz') }}
+					</Button>
+					<Button v-if="!readOnlyMode" @click="openQuestionModal()">
+						<template #prefix>
+							<Plus class="w-4 h-4" />
+						</template>
+						{{ __('New Question') }}
+					</Button>
+				</div>
 			</div>
 			<ListView
 				v-if="questions.length"
@@ -186,6 +188,13 @@
 				<ListSelectBanner>
 					<template #actions="{ unselectAll, selections }">
 						<div class="flex gap-2">
+							<Button
+								variant="ghost"
+								@click="openSelectedExportModal(selections, unselectAll)"
+							>
+								<Download class="h-4 w-4 stroke-1.5" />
+								<span>{{ __('Export Selected') }}</span>
+							</Button>
 							<Button
 								variant="ghost"
 								@click="deleteQuestions(selections, unselectAll)"
@@ -471,6 +480,21 @@ const exportQuizResource = createResource({
 	url: 'lms.lms.api.export_quiz',
 })
 
+const selectedQuestionsToExport = ref([])
+const currentUnselectAll = ref(null)
+
+const openExportModal = () => {
+	selectedQuestionsToExport.value = []
+	currentUnselectAll.value = null
+	showExportModal.value = true
+}
+
+const openSelectedExportModal = (selections, unselectAll) => {
+	selectedQuestionsToExport.value = Array.from(selections)
+	currentUnselectAll.value = unselectAll
+	showExportModal.value = true
+}
+
 const handleImport = (dialog) => {
 	const file = importFileInput.value?.files?.[0]
 	if (!file) {
@@ -507,11 +531,16 @@ const handleExport = (dialog) => {
 		toast.error(__('This quiz has no questions to export'))
 		return
 	}
+	const params = {
+		quiz: props.quizID,
+		format_type: exportFormat.value,
+	}
+	if (selectedQuestionsToExport.value.length > 0) {
+		params.questions = JSON.stringify(selectedQuestionsToExport.value)
+	}
+
 	exportQuizResource.submit(
-		{
-			quiz: props.quizID,
-			format_type: exportFormat.value,
-		},
+		params,
 		{
 			onSuccess(content) {
 				const exportData = content || exportQuizResource.data
@@ -529,6 +558,11 @@ const handleExport = (dialog) => {
 				downloadAnchor.remove()
 				URL.revokeObjectURL(url)
 				toast.success(__('Quiz exported successfully'))
+				
+				if (currentUnselectAll.value) {
+					currentUnselectAll.value()
+					currentUnselectAll.value = null
+				}
 				dialog.close()
 			},
 			onError(err) {

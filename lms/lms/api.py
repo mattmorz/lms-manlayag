@@ -2982,13 +2982,15 @@ def import_course(course_data):
 	return new_course_name
 
 
-def export_aiken(quiz_name):
+def export_aiken(quiz_name, selected_questions=None):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 	if not quiz.questions:
 		frappe.throw(_("This quiz has no questions to export."))
 
 	lines = []
 	for q_ref in quiz.questions:
+		if selected_questions and (q_ref.name not in selected_questions and q_ref.question not in selected_questions):
+			continue
 		if not frappe.db.exists("LMS Question", q_ref.question):
 			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
 				q_ref.question, q_ref.question_detail or _("Untitled")
@@ -3069,13 +3071,15 @@ def import_aiken(quiz_name, file_content):
 	quiz.save(ignore_permissions=True)
 
 
-def export_gift(quiz_name):
+def export_gift(quiz_name, selected_questions=None):
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 	if not quiz.questions:
 		frappe.throw(_("This quiz has no questions to export."))
 
 	lines = []
 	for q_ref in quiz.questions:
+		if selected_questions and (q_ref.name not in selected_questions and q_ref.question not in selected_questions):
+			continue
 		if not frappe.db.exists("LMS Question", q_ref.question):
 			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
 				q_ref.question, q_ref.question_detail or _("Untitled")
@@ -3226,15 +3230,19 @@ def import_gift(quiz_name, file_content):
 
 
 @frappe.whitelist()
-def export_quiz(quiz: str, format_type: str) -> str:
+def export_quiz(quiz: str, format_type: str, questions: str = None) -> str:
 	quiz_doc = frappe.get_doc("LMS Quiz", quiz)
 	if not can_modify_course(quiz_doc.course):
 		frappe.throw(_("You do not have permission to export this quiz."), frappe.PermissionError)
 
+	selected_questions = None
+	if questions:
+		selected_questions = json.loads(questions)
+
 	if format_type.upper() == "AIKEN":
-		return export_aiken(quiz)
+		return export_aiken(quiz, selected_questions)
 	elif format_type.upper() == "GIFT":
-		return export_gift(quiz)
+		return export_gift(quiz, selected_questions)
 	else:
 		frappe.throw(_("Unsupported format type. Use GIFT or AIKEN."))
 

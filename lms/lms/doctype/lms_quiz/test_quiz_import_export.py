@@ -107,6 +107,15 @@ class TestQuizImportExport(unittest.TestCase):
 			self.assertEqual(q3.type, "User Input")
 			self.assertEqual(q3.possibility_1, "4")
 			self.assertEqual(q3.possibility_2, "four")
+
+			# Test partial export
+			import json
+			# Select only the first question
+			selected_ref = [gift_quiz.questions[0].name]
+			partial_gift = export_quiz(gift_quiz.name, "GIFT", questions=json.dumps(selected_ref))
+			self.assertIn("Moodle is an abbreviation for?", partial_gift)
+			self.assertNotIn("Is capital of France Paris?", partial_gift)
+			self.assertNotIn("Two plus two is?", partial_gift)
 		finally:
 			# Clean up
 			if frappe.db.exists("LMS Quiz", gift_quiz.name):
