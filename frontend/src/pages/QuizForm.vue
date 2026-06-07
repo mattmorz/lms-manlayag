@@ -192,8 +192,10 @@
 								variant="ghost"
 								@click="openSelectedExportModal(selections, unselectAll)"
 							>
-								<Download class="h-4 w-4 stroke-1.5" />
-								<span>{{ __('Export Selected') }}</span>
+								<template #prefix>
+									<Download class="h-4 w-4 stroke-1.5" />
+								</template>
+								{{ __('Export Selected') }}
 							</Button>
 							<Button
 								variant="ghost"
