@@ -72,7 +72,7 @@
 										variant="subtle"
 										size="sm"
 									>
-										{{ __('Scheduled: {0} {1}').replace('{0}', chapter.release_date).replace('{1}', chapter.release_time || '') }}
+										{{ __('Scheduled: {0} {1}').format(chapter.release_date, chapter.release_time || '') }}
 									</Badge>
 								</div>
 								<div class="flex ml-auto space-x-4">
@@ -163,7 +163,7 @@
 														size="sm"
 														class="mr-2"
 													>
-														{{ __('Scheduled: {0} {1}').replace('{0}', lesson.release_date).replace('{1}', lesson.release_time || '') }}
+														{{ __('Scheduled: {0} {1}').format(lesson.release_date, lesson.release_time || '') }}
 													</Badge>
 													<Trash2
 														v-if="allowEdit"
@@ -193,7 +193,7 @@
 													size="sm"
 													class="mr-2"
 												>
-													{{ __('Scheduled: {0} {1}').replace('{0}', lesson.release_date).replace('{1}', lesson.release_time || '') }}
+													{{ __('Scheduled: {0} {1}').format(lesson.release_date, lesson.release_time || '') }}
 												</Badge>
 											</div>
 											</div>

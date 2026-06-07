@@ -8,8 +8,8 @@
 				{
 					label: chapterDetail ? __('Edit') : __('Create'),
 					variant: 'solid',
-					onClick: (close) =>
-						chapterDetail ? editChapter(close) : addChapter(close),
+					onClick: (context) =>
+						chapterDetail ? editChapter(context) : addChapter(context),
 				},
 			],
 		}"
@@ -161,7 +161,7 @@ const chapterReference = createResource({
 	},
 })
 
-const addChapter = async (close) => {
+const addChapter = async (context) => {
 	chapterResource.submit(
 		{},
 		{
@@ -186,7 +186,7 @@ const addChapter = async (close) => {
 						},
 					}
 				)
-				close()
+				context.close()
 			},
 			onError(err) {
 				toast.error(err.messages?.[0] || err)
@@ -213,7 +213,7 @@ const cleanChapter = () => {
 	chapter.release_time = ''
 }
 
-const editChapter = (close) => {
+const editChapter = (context) => {
 	chapterResource.submit(
 		{},
 		{
@@ -225,7 +225,7 @@ const editChapter = (close) => {
 			onSuccess() {
 				outline.value.reload()
 				toast.success(__('Chapter updated successfully'))
-				close()
+				context.close()
 			},
 			onError(err) {
 				toast.error(err.messages?.[0] || err)
