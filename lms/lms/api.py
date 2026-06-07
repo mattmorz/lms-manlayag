@@ -3046,8 +3046,7 @@ def import_aiken(quiz_name, file_content):
 			current_options = []
 		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]):
 			letter = line[0]
-			delimiter_idx = max(line.find("."), line.find(")"))
-			opt_text = line[delimiter_idx+1:].strip()
+			opt_text = line[2:].strip()
 			current_options.append((letter, opt_text))
 		else:
 			current_question = line
