@@ -237,12 +237,16 @@ const editChapter = (context) => {
 watch(
 	() => props.chapterDetail,
 	(newChapter) => {
-		chapter.title = newChapter?.title
-		chapter.is_scorm_package = newChapter?.is_scorm_package
-		chapter.scorm_package = newChapter?.scorm_package
-		chapter.exclude_from_course = newChapter?.exclude_from_course ? true : false
-		chapter.release_date = newChapter?.release_date || ''
-		chapter.release_time = newChapter?.release_time || ''
+		if (newChapter) {
+			chapter.title = newChapter.title
+			chapter.is_scorm_package = newChapter.is_scorm_package || 0
+			chapter.scorm_package = newChapter.scorm_package || null
+			chapter.exclude_from_course = newChapter.exclude_from_course ? true : false
+			chapter.release_date = newChapter.release_date || ''
+			chapter.release_time = newChapter.release_time || ''
+		} else {
+			cleanChapter()
+		}
 	}
 )
 

@@ -925,7 +925,7 @@ def give_discussions_permission():
 
 @frappe.whitelist()
 def upsert_chapter(
-	title: str, course: str, is_scorm_package: bool, scorm_package: dict = None, name: str = None,
+	title: str, course: str, is_scorm_package: bool = False, scorm_package: dict = None, name: str = None,
 	exclude_from_course: bool = False, release_date: str = None, release_time: str = None
 ):
 	if not can_modify_course(course):
