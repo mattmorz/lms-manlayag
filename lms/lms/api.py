@@ -3560,10 +3560,13 @@ def get_student_grades(course: str, student: str = None) -> dict:
 
 
 @frappe.whitelist()
-def get_category_counts(course: str) -> dict:
+def get_category_counts(course: str, current_lesson: str = None) -> dict:
+	filters = {"course": course, "exclude_from_course": 0}
+	if current_lesson:
+		filters["name"] = ["!=", current_lesson]
 	lessons = frappe.get_all(
 		"Course Lesson",
-		filters={"course": course, "exclude_from_course": 0},
+		filters=filters,
 		fields=["content"]
 	)
 

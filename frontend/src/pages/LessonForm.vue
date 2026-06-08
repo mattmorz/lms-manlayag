@@ -225,6 +225,7 @@ const lessonDetails = createResource({
 	auto: true,
 	onSuccess(data) {
 		if (data.lesson) {
+			window.current_lesson_name = data.lesson.name
 			Object.keys(data.lesson).forEach((key) => {
 				lesson[key] = data.lesson[key]
 			})

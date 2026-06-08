@@ -123,6 +123,10 @@ const props = defineProps({
 		type: String,
 		default: '',
 	},
+	currentAssessments: {
+		type: Array,
+		default: () => [],
+	},
 })
 
 const courseName = computed(() => {
@@ -150,6 +154,7 @@ const categoryCounts = createResource({
 	makeParams() {
 		return {
 			course: courseName.value,
+			current_lesson: window.current_lesson_name || '',
 		}
 	},
 	auto: true,
@@ -181,7 +186,12 @@ const gradingCategoryOptions = computed(() => {
 	if (!courseDoc.value || !courseDoc.value.enable_grading_policy || !courseDoc.value.grading_categories) {
 		return []
 	}
-	const counts = categoryCounts.data || {}
+	const counts = { ...(categoryCounts.data || {}) }
+	for (const item of props.currentAssessments) {
+		if (item.category) {
+			counts[item.category] = (counts[item.category] || 0) + 1
+		}
+	}
 	return courseDoc.value.grading_categories.map((cat) => {
 		const currentCount = counts[cat.category_name] || 0
 		const limit = cat.number_of_assessments || 0

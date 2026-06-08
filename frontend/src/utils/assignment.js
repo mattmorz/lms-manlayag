@@ -10,6 +10,7 @@ import { getLmsRoute } from '@/utils/basePath'
 export class Assignment {
 	constructor({ data, api, readOnly }) {
 		this.data = data
+		this.api = api
 		this.readOnly = readOnly
 	}
 
@@ -87,20 +88,40 @@ export class Assignment {
 		if (this.readOnly) {
 			return
 		}
-		const app = createApp(AssessmentPlugin, {
-			type: 'assignment',
-			courseName: router.currentRoute.value?.params?.courseName,
-			onAddition: (data) => {
-				this.data.assignment = data.item
-				this.data.grading_category = data.grading_category
-				this.data.due_date = data.due_date
-				this.data.due_time = data.due_time
-				this.renderAssignment(data.item, data.grading_category, data.due_date, data.due_time)
-			},
+		this.api.saver.save().then((outputData) => {
+			const currentAssessments = []
+			for (const block of outputData.blocks || []) {
+				if (block.type === 'quiz' && block.data?.quiz && block.data?.grading_category) {
+					currentAssessments.push({
+						type: 'quiz',
+						id: block.data.quiz,
+						category: block.data.grading_category,
+					})
+				} else if (block.type === 'assignment' && block.data?.assignment && block.data?.grading_category) {
+					currentAssessments.push({
+						type: 'assignment',
+						id: block.data.assignment,
+						category: block.data.grading_category,
+					})
+				}
+			}
+
+			const app = createApp(AssessmentPlugin, {
+				type: 'assignment',
+				courseName: router.currentRoute.value?.params?.courseName,
+				currentAssessments: currentAssessments,
+				onAddition: (data) => {
+					this.data.assignment = data.item
+					this.data.grading_category = data.grading_category
+					this.data.due_date = data.due_date
+					this.data.due_time = data.due_time
+					this.renderAssignment(data.item, data.grading_category, data.due_date, data.due_time)
+				},
+			})
+			app.use(translationPlugin)
+			app.use(router)
+			app.mount(this.wrapper)
 		})
-		app.use(translationPlugin)
-		app.use(router)
-		app.mount(this.wrapper)
 	}
 
 	save() {
