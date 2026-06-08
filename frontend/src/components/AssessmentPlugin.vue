@@ -68,7 +68,7 @@
 							v-model="assignment"
 							doctype="LMS Assignment"
 							:filters="{
-								course: route.params.courseName,
+								course: courseName,
 							}"
 							placeholder=" "
 							:label="__('Select an Assignment')"
@@ -118,6 +118,14 @@ const props = defineProps({
 		type: Function,
 		required: true,
 	},
+	courseName: {
+		type: String,
+		default: '',
+	},
+})
+
+const courseName = computed(() => {
+	return props.courseName || route?.params?.courseName || ''
 })
 
 onMounted(async () => {
@@ -130,7 +138,7 @@ const courseResource = createResource({
 	makeParams() {
 		return {
 			doctype: 'LMS Course',
-			name: route.params.courseName,
+			name: courseName.value,
 		}
 	},
 	auto: true,
@@ -140,7 +148,7 @@ const categoryCounts = createResource({
 	url: 'lms.lms.api.get_category_counts',
 	makeParams() {
 		return {
-			course: route.params.courseName,
+			course: courseName.value,
 		}
 	},
 	auto: true,

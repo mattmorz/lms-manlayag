@@ -67,6 +67,7 @@ export class Quiz {
 		}
 		const app = createApp(AssessmentPlugin, {
 			type: 'quiz',
+			courseName: router.currentRoute.value?.params?.courseName,
 			onAddition: (data) => {
 				this.data.quiz = data.item
 				this.data.grading_category = data.grading_category
@@ -76,6 +77,7 @@ export class Quiz {
 			},
 		})
 		app.use(translationPlugin)
+		app.use(router)
 		app.mount(this.wrapper)
 	}
 

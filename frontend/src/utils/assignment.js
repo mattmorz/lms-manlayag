@@ -89,6 +89,7 @@ export class Assignment {
 		}
 		const app = createApp(AssessmentPlugin, {
 			type: 'assignment',
+			courseName: router.currentRoute.value?.params?.courseName,
 			onAddition: (data) => {
 				this.data.assignment = data.item
 				this.data.grading_category = data.grading_category
