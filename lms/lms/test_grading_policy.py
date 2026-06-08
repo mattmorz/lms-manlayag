@@ -480,3 +480,76 @@ class TestGradingPolicy(BaseTestUtils):
 		self.assertEqual(assignment_block["data"]["due_date"], "2026-06-20")
 		self.assertEqual(assignment_block["data"]["due_time"], "23:59:59")
 
+	def test_unique_quiz_per_course(self):
+		course = self._create_course(title="Unique Quiz Course")
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
+		quiz = self._create_quiz(title="Unique Quiz")
+
+		# Create a lesson with this quiz
+		lesson1 = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"blocks": [
+					{
+						"id": "quiz1",
+						"type": "quiz",
+						"data": {
+							"quiz": quiz.name
+						}
+					}
+				]
+			})
+		)
+
+		# Attempting to create a second lesson in the same course with the same quiz should raise ValidationError
+		with self.assertRaises(frappe.ValidationError):
+			lesson2 = frappe.new_doc("Course Lesson")
+			lesson2.update({
+				"title": "Lesson 2",
+				"chapter": chapter.name,
+				"course": course.name,
+				"content": json.dumps({
+					"blocks": [
+						{
+							"id": "quiz_dup",
+							"type": "quiz",
+							"data": {
+								"quiz": quiz.name
+							}
+						}
+					]
+				})
+			})
+			lesson2.insert()
+
+		# Attempting to add the same quiz multiple times in the same lesson should also throw ValidationError
+		with self.assertRaises(frappe.ValidationError):
+			lesson3 = frappe.new_doc("Course Lesson")
+			lesson3.update({
+				"title": "Lesson 3",
+				"chapter": chapter.name,
+				"course": course.name,
+				"content": json.dumps({
+					"blocks": [
+						{
+							"id": "quiz_a",
+							"type": "quiz",
+							"data": {
+								"quiz": quiz.name
+							}
+						},
+						{
+							"id": "quiz_b",
+							"type": "quiz",
+							"data": {
+								"quiz": quiz.name
+							}
+						}
+					]
+				})
+			})
+			lesson3.insert()
+
+

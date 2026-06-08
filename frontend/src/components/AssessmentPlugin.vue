@@ -58,6 +58,7 @@
 						v-if="type == 'quiz'"
 						v-model="quiz"
 						doctype="LMS Quiz"
+						:filters="quizFilters"
 						:label="__('Select a quiz')"
 						placeholder=" "
 						:onCreate="(value, close) => redirectToForm()"
@@ -152,6 +153,26 @@ const categoryCounts = createResource({
 		}
 	},
 	auto: true,
+})
+
+const usedQuizzesResource = createResource({
+	url: 'lms.lms.api.get_used_quizzes',
+	makeParams() {
+		return {
+			course: courseName.value,
+		}
+	},
+	auto: true,
+})
+
+const quizFilters = computed(() => {
+	const used = usedQuizzesResource.data || []
+	if (used.length) {
+		return {
+			name: ['not in', used],
+		}
+	}
+	return {}
 })
 
 const courseDoc = computed(() => courseResource.data)

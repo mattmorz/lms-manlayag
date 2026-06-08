@@ -17,6 +17,7 @@ from ...md import find_macros
 class CourseLesson(Document):
 	def validate(self):
 		self.validate_grading_policy()
+		self.validate_unique_assessments()
 
 	def validate_grading_policy(self):
 		course = self.course
@@ -115,6 +116,59 @@ class CourseLesson(Document):
 						cat_name, limit, course
 					)
 				)
+
+	def validate_unique_assessments(self):
+		course = self.course
+		if not course and self.chapter:
+			course = frappe.db.get_value("Course Chapter", self.chapter, "course")
+		if not course:
+			return
+
+		# Parse self.content
+		if not self.content:
+			return
+		try:
+			content = json.loads(self.content)
+		except Exception:
+			return
+
+		current_quizzes = set()
+		for block in content.get("blocks", []):
+			if block.get("type") == "quiz":
+				q_id = block.get("data", {}).get("quiz")
+				if q_id:
+					if q_id in current_quizzes:
+						frappe.throw(
+							_("Quiz '{0}' is added multiple times in this lesson.").format(q_id)
+						)
+					current_quizzes.add(q_id)
+
+		if not current_quizzes:
+			return
+
+		# Find all other lessons in the same course
+		other_lessons = frappe.get_all(
+			"Course Lesson",
+			filters={"course": course, "name": ["!=", self.name]},
+			fields=["name", "content"]
+		)
+
+		for other in other_lessons:
+			if not other.content:
+				continue
+			try:
+				other_content = json.loads(other.content)
+			except Exception:
+				continue
+			for block in other_content.get("blocks", []):
+				if block.get("type") == "quiz":
+					q_id = block.get("data", {}).get("quiz")
+					if q_id in current_quizzes:
+						frappe.throw(
+							_("Quiz '{0}' is already used in another lesson ('{1}') of this course.").format(
+								q_id, other.name
+							)
+						)
 
 	def on_update(self):
 		self.validate_quiz_id()

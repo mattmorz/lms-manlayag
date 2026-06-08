@@ -3581,7 +3581,29 @@ def get_category_counts(course: str) -> dict:
 				cat = data.get("grading_category")
 				if cat:
 					counts[cat] = counts.get(cat, 0) + 1
-	return counts
+
+@frappe.whitelist()
+def get_used_quizzes(course: str) -> list:
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"course": course},
+		fields=["content"]
+	)
+	used_quizzes = set()
+	for lesson in lessons:
+		if not lesson.content:
+			continue
+		try:
+			content = json.loads(lesson.content)
+		except Exception:
+			continue
+		for block in content.get("blocks", []):
+			if block.get("type") == "quiz":
+				quiz = block.get("data", {}).get("quiz")
+				if quiz:
+					used_quizzes.add(quiz)
+	return list(used_quizzes)
+
 
 
 
