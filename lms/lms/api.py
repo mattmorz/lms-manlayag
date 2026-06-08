@@ -2657,6 +2657,20 @@ def export_course(course_name: str):
 	]
 	cleaned_course = {k: v for k, v in course_dict.items() if k not in exclude_fields}
 
+	if "grading_categories" in cleaned_course:
+		cleaned_cats = []
+		for cat in cleaned_course["grading_categories"]:
+			cleaned_cat = {k: v for k, v in cat.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_cats.append(cleaned_cat)
+		cleaned_course["grading_categories"] = cleaned_cats
+
+	if "grading_scale" in cleaned_course:
+		cleaned_scales = []
+		for scale in cleaned_course["grading_scale"]:
+			cleaned_scale = {k: v for k, v in scale.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_scales.append(cleaned_scale)
+		cleaned_course["grading_scale"] = cleaned_scales
+
 	chapters = []
 	chapter_refs = frappe.get_all(
 		"Chapter Reference", 
@@ -2868,6 +2882,20 @@ def import_course(course_data):
 
 	course_info = data.get("course")
 	cleaned_course = course_info.copy()
+
+	if "grading_categories" in cleaned_course:
+		cleaned_cats = []
+		for cat in cleaned_course["grading_categories"]:
+			cleaned_cat = {k: v for k, v in cat.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_cats.append(cleaned_cat)
+		cleaned_course["grading_categories"] = cleaned_cats
+
+	if "grading_scale" in cleaned_course:
+		cleaned_scales = []
+		for scale in cleaned_course["grading_scale"]:
+			cleaned_scale = {k: v for k, v in scale.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_scales.append(cleaned_scale)
+		cleaned_course["grading_scale"] = cleaned_scales
 	
 	original_course_title = cleaned_course.get("title")
 	course_title = original_course_title
@@ -3285,17 +3313,80 @@ def get_student_grades(course: str, student: str = None) -> dict:
 	categories = course_doc.get("grading_categories") or []
 	grading_scale = course_doc.get("grading_scale") or []
 
-	quizzes = frappe.get_all(
-		"LMS Quiz",
-		filters={"course": course},
-		fields=["name", "title", "grading_category", "due_date", "due_time", "passing_percentage"]
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"course": course, "exclude_from_course": 0},
+		fields=["content"]
 	)
 
-	assignments = frappe.get_all(
-		"LMS Assignment",
-		filters={"course": course},
-		fields=["name", "title", "grading_category", "due_date", "due_time"]
-	)
+	quizzes_dict = {}
+	assignments_dict = {}
+
+	for lesson in lessons:
+		if not lesson.content:
+			continue
+		try:
+			content = json.loads(lesson.content)
+		except Exception:
+			continue
+		for block in content.get("blocks", []):
+			if block.get("type") == "quiz":
+				data = block.get("data", {})
+				quiz_name = data.get("quiz")
+				if quiz_name:
+					quizzes_dict[quiz_name] = {
+						"name": quiz_name,
+						"grading_category": data.get("grading_category"),
+						"due_date": data.get("due_date"),
+						"due_time": data.get("due_time")
+					}
+			elif block.get("type") == "assignment":
+				data = block.get("data", {})
+				asg_name = data.get("assignment")
+				if asg_name:
+					assignments_dict[asg_name] = {
+						"name": asg_name,
+						"grading_category": data.get("grading_category"),
+						"due_date": data.get("due_date"),
+						"due_time": data.get("due_time")
+					}
+
+	quizzes = []
+	if quizzes_dict:
+		quiz_names = list(quizzes_dict.keys())
+		quiz_docs = frappe.get_all(
+			"LMS Quiz",
+			filters={"name": ["in", quiz_names]},
+			fields=["name", "title", "passing_percentage"]
+		)
+		for q in quiz_docs:
+			scanned = quizzes_dict[q.name]
+			quizzes.append(frappe._dict({
+				"name": q.name,
+				"title": q.title,
+				"passing_percentage": q.passing_percentage,
+				"grading_category": scanned["grading_category"],
+				"due_date": scanned["due_date"],
+				"due_time": scanned["due_time"]
+			}))
+
+	assignments = []
+	if assignments_dict:
+		asg_names = list(assignments_dict.keys())
+		asg_docs = frappe.get_all(
+			"LMS Assignment",
+			filters={"name": ["in", asg_names]},
+			fields=["name", "title"]
+		)
+		for a in asg_docs:
+			scanned = assignments_dict[a.name]
+			assignments.append(frappe._dict({
+				"name": a.name,
+				"title": a.title,
+				"grading_category": scanned["grading_category"],
+				"due_date": scanned["due_date"],
+				"due_time": scanned["due_time"]
+			}))
 
 	quiz_submissions = {}
 	for q in quizzes:
@@ -3470,18 +3561,26 @@ def get_student_grades(course: str, student: str = None) -> dict:
 
 @frappe.whitelist()
 def get_category_counts(course: str) -> dict:
-	quizzes = frappe.get_all("LMS Quiz", filters={"course": course}, fields=["grading_category"])
-	assignments = frappe.get_all("LMS Assignment", filters={"course": course}, fields=["grading_category"])
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"course": course, "exclude_from_course": 0},
+		fields=["content"]
+	)
 
 	counts = {}
-	for q in quizzes:
-		cat = q.get("grading_category")
-		if cat:
-			counts[cat] = counts.get(cat, 0) + 1
-	for a in assignments:
-		cat = a.get("grading_category")
-		if cat:
-			counts[cat] = counts.get(cat, 0) + 1
+	for lesson in lessons:
+		if not lesson.content:
+			continue
+		try:
+			content = json.loads(lesson.content)
+		except Exception:
+			continue
+		for block in content.get("blocks", []):
+			if block.get("type") in ["quiz", "assignment"]:
+				data = block.get("data", {})
+				cat = data.get("grading_category")
+				if cat:
+					counts[cat] = counts.get(cat, 0) + 1
 	return counts
 
 

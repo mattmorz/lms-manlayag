@@ -25,49 +25,6 @@ class LMSQuiz(Document):
 		self.validate_limit()
 		self.calculate_total_marks()
 		self.validate_open_ended_questions()
-		self.validate_grading_category()
-
-	def validate_grading_category(self):
-		if self.course:
-			course_doc = frappe.get_doc("LMS Course", self.course)
-			if getattr(course_doc, "enable_grading_policy", False):
-				if not self.grading_category:
-					frappe.throw(
-						_("Grading Category is required because Grading Policy is enabled in Course {0}.").format(self.course)
-					)
-				# Find this category in the course grading categories
-				cat_settings = None
-				for cat in getattr(course_doc, "grading_categories", []):
-					if cat.category_name == self.grading_category:
-						cat_settings = cat
-						break
-
-				if cat_settings:
-					limit = getattr(cat_settings, "number_of_assessments", 0) or 0
-					if limit > 0:
-						# Count current quizzes in this category (excluding this one)
-						quiz_count = frappe.db.count("LMS Quiz", {
-							"course": self.course,
-							"grading_category": self.grading_category,
-							"name": ["!=", self.name]
-						})
-						# Count current assignments in this category
-						assignment_count = frappe.db.count("LMS Assignment", {
-							"course": self.course,
-							"grading_category": self.grading_category
-						})
-						if (quiz_count + assignment_count) >= limit:
-							frappe.throw(
-								_("The category '{0}' has reached its limit of {1} assessment(s) in Course {2}.").format(
-									self.grading_category, limit, self.course
-								)
-							)
-				else:
-					frappe.throw(
-						_("The grading category '{0}' is not defined in Course {1}.").format(
-							self.grading_category, self.course
-						)
-					)
 
 	def validate_duplicate_questions(self):
 		questions = [row.question for row in self.questions]

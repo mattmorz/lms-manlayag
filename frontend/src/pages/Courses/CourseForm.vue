@@ -273,22 +273,16 @@
 					</div>
 
 					<div class="pr-5 md:pr-10 pb-5 mb-5 space-y-5 border-b">
-						<div class="flex items-center space-x-2 text-lg font-semibold text-ink-gray-9">
-							<Sliders class="size-5 text-ink-blue-3 stroke-1.5" />
-							<span>{{ __('Grading Policy') }}</span>
+						<div class="text-lg font-semibold mt-5 text-ink-gray-9">
+							{{ __('Grading Policy') }}
 						</div>
-						<div class="bg-surface-gray-2 p-4 rounded-xl border border-outline-gray-modals shadow-sm space-y-4">
-							<div class="text-xs text-ink-gray-5 leading-relaxed">
-								{{ __('Enable grading policy to automatically compute student grades based on weighted assessment categories, custom letter scales, and optional late penalties.') }}
-							</div>
-							<FormControl
-								type="checkbox"
-								v-model="courseResource.doc.enable_grading_policy"
-								:label="__('Enable Grading Policy')"
-								@change="makeFormDirty()"
-							/>
-						</div>
-						<div v-if="courseResource.doc.enable_grading_policy" class="space-y-6 bg-surface-white p-5 border border-outline-gray-modals rounded-xl shadow-sm mt-4">
+						<FormControl
+							type="checkbox"
+							v-model="courseResource.doc.enable_grading_policy"
+							:label="__('Enable Grading Policy')"
+							@change="makeFormDirty()"
+						/>
+						<div v-if="courseResource.doc.enable_grading_policy" class="space-y-6">
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 								<FormControl
 									v-model="courseResource.doc.grading_grace_period"
@@ -301,9 +295,8 @@
 
 							<!-- Grading Categories -->
 							<div class="space-y-3">
-								<div class="text-sm font-semibold text-ink-gray-8 flex items-center space-x-1.5">
-									<Sliders class="size-4 text-ink-gray-6 stroke-1.5" />
-									<span>{{ __('Assignment Weights & Category Settings') }}</span>
+								<div class="text-sm font-semibold text-ink-gray-8">
+									{{ __('Assignment Weights & Category Settings') }}
 								</div>
 								<div class="text-xs text-ink-gray-5">
 									{{ __('Define the assessment limit and grade weight for each category. Quizzes and assignments in this course must belong to one of these categories.') }}
@@ -376,9 +369,8 @@
 
 							<!-- Grading Scale -->
 							<div class="space-y-3">
-								<div class="text-sm font-semibold text-ink-gray-8 flex items-center space-x-1.5">
-									<Award class="size-4 text-ink-gray-6 stroke-1.5" />
-									<span>{{ __('Grading Scale Settings') }}</span>
+								<div class="text-sm font-semibold text-ink-gray-8">
+									{{ __('Grading Scale Settings') }}
 								</div>
 								<div class="text-xs text-ink-gray-5">
 									{{ __('Configure the letter grade mapping based on the final weighted percentage score.') }}

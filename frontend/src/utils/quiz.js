@@ -34,24 +34,30 @@ export class Quiz {
 	render() {
 		this.wrapper = document.createElement('div')
 		if (Object.keys(this.data).length) {
-			this.renderQuiz(this.data.quiz)
+			this.renderQuiz(
+				this.data.quiz,
+				this.data.grading_category,
+				this.data.due_date,
+				this.data.due_time
+			)
 		} else {
 			this.renderQuizModal()
 		}
 		return this.wrapper
 	}
 
-	renderQuiz(quiz) {
+	renderQuiz(quiz, category, due_date, due_time) {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1`)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
 			return
 		}
 		this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-menu-bar mb-4'>
-            <span class="font-medium">
-                Quiz: ${quiz}
-            </span>
-        </div>`
+			<div class="font-medium">
+				Quiz: ${quiz}
+			</div>
+			${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : ''}
+		</div>`
 		return
 	}
 
@@ -61,9 +67,12 @@ export class Quiz {
 		}
 		const app = createApp(AssessmentPlugin, {
 			type: 'quiz',
-			onAddition: (quiz) => {
-				this.data.quiz = quiz
-				this.renderQuiz(quiz)
+			onAddition: (data) => {
+				this.data.quiz = data.item
+				this.data.grading_category = data.grading_category
+				this.data.due_date = data.due_date
+				this.data.due_time = data.due_time
+				this.renderQuiz(data.item, data.grading_category, data.due_date, data.due_time)
 			},
 		})
 		app.use(translationPlugin)
@@ -74,6 +83,9 @@ export class Quiz {
 		if (Object.keys(this.data).length === 0) return {}
 		return {
 			quiz: this.data.quiz,
+			grading_category: this.data.grading_category,
+			due_date: this.data.due_date,
+			due_time: this.data.due_time,
 		}
 	}
 }

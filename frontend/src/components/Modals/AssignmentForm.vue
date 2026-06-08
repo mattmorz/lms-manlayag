@@ -33,34 +33,7 @@
 						doctype="LMS Course"
 						placeholder=" "
 					/>
-					<div class="grid grid-cols-2 gap-4">
-						<FormControl
-							v-if="gradingCategoryOptions.length"
-							v-model="assignment.grading_category"
-							type="select"
-							:options="[{ label: __('Select Category'), value: '' }, ...gradingCategoryOptions]"
-							:label="__('Grading Category')"
-						/>
-						<FormControl
-							v-else
-							v-model="assignment.grading_category"
-							type="text"
-							:label="__('Grading Category')"
-							:placeholder="__('e.g. Homework, Quiz')"
-						/>
-					</div>
-					<div class="grid grid-cols-2 gap-4">
-						<FormControl
-							v-model="assignment.due_date"
-							type="date"
-							:label="__('Due Date')"
-						/>
-						<FormControl
-							v-model="assignment.due_time"
-							type="time"
-							:label="__('Due Time')"
-						/>
-					</div>
+
 					<div>
 						<div class="text-xs text-ink-gray-5 mb-2">
 							{{ __('Question') }}
@@ -111,9 +84,6 @@ interface Assignment {
 	type: string
 	question: string
 	course?: string
-	grading_category?: string
-	due_date?: string
-	due_time?: string
 }
 
 interface Assignments {
@@ -129,9 +99,6 @@ const assignment = reactive({
 	type: '',
 	question: '',
 	course: '',
-	grading_category: '',
-	due_date: '',
-	due_time: '',
 })
 
 const props = defineProps({
@@ -139,62 +106,6 @@ const props = defineProps({
 		type: String,
 		default: 'new',
 	},
-})
-
-const courseResource = createResource({
-	url: 'frappe.client.get',
-	makeParams() {
-		return {
-			doctype: 'LMS Course',
-			name: assignment.course,
-		}
-	},
-	auto: false,
-})
-
-const categoryCounts = createResource({
-	url: 'lms.lms.api.get_category_counts',
-	makeParams() {
-		return {
-			course: assignment.course,
-		}
-	},
-	auto: false,
-})
-
-watch(
-	() => assignment.course,
-	(val) => {
-		if (val) {
-			courseResource.submit()
-			categoryCounts.submit()
-		}
-	},
-	{ immediate: true }
-)
-
-const gradingCategoryOptions = computed(() => {
-	const courseDoc = courseResource.data
-	if (!courseDoc || !courseDoc.enable_grading_policy || !courseDoc.grading_categories) {
-		return []
-	}
-	const counts = categoryCounts.data || {}
-	return courseDoc.grading_categories.map((cat) => {
-		const currentCount = counts[cat.category_name] || 0
-		const limit = cat.number_of_assessments || 0
-		const isCurrentCategory = assignment.grading_category === cat.category_name
-		const isFull = limit > 0 && currentCount >= limit && !isCurrentCategory
-
-		return {
-			label: isFull
-				? `${cat.category_name} (${__('Full - {0}/{1}').format(currentCount, limit)})`
-				: limit > 0
-					? `${cat.category_name} (${currentCount}/${limit})`
-					: cat.category_name,
-			value: cat.category_name,
-			disabled: isFull,
-		}
-	})
 })
 
 watch(
@@ -207,9 +118,6 @@ watch(
 					assignment.type = row.type
 					assignment.question = row.question
 					assignment.course = row.course || ''
-					assignment.grading_category = row.grading_category || ''
-					assignment.due_date = row.due_date || ''
-					assignment.due_time = row.due_time || ''
 				}
 			})
 		}
@@ -222,9 +130,6 @@ watch(show, (newVal) => {
 		assignment.title = ''
 		assignment.type = ''
 		assignment.question = ''
-		assignment.grading_category = ''
-		assignment.due_date = ''
-		assignment.due_time = ''
 	}
 })
 
@@ -235,20 +140,6 @@ const validateFields = () => {
 
 const saveAssignment = () => {
 	validateFields()
-
-	const courseDoc = courseResource.data
-	if (courseDoc && courseDoc.enable_grading_policy) {
-		if (!assignment.grading_category) {
-			toast.error(__('Please select a Grading Category first.'))
-			return
-		}
-		const selectedCatName = assignment.grading_category
-		const optionObj = gradingCategoryOptions.value.find(o => o.value === selectedCatName)
-		if (optionObj && optionObj.disabled) {
-			toast.error(__('The selected category has reached its assessment limit.'))
-			return
-		}
-	}
 
 	if (props.assignmentID == 'new') {
 		createAssignment()
@@ -266,7 +157,6 @@ const createAssignment = () => {
 			onSuccess() {
 				show.value = false
 				toast.success(__('Assignment created successfully'))
-				categoryCounts.submit()
 			},
 		}
 	)
@@ -282,7 +172,6 @@ const updateAssignment = () => {
 			onSuccess() {
 				show.value = false
 				toast.success(__('Assignment updated successfully'))
-				categoryCounts.submit()
 			},
 		}
 	)

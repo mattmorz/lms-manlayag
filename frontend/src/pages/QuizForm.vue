@@ -81,37 +81,7 @@
 				</div>
 			</div>
 		</div>
-		<div class="px-20 pb-5 space-y-5 border-b mb-5">
-			<div class="text-lg text-ink-gray-9 font-semibold mb-4">
-				{{ __('Grading & Deadline') }}
-			</div>
-			<div class="grid grid-cols-3 gap-5">
-				<FormControl
-					v-if="gradingCategoryOptions.length"
-					v-model="quizDetails.doc.grading_category"
-					type="select"
-					:options="[{ label: __('Select Category'), value: '' }, ...gradingCategoryOptions]"
-					:label="__('Grading Category')"
-				/>
-				<FormControl
-					v-else
-					v-model="quizDetails.doc.grading_category"
-					type="text"
-					:label="__('Grading Category')"
-					:placeholder="__('e.g. Homework, Quiz')"
-				/>
-				<FormControl
-					v-model="quizDetails.doc.due_date"
-					type="date"
-					:label="__('Due Date')"
-				/>
-				<FormControl
-					v-model="quizDetails.doc.due_time"
-					type="time"
-					:label="__('Due Time')"
-				/>
-			</div>
-		</div>
+
 		<div class="px-20 pb-5 space-y-5 border-b mb-5">
 			<div class="text-lg text-ink-gray-9 font-semibold mb-4">
 				{{ __('Settings') }}
@@ -409,83 +379,12 @@ const quizDetails = createDocumentResource({
 	auto: false,
 })
 
-const courseResource = createResource({
-	url: 'frappe.client.get',
-	makeParams() {
-		return {
-			doctype: 'LMS Course',
-			name: quizDetails.doc?.course,
-		}
-	},
-	auto: false,
-})
-
-const categoryCounts = createResource({
-	url: 'lms.lms.api.get_category_counts',
-	makeParams() {
-		return {
-			course: quizDetails.doc?.course,
-		}
-	},
-	auto: false,
-})
-
-watch(
-	() => quizDetails.doc?.course,
-	(val) => {
-		if (val) {
-			courseResource.submit()
-			categoryCounts.submit()
-		}
-	},
-	{ immediate: true }
-)
-
-const gradingCategoryOptions = computed(() => {
-	const courseDoc = courseResource.data
-	if (!courseDoc || !courseDoc.enable_grading_policy || !courseDoc.grading_categories) {
-		return []
-	}
-	const counts = categoryCounts.data || {}
-	return courseDoc.grading_categories.map((cat) => {
-		const currentCount = counts[cat.category_name] || 0
-		const limit = cat.number_of_assessments || 0
-		// Check if this is the quiz's current category in database (so we don't disable it for the quiz itself)
-		const isCurrentCategory = quizDetails.doc?.grading_category === cat.category_name
-		const isFull = limit > 0 && currentCount >= limit && !isCurrentCategory
-
-		return {
-			label: isFull
-				? `${cat.category_name} (${__('Full - {0}/{1}').format(currentCount, limit)})`
-				: limit > 0
-					? `${cat.category_name} (${currentCount}/${limit})`
-					: cat.category_name,
-			value: cat.category_name,
-			disabled: isFull,
-		}
-	})
-})
-
 const validateTitle = () => {
 	quizDetails.doc.title = escapeHTML(quizDetails.doc.title.trim())
 }
 
 const submitQuiz = () => {
 	validateTitle()
-
-	const courseDoc = courseResource.data
-	if (courseDoc && courseDoc.enable_grading_policy) {
-		if (!quizDetails.doc.grading_category) {
-			toast.error(__('Please select a Grading Category first.'))
-			return
-		}
-		const selectedCatName = quizDetails.doc.grading_category
-		const optionObj = gradingCategoryOptions.value.find(o => o.value === selectedCatName)
-		if (optionObj && optionObj.disabled) {
-			toast.error(__('The selected category has reached its assessment limit.'))
-			return
-		}
-	}
 
 	quizDetails.setValue.submit(
 		{
@@ -496,8 +395,6 @@ const submitQuiz = () => {
 			onSuccess(data) {
 				quizDetails.doc.total_marks = data.total_marks
 				toast.success(__('Quiz updated successfully'))
-				// Reload category counts to update the status dropdown
-				categoryCounts.submit()
 			},
 			onError(err) {
 				toast.error(err.messages?.[0] || err)

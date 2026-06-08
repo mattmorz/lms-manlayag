@@ -35,14 +35,19 @@ export class Assignment {
 	render() {
 		this.wrapper = document.createElement('div')
 		if (Object.keys(this.data).length) {
-			this.renderAssignment(this.data.assignment)
+			this.renderAssignment(
+				this.data.assignment,
+				this.data.grading_category,
+				this.data.due_date,
+				this.data.due_time
+			)
 		} else {
 			this.renderAssignmentModal()
 		}
 		return this.wrapper
 	}
 
-	renderAssignment(assignment) {
+	renderAssignment(assignment, category, due_date, due_time) {
 		if (this.readOnly) {
 			const { userResource } = usersStore()
 			call('frappe.client.get_value', {
@@ -69,9 +74,10 @@ export class Assignment {
 			fieldname: ['title'],
 		}).then((data) => {
 			this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-menu-bar mb-4'>
-				<span class="font-medium">
+				<div class="font-medium">
 					Assignment: ${data.title}
-				</span>
+				</div>
+				${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : ''}
 			</div>`
 			return
 		})
@@ -83,9 +89,12 @@ export class Assignment {
 		}
 		const app = createApp(AssessmentPlugin, {
 			type: 'assignment',
-			onAddition: (assignment) => {
-				this.data.assignment = assignment
-				this.renderAssignment(assignment)
+			onAddition: (data) => {
+				this.data.assignment = data.item
+				this.data.grading_category = data.grading_category
+				this.data.due_date = data.due_date
+				this.data.due_time = data.due_time
+				this.renderAssignment(data.item, data.grading_category, data.due_date, data.due_time)
 			},
 		})
 		app.use(translationPlugin)
@@ -97,6 +106,9 @@ export class Assignment {
 		if (Object.keys(this.data).length === 0) return {}
 		return {
 			assignment: this.data.assignment,
+			grading_category: this.data.grading_category,
+			due_date: this.data.due_date,
+			due_time: this.data.due_time,
 		}
 	}
 }

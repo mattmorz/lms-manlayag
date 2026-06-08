@@ -1,6 +1,7 @@
 # Copyright (c) 2026, FOSS United and Contributors
 # See license.txt
 
+import json
 import frappe
 from frappe.utils import add_to_date, now_datetime, get_datetime, nowdate
 from lms.lms.test_helpers import BaseTestUtils
@@ -44,16 +45,41 @@ class TestGradingPolicy(BaseTestUtils):
 		course.append("grading_scale", {"grade": "Fail", "min_percentage": 0})
 		course.save()
 
+		# Create a chapter
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
+
 		# Create a quiz and an assignment assigned to these categories
 		quiz = self._create_quiz(title="Course 1 Exam")
-		quiz.course = course.name
-		quiz.grading_category = "Exam"
-		quiz.save()
-
 		assignment = self._create_assignment(title="Course 1 Homework")
-		assignment.course = course.name
-		assignment.grading_category = "Homework"
-		assignment.save()
+
+		# Create a lesson containing the quiz and assignment with their categories
+		lesson = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"time": 1765194986690,
+				"blocks": [
+					{
+						"id": "quiz1",
+						"type": "quiz",
+						"data": {
+							"quiz": quiz.name,
+							"grading_category": "Exam"
+						}
+					},
+					{
+						"id": "assignment1",
+						"type": "assignment",
+						"data": {
+							"assignment": assignment.name,
+							"grading_category": "Homework"
+						}
+					}
+				],
+				"version": "2.29.0"
+			})
+		)
 
 		# Setup student submissions
 		# Quiz submission: 90%
@@ -102,49 +128,106 @@ class TestGradingPolicy(BaseTestUtils):
 		})
 		course.save()
 
-		# Create two Homework assignments
+		# Create a chapter
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
+
+		# Create three Homework assignments
 		a1 = self._create_assignment(title="Course 2 Homework 1")
-		a1.course = course.name
-		a1.grading_category = "Homework"
-		a1.save()
-
 		a2 = self._create_assignment(title="Course 2 Homework 2")
-		a2.course = course.name
-		a2.grading_category = "Homework"
-		a2.save()
+		a3 = self._create_assignment(title="Course 2 Homework 3")
 
-		# Creating a third homework assignment in the same category should throw ValidationError
-		with self.assertRaises(frappe.ValidationError):
-			a3 = frappe.new_doc("LMS Assignment")
-			a3.update({
-				"title": "Course 2 Homework 3",
-				"course": course.name,
-				"grading_category": "Homework",
-				"type": "Text",
-				"question": "Question 3"
+		# Creating a lesson with 2 homeworks should succeed
+		lesson1 = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"blocks": [
+					{
+						"id": "asg1",
+						"type": "assignment",
+						"data": {
+							"assignment": a1.name,
+							"grading_category": "Homework"
+						}
+					},
+					{
+						"id": "asg2",
+						"type": "assignment",
+						"data": {
+							"assignment": a2.name,
+							"grading_category": "Homework"
+						}
+					}
+				]
 			})
-			a3.insert()
+		)
+
+		# Creating a second lesson that pushes the category count to 3 should raise ValidationError
+		with self.assertRaises(frappe.ValidationError):
+			lesson2 = frappe.new_doc("Course Lesson")
+			lesson2.update({
+				"title": "Lesson 2",
+				"chapter": chapter.name,
+				"course": course.name,
+				"content": json.dumps({
+					"blocks": [
+						{
+							"id": "asg3",
+							"type": "assignment",
+							"data": {
+								"assignment": a3.name,
+								"grading_category": "Homework"
+							}
+						}
+					]
+				})
+			})
+			lesson2.insert()
 
 		# Creating a quiz in the same category should also throw ValidationError because count includes quizzes
+		q = self._create_quiz(title="Course 2 Homework Quiz")
 		with self.assertRaises(frappe.ValidationError):
-			q = frappe.new_doc("LMS Quiz")
-			q.update({
-				"title": "Course 2 Homework Quiz",
+			lesson2_quiz = frappe.new_doc("Course Lesson")
+			lesson2_quiz.update({
+				"title": "Lesson 2 Quiz",
+				"chapter": chapter.name,
 				"course": course.name,
-				"grading_category": "Homework",
-				"passing_percentage": 70
+				"content": json.dumps({
+					"blocks": [
+						{
+							"id": "quiz1",
+							"type": "quiz",
+							"data": {
+								"quiz": q.name,
+								"grading_category": "Homework"
+							}
+						}
+					]
+				})
 			})
-			q.insert()
+			lesson2_quiz.insert()
 
 		# Try to create a quiz without category when policy is enabled -> throws ValidationError
 		with self.assertRaises(frappe.ValidationError):
-			q_nocat = frappe.new_doc("LMS Quiz")
-			q_nocat.update({
-				"title": "No Cat Quiz",
+			lesson_nocat = frappe.new_doc("Course Lesson")
+			lesson_nocat.update({
+				"title": "No Cat Quiz Lesson",
+				"chapter": chapter.name,
 				"course": course.name,
-				"passing_percentage": 70
+				"content": json.dumps({
+					"blocks": [
+						{
+							"id": "quiz_nocat",
+							"type": "quiz",
+							"data": {
+								"quiz": q.name
+							}
+						}
+					]
+				})
 			})
-			q_nocat.insert()
+			lesson_nocat.insert()
 
 	def test_late_submission_penalty(self):
 		course = self._create_course(title="Grading Course 3")
@@ -158,16 +241,35 @@ class TestGradingPolicy(BaseTestUtils):
 		})
 		course.save()
 
+		# Create a chapter
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
+
 		# Assignment due date and time
 		due_date = nowdate()
 		due_time = "12:00:00"
 
 		a1 = self._create_assignment(title="Course 3 Homework 1")
-		a1.course = course.name
-		a1.grading_category = "Homework"
-		a1.due_date = due_date
-		a1.due_time = due_time
-		a1.save()
+		
+		# Create lesson with due date/time on assignment block
+		lesson = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"blocks": [
+					{
+						"id": "asg1",
+						"type": "assignment",
+						"data": {
+							"assignment": a1.name,
+							"grading_category": "Homework",
+							"due_date": due_date,
+							"due_time": due_time
+						}
+					}
+				]
+			})
+		)
 
 		# Student 1: Submit 1 hour after deadline (within grace period of 2 hours) -> No penalty
 		sub1 = frappe.new_doc("LMS Assignment Submission")
@@ -222,10 +324,25 @@ class TestGradingPolicy(BaseTestUtils):
 		})
 		course.save()
 
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
 		a1 = self._create_assignment(title="Course 4 Homework 1")
-		a1.course = course.name
-		a1.grading_category = "Homework"
-		a1.save()
+		lesson = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"blocks": [
+					{
+						"id": "asg1",
+						"type": "assignment",
+						"data": {
+							"assignment": a1.name,
+							"grading_category": "Homework"
+						}
+					}
+				]
+			})
+		)
 
 		# Submission with status "Pass" but no score
 		sub = frappe.new_doc("LMS Assignment Submission")
@@ -243,3 +360,123 @@ class TestGradingPolicy(BaseTestUtils):
 		grades = get_student_grades(course.name, self.student1.email)
 		# Should fallback Pass -> 100%
 		self.assertEqual(grades.get("final_percentage"), 100.0)
+
+	def test_course_import_export_with_grading_policy(self):
+		import json
+		from lms.lms.api import export_course, import_course
+
+		# 1. Setup course with grading policy
+		course = self._create_course(title="IE Grading Course")
+		course.enable_grading_policy = 1
+		course.grading_grace_period = 3
+		course.append("grading_categories", {
+			"category_name": "Homework",
+			"weight": 30,
+			"number_of_assessments": 3
+		})
+		course.append("grading_categories", {
+			"category_name": "Exam",
+			"weight": 70,
+			"number_of_assessments": 1
+		})
+		course.append("grading_scale", {"grade": "A", "min_percentage": 90})
+		course.append("grading_scale", {"grade": "B", "min_percentage": 80})
+		course.save()
+
+		chapter = self._create_chapter(title="Chapter 1", course=course.name)
+		course.reload()
+		course.append("chapters", {"chapter": chapter.name})
+		course.save()
+
+		quiz = self._create_quiz(title="IE Quiz")
+		assignment = self._create_assignment(title="IE Assignment")
+
+		lesson = self._create_lesson(
+			title="Lesson 1",
+			chapter=chapter.name,
+			course=course.name,
+			content=json.dumps({
+				"blocks": [
+					{
+						"id": "quiz1",
+						"type": "quiz",
+						"data": {
+							"quiz": quiz.name,
+							"grading_category": "Exam",
+							"due_date": "2026-06-15",
+							"due_time": "18:00:00"
+						}
+					},
+					{
+						"id": "assignment1",
+						"type": "assignment",
+						"data": {
+							"assignment": assignment.name,
+							"grading_category": "Homework",
+							"due_date": "2026-06-20",
+							"due_time": "23:59:59"
+						}
+					}
+				]
+			})
+		)
+		chapter.reload()
+		chapter.append("lessons", {"lesson": lesson.name})
+		chapter.save()
+
+		# 2. Export course
+		exported = export_course(course.name)
+		
+		# Verify export structure and values
+		self.assertEqual(exported["course"]["enable_grading_policy"], 1)
+		self.assertEqual(exported["course"]["grading_grace_period"], 3)
+		self.assertEqual(len(exported["course"]["grading_categories"]), 2)
+		self.assertEqual(len(exported["course"]["grading_scale"]), 2)
+		
+		# Verify child tables do not have internal fields like parent/name
+		for cat in exported["course"]["grading_categories"]:
+			self.assertNotIn("name", cat)
+			self.assertNotIn("parent", cat)
+		for scale in exported["course"]["grading_scale"]:
+			self.assertNotIn("name", scale)
+			self.assertNotIn("parent", scale)
+
+		# 3. Import course
+		imported_res = import_course(exported)
+		# imported_res is either the name of the new course or response dict
+		imported_course_name = imported_res if isinstance(imported_res, str) else imported_res.get("name")
+		
+		self.assertTrue(frappe.db.exists("LMS Course", imported_course_name))
+		imported_course = frappe.get_doc("LMS Course", imported_course_name)
+		self.cleanup_items.append(("LMS Course", imported_course.name))
+
+		# Verify imported course details
+		self.assertEqual(imported_course.enable_grading_policy, 1)
+		self.assertEqual(imported_course.grading_grace_period, 3)
+		self.assertEqual(len(imported_course.grading_categories), 2)
+		self.assertEqual(len(imported_course.grading_scale), 2)
+
+		# Verify imported lessons contain mapped quiz/assignment with correct categories/deadlines
+		imported_lessons = frappe.get_all(
+			"Course Lesson",
+			filters={"course": imported_course.name},
+			fields=["content", "name"]
+		)
+		self.assertEqual(len(imported_lessons), 1)
+		imported_content = json.loads(imported_lessons[0].content)
+		
+		blocks = imported_content.get("blocks", [])
+		self.assertEqual(len(blocks), 2)
+		
+		quiz_block = next(b for b in blocks if b["type"] == "quiz")
+		self.assertNotEqual(quiz_block["data"]["quiz"], quiz.name) # Must be remapped
+		self.assertEqual(quiz_block["data"]["grading_category"], "Exam")
+		self.assertEqual(quiz_block["data"]["due_date"], "2026-06-15")
+		self.assertEqual(quiz_block["data"]["due_time"], "18:00:00")
+
+		assignment_block = next(b for b in blocks if b["type"] == "assignment")
+		self.assertNotEqual(assignment_block["data"]["assignment"], assignment.name) # Must be remapped
+		self.assertEqual(assignment_block["data"]["grading_category"], "Homework")
+		self.assertEqual(assignment_block["data"]["due_date"], "2026-06-20")
+		self.assertEqual(assignment_block["data"]["due_time"], "23:59:59")
+

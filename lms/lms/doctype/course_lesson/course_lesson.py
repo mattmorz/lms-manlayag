@@ -15,6 +15,107 @@ from ...md import find_macros
 
 
 class CourseLesson(Document):
+	def validate(self):
+		self.validate_grading_policy()
+
+	def validate_grading_policy(self):
+		course = self.course
+		if not course and self.chapter:
+			course = frappe.db.get_value("Course Chapter", self.chapter, "course")
+		if not course:
+			return
+		course_doc = frappe.get_doc("LMS Course", course)
+		if not getattr(course_doc, "enable_grading_policy", False):
+			return
+
+		# Parse self.content
+		if not self.content:
+			return
+		try:
+			content = json.loads(self.content)
+		except Exception:
+			return
+
+		# Extract quizzes/assignments in this lesson
+		lesson_assessments = []
+		for block in content.get("blocks", []):
+			if block.get("type") in ["quiz", "assignment"]:
+				data = block.get("data", {})
+				item_id = data.get("quiz") or data.get("assignment")
+				item_type = "Quiz" if block.get("type") == "quiz" else "Assignment"
+				cat = data.get("grading_category")
+				due_date = data.get("due_date")
+				due_time = data.get("due_time")
+				lesson_assessments.append({
+					"id": item_id,
+					"type": item_type,
+					"category": cat,
+					"due_date": due_date,
+					"due_time": due_time
+				})
+
+		# 1. Check if all quizzes/assignments have a category selected
+		for item in lesson_assessments:
+			if not item["category"]:
+				frappe.throw(
+					_("{0} '{1}' is missing a Grading Category, which is required by the course grading policy.").format(
+						item["type"], item["id"]
+					)
+				)
+
+			# 2. Check if the category exists in the course
+			cat_exists = False
+			for course_cat in getattr(course_doc, "grading_categories", []):
+				if course_cat.category_name == item["category"]:
+					cat_exists = True
+					break
+			if not cat_exists:
+				frappe.throw(
+					_("Grading category '{0}' selected for {1} '{2}' is not defined in Course '{3}'.").format(
+						item["category"], item["type"], item["id"], course
+					)
+				)
+
+		# 3. Check limit for each category
+		# For this, we count assessments in all OTHER lessons in the course, plus the new ones in this lesson.
+		other_lessons = frappe.get_all(
+			"Course Lesson",
+			filters={"course": course, "name": ["!=", self.name], "exclude_from_course": 0},
+			fields=["content"]
+		)
+
+		# Aggregate counts from other lessons
+		cat_counts = {}
+		for other in other_lessons:
+			if not other.content:
+				continue
+			try:
+				other_content = json.loads(other.content)
+			except Exception:
+				continue
+			for block in other_content.get("blocks", []):
+				if block.get("type") in ["quiz", "assignment"]:
+					data = block.get("data", {})
+					cat = data.get("grading_category")
+					if cat:
+						cat_counts[cat] = cat_counts.get(cat, 0) + 1
+
+		# Add counts from current lesson
+		for item in lesson_assessments:
+			cat = item["category"]
+			cat_counts[cat] = cat_counts.get(cat, 0) + 1
+
+		# Validate limits
+		for course_cat in getattr(course_doc, "grading_categories", []):
+			cat_name = course_cat.category_name
+			limit = getattr(course_cat, "number_of_assessments", 0) or 0
+			if limit > 0 and cat_counts.get(cat_name, 0) > limit:
+				frappe.throw(
+					_("The category '{0}' has reached its limit of {1} assessment(s) in Course {2}.").format(
+						cat_name, limit, course
+					)
+				)
+
 	def on_update(self):
 		self.validate_quiz_id()
 
