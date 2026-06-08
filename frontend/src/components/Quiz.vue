@@ -68,6 +68,12 @@
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
 				</div>
+				<div v-if="quiz.data.due_date" class="mt-2 text-sm text-ink-gray-6">
+					<strong>{{ __('Due Date') }}:</strong> {{ quiz.data.due_date }} {{ quiz.data.due_time || '' }}
+				</div>
+				<div v-if="quiz.data.due_date && isLateAttempt" class="mt-2 text-sm text-ink-red-3 font-semibold">
+					{{ __('Warning: The deadline has passed. Late submissions will receive 0 marks.') }}
+				</div>
 				<div class="flex items-center justify-center space-x-2 mt-4">
 					<Button
 						v-if="
@@ -367,6 +373,13 @@ const isPassed = computed(() => {
 		return attempts.data.some(att => Math.ceil(att.percentage) >= passingPercent)
 	}
 	return false
+})
+
+const isLateAttempt = computed(() => {
+	if (!quiz.data?.due_date) return false
+	const dueTimeStr = quiz.data.due_time || '23:59:59'
+	const dueDatetime = new Date(`${quiz.data.due_date}T${dueTimeStr}`)
+	return new Date() > dueDatetime
 })
 
 const quiz = createResource({

@@ -86,7 +86,7 @@
 					<!-- Courses -->
 					<div
 						v-if="Object.keys(student.courses).length"
-						class="space-y-2 text-sm"
+						class="space-y-4 text-sm"
 					>
 						<div
 							class="flex items-center border-b pb-1 font-medium text-ink-gray-9"
@@ -95,19 +95,47 @@
 								{{ __('Courses') }}
 							</span>
 							<span>
-								{{ __('Progress') }}
+								{{ __('Progress / Grade') }}
 							</span>
 						</div>
 						<div
 							v-for="course in Object.keys(student.courses)"
-							class="flex items-center text-ink-gray-7 font-medium"
+							:key="course"
+							class="space-y-2 py-2 border-b last:border-0"
 						>
-							<span class="flex-1">
-								{{ course }}
-							</span>
-							<span>
-								{{ Math.floor(student.courses[course]) }}
-							</span>
+							<div class="flex items-center text-ink-gray-7 font-medium">
+								<span class="flex-1">
+									{{ course }}
+								</span>
+								<span v-if="student.course_grades?.[course]?.enable_grading_policy" class="font-semibold text-ink-green-3">
+									{{ student.course_grades[course].final_percentage }}% ({{ student.course_grades[course].final_grade }})
+								</span>
+								<span v-else>
+									{{ Math.floor(student.courses[course]) }}% {{ __('complete') }}
+								</span>
+							</div>
+
+							<!-- Display category breakdown if grading policy is enabled -->
+							<div
+								v-if="student.course_grades?.[course]?.enable_grading_policy"
+								class="pl-4 border-l-2 border-outline-gray-2 space-y-1 mt-1 text-xs text-ink-gray-5"
+							>
+								<div
+									v-for="cat in student.course_grades[course].categories"
+									:key="cat.category_name"
+									class="flex justify-between"
+								>
+									<span>
+										{{ cat.category_name }} ({{ cat.weight }}%)
+										<span v-if="cat.drop_lowest" class="text-ink-gray-4">
+											[dropped {{ cat.drop_lowest }}]
+										</span>
+									</span>
+									<span class="font-medium">
+										{{ cat.average }}%
+									</span>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>

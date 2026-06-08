@@ -3261,3 +3261,217 @@ def import_quiz(quiz: str, file_content: str, format_type: str):
 	else:
 		frappe.throw(_("Unsupported format type. Use GIFT or AIKEN."))
 
+
+@frappe.whitelist()
+def get_student_grades(course: str, student: str = None) -> dict:
+	from datetime import timedelta
+	from frappe.utils import flt
+
+	if not student:
+		student = frappe.session.user
+
+	course_doc = frappe.get_doc("LMS Course", course)
+
+	if not getattr(course_doc, "enable_grading_policy", False):
+		return {
+			"enable_grading_policy": False,
+			"categories": [],
+			"grading_scale": [],
+			"final_percentage": 0,
+			"final_grade": "N/A"
+		}
+
+	grace_period_hours = getattr(course_doc, "grading_grace_period", 0) or 0
+	categories = course_doc.get("grading_categories") or []
+	grading_scale = course_doc.get("grading_scale") or []
+
+	quizzes = frappe.get_all(
+		"LMS Quiz",
+		filters={"course": course},
+		fields=["name", "title", "grading_category", "due_date", "due_time", "passing_percentage"]
+	)
+
+	assignments = frappe.get_all(
+		"LMS Assignment",
+		filters={"course": course},
+		fields=["name", "title", "grading_category", "due_date", "due_time"]
+	)
+
+	quiz_submissions = {}
+	for q in quizzes:
+		subs = frappe.get_all(
+			"LMS Quiz Submission",
+			filters={"quiz": q.name, "member": student},
+			fields=["name", "percentage", "creation"]
+		)
+		if not subs:
+			quiz_submissions[q.name] = None
+			continue
+
+		valid_subs = []
+		for sub in subs:
+			score = sub.percentage
+			is_late = False
+			if q.due_date:
+				due_time_str = q.due_time or "23:59:59"
+				due_datetime = frappe.utils.get_datetime(f"{q.due_date} {due_time_str}")
+				deadline_with_grace = due_datetime + timedelta(hours=grace_period_hours)
+				if sub.creation > deadline_with_grace:
+					is_late = True
+					score = 0
+			valid_subs.append({"percentage": score, "creation": sub.creation, "is_late": is_late})
+
+		best_sub = max(valid_subs, key=lambda x: x["percentage"])
+		quiz_submissions[q.name] = best_sub
+
+	assignment_submissions = {}
+	for a in assignments:
+		subs = frappe.get_all(
+			"LMS Assignment Submission",
+			filters={"assignment": a.name, "member": student},
+			fields=["name", "status", "creation", "score"]
+		)
+		if not subs:
+			assignment_submissions[a.name] = None
+			continue
+
+		valid_subs = []
+		for sub in subs:
+			base_score = 0
+			if getattr(sub, "score", 0) > 0:
+				base_score = sub.score
+			elif sub.status == "Pass":
+				base_score = 100
+
+			score = base_score
+			is_late = False
+			if a.due_date:
+				due_time_str = a.due_time or "23:59:59"
+				due_datetime = frappe.utils.get_datetime(f"{a.due_date} {due_time_str}")
+				deadline_with_grace = due_datetime + timedelta(hours=grace_period_hours)
+				if sub.creation > deadline_with_grace:
+					is_late = True
+					score = 0
+			valid_subs.append({"percentage": score, "creation": sub.creation, "is_late": is_late})
+
+		best_sub = max(valid_subs, key=lambda x: x["percentage"])
+		assignment_submissions[a.name] = best_sub
+
+	items_by_cat = {}
+	for cat in categories:
+		items_by_cat[cat.category_name] = []
+
+	for q in quizzes:
+		cat = q.grading_category or "Uncategorized"
+		if cat not in items_by_cat:
+			items_by_cat[cat] = []
+		sub = quiz_submissions[q.name]
+		score = sub["percentage"] if sub else 0
+		is_submitted = sub is not None
+		is_late = sub["is_late"] if sub else False
+		items_by_cat[cat].append({
+			"name": q.name,
+			"title": q.title,
+			"type": "Quiz",
+			"score": score,
+			"is_submitted": is_submitted,
+			"is_late": is_late,
+			"due_date": q.due_date,
+			"due_time": q.due_time
+		})
+
+	for a in assignments:
+		cat = a.grading_category or "Uncategorized"
+		if cat not in items_by_cat:
+			items_by_cat[cat] = []
+		sub = assignment_submissions[a.name]
+		score = sub["percentage"] if sub else 0
+		is_submitted = sub is not None
+		is_late = sub["is_late"] if sub else False
+		items_by_cat[cat].append({
+			"name": a.name,
+			"title": a.title,
+			"type": "Assignment",
+			"score": score,
+			"is_submitted": is_submitted,
+			"is_late": is_late,
+			"due_date": a.due_date,
+			"due_time": a.due_time
+		})
+
+	category_results = []
+	total_weight = 0
+	weighted_score_sum = 0
+
+	for cat in categories:
+		cat_name = cat.category_name
+		items = items_by_cat.get(cat_name, [])
+		weight = cat.weight or 0
+		drop_lowest = cat.drop_lowest or 0
+
+		if items:
+			sorted_items = sorted(items, key=lambda x: x["score"])
+			for i in range(min(drop_lowest, len(sorted_items))):
+				sorted_items[i]["dropped"] = True
+
+			active_items = [x for x in sorted_items if not x.get("dropped")]
+			if active_items:
+				cat_average = sum(x["score"] for x in active_items) / len(active_items)
+			else:
+				cat_average = 0
+
+			category_results.append({
+				"category_name": cat_name,
+				"weight": weight,
+				"drop_lowest": drop_lowest,
+				"average": round(cat_average, 2),
+				"items": sorted_items
+			})
+
+			total_weight += weight
+			weighted_score_sum += cat_average * weight
+		else:
+			category_results.append({
+				"category_name": cat_name,
+				"weight": weight,
+				"drop_lowest": drop_lowest,
+				"average": 0,
+				"items": []
+			})
+
+	uncat_items = items_by_cat.get("Uncategorized", [])
+	if uncat_items:
+		uncat_average = sum(x["score"] for x in uncat_items) / len(uncat_items)
+		category_results.append({
+			"category_name": "Uncategorized",
+			"weight": 0,
+			"drop_lowest": 0,
+			"average": round(uncat_average, 2),
+			"items": uncat_items
+		})
+
+	final_percentage = 0
+	if total_weight > 0:
+		final_percentage = round(weighted_score_sum / total_weight, 2)
+	elif uncat_items:
+		final_percentage = round(uncat_average, 2)
+
+	final_grade = "N/A"
+	sorted_scale = sorted(grading_scale, key=lambda x: x.min_percentage, reverse=True)
+	for scale in sorted_scale:
+		if final_percentage >= scale.min_percentage:
+			final_grade = scale.grade
+			break
+	if final_grade == "N/A" and sorted_scale:
+		final_grade = sorted_scale[-1].grade
+
+	return {
+		"enable_grading_policy": True,
+		"categories": category_results,
+		"grading_scale": [
+			{"grade": s.grade, "min_percentage": s.min_percentage} for s in sorted_scale
+		],
+		"final_percentage": final_percentage,
+		"final_grade": final_grade
+	}
+

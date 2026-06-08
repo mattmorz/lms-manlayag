@@ -83,6 +83,37 @@
 		</div>
 		<div class="px-20 pb-5 space-y-5 border-b mb-5">
 			<div class="text-lg text-ink-gray-9 font-semibold mb-4">
+				{{ __('Grading & Deadline') }}
+			</div>
+			<div class="grid grid-cols-3 gap-5">
+				<FormControl
+					v-if="gradingCategoryOptions.length"
+					v-model="quizDetails.doc.grading_category"
+					type="select"
+					:options="[{ label: __('Select Category'), value: '' }, ...gradingCategoryOptions]"
+					:label="__('Grading Category')"
+				/>
+				<FormControl
+					v-else
+					v-model="quizDetails.doc.grading_category"
+					type="text"
+					:label="__('Grading Category')"
+					:placeholder="__('e.g. Homework, Quiz')"
+				/>
+				<FormControl
+					v-model="quizDetails.doc.due_date"
+					type="date"
+					:label="__('Due Date')"
+				/>
+				<FormControl
+					v-model="quizDetails.doc.due_time"
+					type="time"
+					:label="__('Due Time')"
+				/>
+			</div>
+		</div>
+		<div class="px-20 pb-5 space-y-5 border-b mb-5">
+			<div class="text-lg text-ink-gray-9 font-semibold mb-4">
 				{{ __('Settings') }}
 			</div>
 			<div class="grid grid-cols-3 gap-5">
@@ -314,6 +345,7 @@ import {
 	computed,
 	reactive,
 	ref,
+	watch,
 	onMounted,
 	inject,
 	onBeforeUnmount,
@@ -375,6 +407,38 @@ const quizDetails = createDocumentResource({
 	doctype: 'LMS Quiz',
 	name: props.quizID,
 	auto: false,
+})
+
+const courseResource = createResource({
+	url: 'frappe.client.get',
+	makeParams() {
+		return {
+			doctype: 'LMS Course',
+			name: quizDetails.doc?.course,
+		}
+	},
+	auto: false,
+})
+
+watch(
+	() => quizDetails.doc?.course,
+	(val) => {
+		if (val) {
+			courseResource.submit()
+		}
+	},
+	{ immediate: true }
+)
+
+const gradingCategoryOptions = computed(() => {
+	const courseDoc = courseResource.data
+	if (!courseDoc || !courseDoc.enable_grading_policy || !courseDoc.grading_categories) {
+		return []
+	}
+	return courseDoc.grading_categories.map((cat) => ({
+		label: cat.category_name,
+		value: cat.category_name,
+	}))
 })
 
 const validateTitle = () => {

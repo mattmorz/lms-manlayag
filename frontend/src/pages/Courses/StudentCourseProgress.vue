@@ -74,6 +74,45 @@
 
 					<div class="space-y-3">
 						<div
+							v-if="studentGrades.data?.enable_grading_policy"
+							class="border border-outline-gray-modals rounded-lg p-4 bg-surface-gray-2 h-fit"
+						>
+							<div class="text-xs text-ink-gray-5 font-semibold mb-3 tracking-wider uppercase">
+								{{ __('Grading Summary') }}
+							</div>
+							<div class="space-y-3">
+								<div class="flex justify-between items-center text-sm font-semibold border-b pb-2 mb-2">
+									<span class="text-ink-gray-9">{{ __('Overall Grade') }}</span>
+									<span class="text-base text-ink-green-3">
+										{{ studentGrades.data.final_percentage }}% ({{ studentGrades.data.final_grade }})
+									</span>
+								</div>
+								<div
+									v-for="cat in studentGrades.data.categories"
+									:key="cat.category_name"
+									class="space-y-1 py-1 border-b last:border-b-0"
+								>
+									<div class="flex justify-between text-sm">
+										<span class="font-medium text-ink-gray-8">
+											{{ cat.category_name }}
+										</span>
+										<span class="font-semibold text-ink-gray-9">
+											{{ cat.average }}%
+										</span>
+									</div>
+									<div class="flex justify-between text-xs text-ink-gray-5">
+										<span>
+											{{ __('Weight: {0}%').format(cat.weight) }}
+											<span v-if="cat.drop_lowest">
+												| {{ __('Drop lowest: {0}').format(cat.drop_lowest) }}
+											</span>
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div
 							v-if="assessmentProgress.data?.quizzes?.length"
 							class="border border-outline-gray-modals rounded-lg px-3 pt-3 h-fit"
 						>
@@ -185,6 +224,15 @@ const assessmentProgress = createResource({
 	auto: true,
 })
 
+const studentGrades = createResource({
+	url: 'lms.lms.api.get_student_grades',
+	params: {
+		course: props.course.data?.name,
+		student: props.student?.member,
+	},
+	auto: true,
+})
+
 const getLessonStatus = (lesson: any) => {
 	return (
 		lessonProgress.data?.find((lp: any) => lp.lesson === lesson.lesson)
@@ -214,7 +262,8 @@ const hasAssessmentData = computed(() => {
 		(assessmentProgress.data?.assignments &&
 			assessmentProgress.data.assignments.length > 0) ||
 		(assessmentProgress.data?.exercises &&
-			assessmentProgress.data.exercises.length > 0)
+			assessmentProgress.data.exercises.length > 0) ||
+		studentGrades.data?.enable_grading_policy
 	)
 })
 </script>

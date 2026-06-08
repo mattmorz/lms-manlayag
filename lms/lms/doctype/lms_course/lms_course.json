@@ -50,7 +50,12 @@
   "enrollments",
   "lessons",
   "rating",
-  "notification_sent"
+  "notification_sent",
+  "grading_policy_tab",
+  "enable_grading_policy",
+  "grading_grace_period",
+  "grading_categories",
+  "grading_scale"
  ],
  "fields": [
   {
@@ -304,6 +309,38 @@
    "fieldtype": "Check",
    "label": "Notification Sent",
    "read_only": 1
+  },
+  {
+   "fieldname": "grading_policy_tab",
+   "fieldtype": "Tab Break",
+   "label": "Grading Policy"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_grading_policy",
+   "fieldtype": "Check",
+   "label": "Enable Grading Policy"
+  },
+  {
+   "default": "0",
+   "depends_on": "enable_grading_policy",
+   "fieldname": "grading_grace_period",
+   "fieldtype": "Int",
+   "label": "Grace Period (Hours)"
+  },
+  {
+   "depends_on": "enable_grading_policy",
+   "fieldname": "grading_categories",
+   "fieldtype": "Table",
+   "label": "Grading Categories",
+   "options": "LMS Course Grading Category"
+  },
+  {
+   "depends_on": "enable_grading_policy",
+   "fieldname": "grading_scale",
+   "fieldtype": "Table",
+   "label": "Grading Scale",
+   "options": "LMS Course Grading Scale"
   }
  ],
  "is_published_field": "published",

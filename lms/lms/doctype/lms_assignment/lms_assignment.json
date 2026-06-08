@@ -13,6 +13,9 @@
   "type",
   "grade_assignment",
   "course",
+  "grading_category",
+  "due_date",
+  "due_time",
   "column_break_hmwv",
   "question",
   "section_break_sjti",
@@ -76,6 +79,21 @@
    "fieldtype": "Link",
    "label": "Course",
    "options": "LMS Course"
+  },
+  {
+   "fieldname": "grading_category",
+   "fieldtype": "Data",
+   "label": "Grading Category"
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date"
+  },
+  {
+   "fieldname": "due_time",
+   "fieldtype": "Time",
+   "label": "Due Time"
   }
  ],
  "grid_page_length": 50,

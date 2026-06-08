@@ -16,6 +16,14 @@
 					{{ __('Submission by') }} {{ submissionResource.doc?.member_name }}
 				</div>
 			</div>
+			<div v-if="assignment.data.due_date" class="bg-surface-blue-2 text-ink-blue-2 p-3 rounded-md mb-4 text-sm leading-5">
+				<div>
+					<strong>{{ __('Due Date') }}:</strong> {{ assignment.data.due_date }} {{ assignment.data.due_time || '' }}
+				</div>
+				<div v-if="isLate" class="text-ink-red-3 font-semibold mt-1">
+					{{ __('Warning: The deadline has passed. Submissions past the grace period will receive 0 marks.') }}
+				</div>
+			</div>
 			<div class="text-sm text-ink-gray-7 font-medium mb-2">
 				{{ __('Question') }}:
 			</div>
@@ -172,6 +180,15 @@
 						:label="__('Grade')"
 						type="select"
 						:options="submissionStatusOptions"
+					/>
+					<FormControl
+						v-if="submissionResource.doc"
+						v-model.number="submissionResource.doc.score"
+						:label="__('Score (%)')"
+						type="number"
+						min="0"
+						max="100"
+						@input="isDirty = true"
 					/>
 					<div>
 						<div class="text-sm text-ink-gray-5 mb-1">
@@ -478,4 +495,11 @@ const statusTheme = computed(() => {
 const showUploader = () => {
 	return ['PDF', 'Image', 'Document'].includes(assignment.data?.type)
 }
+
+const isLate = computed(() => {
+	if (!assignment.data?.due_date) return false
+	const dueTimeStr = assignment.data.due_time || '23:59:59'
+	const dueDatetime = new Date(`${assignment.data.due_date}T${dueTimeStr}`)
+	return new Date() > dueDatetime
+})
 </script>

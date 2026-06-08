@@ -1933,6 +1933,7 @@ def calculate_student_progress(batch: str, details: dict):
 def calculate_course_progress(batch_courses: list, details: dict):
 	course_progress = []
 	details.courses = frappe._dict()
+	details.course_grades = frappe._dict()
 
 	for course in batch_courses:
 		progress = (
@@ -1943,6 +1944,12 @@ def calculate_course_progress(batch_courses: list, details: dict):
 		)
 		details.courses[course.title] = progress
 		course_progress.append(progress)
+
+		# Fetch student grades if grading policy is enabled
+		course_doc = frappe.get_doc("LMS Course", course.course)
+		if getattr(course_doc, "enable_grading_policy", False):
+			from lms.lms.api import get_student_grades
+			details.course_grades[course.title] = get_student_grades(course.course, details.email)
 
 	details.average_course_progress = (
 		flt(sum(course_progress) / len(batch_courses), 2) if len(batch_courses) else 0

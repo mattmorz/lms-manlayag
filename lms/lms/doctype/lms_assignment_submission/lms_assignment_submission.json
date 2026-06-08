@@ -20,6 +20,7 @@
   "section_break_ydgh",
   "column_break_oqqy",
   "status",
+  "score",
   "comments",
   "section_break_rqal",
   "question",
@@ -79,6 +80,13 @@
    "fieldtype": "Select",
    "label": "Status",
    "options": "Pass\nFail\nNot Graded\nNot Applicable"
+  },
+  {
+   "default": "0",
+   "fieldname": "score",
+   "fieldtype": "Int",
+   "label": "Score (%)",
+   "non_negative": 1
   },
   {
    "fieldname": "comments",

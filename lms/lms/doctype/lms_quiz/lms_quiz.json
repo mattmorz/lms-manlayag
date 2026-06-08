@@ -26,7 +26,10 @@
   "section_break_3",
   "lesson",
   "column_break_5",
-  "course"
+  "course",
+  "grading_category",
+  "due_date",
+  "due_time"
  ],
  "fields": [
   {
@@ -149,6 +152,21 @@
    "fieldname": "marks_to_cut",
    "fieldtype": "Int",
    "label": "Marks To Cut"
+  },
+  {
+   "fieldname": "grading_category",
+   "fieldtype": "Data",
+   "label": "Grading Category"
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date"
+  },
+  {
+   "fieldname": "due_time",
+   "fieldtype": "Time",
+   "label": "Due Time"
   }
  ],
  "grid_page_length": 50,
