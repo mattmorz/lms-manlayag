@@ -267,6 +267,8 @@
 									:required="courseResource.doc.paid_certificate"
 									:placeholder="__('e.g. IST, UTC, GMT...')"
 									@input="makeFormDirty()"
+								/>
+							</div>
 						</div>
 					</div>
 
