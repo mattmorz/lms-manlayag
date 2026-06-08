@@ -73,7 +73,7 @@ class CourseLesson(Document):
 			if not cat_exists:
 				frappe.throw(
 					_("Grading category '{0}' selected for {1} '{2}' is not defined in Course '{3}'.").format(
-						item["category"], item["type"], item["id"], course
+						item["category"], item["type"], item["id"], course_doc.title
 					)
 				)
 
@@ -81,13 +81,15 @@ class CourseLesson(Document):
 		# For this, we count assessments in all OTHER lessons in the course, plus the new ones in this lesson.
 		other_lessons = frappe.get_all(
 			"Course Lesson",
-			filters={"course": course, "name": ["!=", self.name], "exclude_from_course": 0},
-			fields=["content"]
+			filters={"course": course, "name": ["!=", self.name]},
+			fields=["content", "exclude_from_course"]
 		)
 
 		# Aggregate counts from other lessons
 		cat_counts = {}
 		for other in other_lessons:
+			if getattr(other, "exclude_from_course", 0):
+				continue
 			if not other.content:
 				continue
 			try:
@@ -113,7 +115,7 @@ class CourseLesson(Document):
 			if limit > 0 and cat_counts.get(cat_name, 0) > limit:
 				frappe.throw(
 					_("The category '{0}' has reached its limit of {1} assessment(s) in Course {2}.").format(
-						cat_name, limit, course
+						cat_name, limit, course_doc.title
 					)
 				)
 

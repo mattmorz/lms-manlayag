@@ -3561,17 +3561,19 @@ def get_student_grades(course: str, student: str = None) -> dict:
 
 @frappe.whitelist()
 def get_category_counts(course: str, current_lesson: str = None) -> dict:
-	filters = {"course": course, "exclude_from_course": 0}
+	filters = {"course": course}
 	if current_lesson:
 		filters["name"] = ["!=", current_lesson]
 	lessons = frappe.get_all(
 		"Course Lesson",
 		filters=filters,
-		fields=["content"]
+		fields=["content", "exclude_from_course"]
 	)
 
 	counts = {}
 	for lesson in lessons:
+		if getattr(lesson, "exclude_from_course", 0):
+			continue
 		if not lesson.content:
 			continue
 		try:
@@ -3584,6 +3586,7 @@ def get_category_counts(course: str, current_lesson: str = None) -> dict:
 				cat = data.get("grading_category")
 				if cat:
 					counts[cat] = counts.get(cat, 0) + 1
+	return counts
 
 @frappe.whitelist()
 def get_used_quizzes(course: str) -> list:
