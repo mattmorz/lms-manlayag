@@ -12,6 +12,7 @@
 			:variant="attrs.variant"
 			:placeholder="attrs.placeholder"
 			:readonly="attrs.readonly"
+			@update:query="onQueryChange"
 		>
 			<template #target="{ open, togglePopover }">
 				<slot name="target" v-bind="{ open, togglePopover }" />
@@ -104,16 +105,12 @@ const autocomplete = ref(null)
 const text = ref('')
 const settingsStore = useSettings()
 
-watchDebounced(
-	() => autocomplete.value?.query,
-	(val) => {
-		val = val || ''
-		if (text.value === val) return
-		text.value = val
-		reload(val)
-	},
-	{ debounce: 300, immediate: true }
-)
+const onQueryChange = (val) => {
+	val = val || ''
+	if (text.value === val) return
+	text.value = val
+	reload(val)
+}
 
 watchDebounced(
 	() => props.doctype,
