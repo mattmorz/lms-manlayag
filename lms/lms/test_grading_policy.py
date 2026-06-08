@@ -29,12 +29,12 @@ class TestGradingPolicy(BaseTestUtils):
 		course.append("grading_categories", {
 			"category_name": "Homework",
 			"weight": 40,
-			"drop_lowest": 0
+			"number_of_assessments": 5
 		})
 		course.append("grading_categories", {
 			"category_name": "Exam",
 			"weight": 60,
-			"drop_lowest": 0
+			"number_of_assessments": 1
 		})
 
 		# Add grading scale: A >= 90, B >= 80, Pass >= 50, Fail >= 0
@@ -88,17 +88,17 @@ class TestGradingPolicy(BaseTestUtils):
 		self.assertEqual(grades.get("final_percentage"), 86.0)
 		self.assertEqual(grades.get("final_grade"), "B")
 
-	def test_drop_lowest_scores(self):
+	def test_category_assessment_limit(self):
 		# Create a course specific to this test
 		course = self._create_course(title="Grading Course 2")
 		course.enable_grading_policy = 1
 		course.grading_grace_period = 0
 
-		# Add category Homework (100%) with drop_lowest = 1
+		# Add category Homework (100%) with number_of_assessments = 2
 		course.append("grading_categories", {
 			"category_name": "Homework",
 			"weight": 100,
-			"drop_lowest": 1
+			"number_of_assessments": 2
 		})
 		course.save()
 
@@ -113,42 +113,38 @@ class TestGradingPolicy(BaseTestUtils):
 		a2.grading_category = "Homework"
 		a2.save()
 
-		# Submissions
-		# Homework 1: 50%
-		sub1 = frappe.new_doc("LMS Assignment Submission")
-		sub1.update({
-			"assignment": a1.name,
-			"member": self.student1.email,
-			"answer": "Homework 1 answer",
-			"score": 50,
-			"status": "Pass"
-		})
-		sub1.insert()
-		self.cleanup_items.append(("LMS Assignment Submission", sub1.name))
+		# Creating a third homework assignment in the same category should throw ValidationError
+		with self.assertRaises(frappe.ValidationError):
+			a3 = frappe.new_doc("LMS Assignment")
+			a3.update({
+				"title": "Course 2 Homework 3",
+				"course": course.name,
+				"grading_category": "Homework",
+				"type": "Text",
+				"question": "Question 3"
+			})
+			a3.insert()
 
-		# Homework 2: 95%
-		sub2 = frappe.new_doc("LMS Assignment Submission")
-		sub2.update({
-			"assignment": a2.name,
-			"member": self.student1.email,
-			"answer": "Homework 2 answer",
-			"score": 95,
-			"status": "Pass"
-		})
-		sub2.insert()
-		self.cleanup_items.append(("LMS Assignment Submission", sub2.name))
+		# Creating a quiz in the same category should also throw ValidationError because count includes quizzes
+		with self.assertRaises(frappe.ValidationError):
+			q = frappe.new_doc("LMS Quiz")
+			q.update({
+				"title": "Course 2 Homework Quiz",
+				"course": course.name,
+				"grading_category": "Homework",
+				"passing_percentage": 70
+			})
+			q.insert()
 
-		# Fetch student grades
-		grades = get_student_grades(course.name, self.student1.email)
-		
-		# The lowest (50%) should be dropped, leaving 95%
-		self.assertEqual(grades.get("final_percentage"), 95.0)
-
-		# Verify dropped flag is set in category results returned to UI
-		cat_homework = next(c for c in grades.get("categories") if c["category_name"] == "Homework")
-		dropped_items = [i for i in cat_homework["items"] if i.get("dropped")]
-		self.assertEqual(len(dropped_items), 1)
-		self.assertEqual(dropped_items[0]["name"], a1.name)
+		# Try to create a quiz without category when policy is enabled -> throws ValidationError
+		with self.assertRaises(frappe.ValidationError):
+			q_nocat = frappe.new_doc("LMS Quiz")
+			q_nocat.update({
+				"title": "No Cat Quiz",
+				"course": course.name,
+				"passing_percentage": 70
+			})
+			q_nocat.insert()
 
 	def test_late_submission_penalty(self):
 		course = self._create_course(title="Grading Course 3")
@@ -158,7 +154,7 @@ class TestGradingPolicy(BaseTestUtils):
 		course.append("grading_categories", {
 			"category_name": "Homework",
 			"weight": 100,
-			"drop_lowest": 0
+			"number_of_assessments": 5
 		})
 		course.save()
 
@@ -222,7 +218,7 @@ class TestGradingPolicy(BaseTestUtils):
 		course.append("grading_categories", {
 			"category_name": "Homework",
 			"weight": 100,
-			"drop_lowest": 0
+			"number_of_assessments": 5
 		})
 		course.save()
 

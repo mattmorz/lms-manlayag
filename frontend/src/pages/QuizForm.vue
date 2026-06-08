@@ -420,11 +420,22 @@ const courseResource = createResource({
 	auto: false,
 })
 
+const categoryCounts = createResource({
+	url: 'lms.lms.api.get_category_counts',
+	makeParams() {
+		return {
+			course: quizDetails.doc?.course,
+		}
+	},
+	auto: false,
+})
+
 watch(
 	() => quizDetails.doc?.course,
 	(val) => {
 		if (val) {
 			courseResource.submit()
+			categoryCounts.submit()
 		}
 	},
 	{ immediate: true }
@@ -435,10 +446,24 @@ const gradingCategoryOptions = computed(() => {
 	if (!courseDoc || !courseDoc.enable_grading_policy || !courseDoc.grading_categories) {
 		return []
 	}
-	return courseDoc.grading_categories.map((cat) => ({
-		label: cat.category_name,
-		value: cat.category_name,
-	}))
+	const counts = categoryCounts.data || {}
+	return courseDoc.grading_categories.map((cat) => {
+		const currentCount = counts[cat.category_name] || 0
+		const limit = cat.number_of_assessments || 0
+		// Check if this is the quiz's current category in database (so we don't disable it for the quiz itself)
+		const isCurrentCategory = quizDetails.doc?.grading_category === cat.category_name
+		const isFull = limit > 0 && currentCount >= limit && !isCurrentCategory
+
+		return {
+			label: isFull
+				? `${cat.category_name} (${__('Full - {0}/{1}').format(currentCount, limit)})`
+				: limit > 0
+					? `${cat.category_name} (${currentCount}/${limit})`
+					: cat.category_name,
+			value: cat.category_name,
+			disabled: isFull,
+		}
+	})
 })
 
 const validateTitle = () => {
@@ -447,6 +472,21 @@ const validateTitle = () => {
 
 const submitQuiz = () => {
 	validateTitle()
+
+	const courseDoc = courseResource.data
+	if (courseDoc && courseDoc.enable_grading_policy) {
+		if (!quizDetails.doc.grading_category) {
+			toast.error(__('Please select a Grading Category first.'))
+			return
+		}
+		const selectedCatName = quizDetails.doc.grading_category
+		const optionObj = gradingCategoryOptions.value.find(o => o.value === selectedCatName)
+		if (optionObj && optionObj.disabled) {
+			toast.error(__('The selected category has reached its assessment limit.'))
+			return
+		}
+	}
+
 	quizDetails.setValue.submit(
 		{
 			...quizDetails.doc,
@@ -456,6 +496,8 @@ const submitQuiz = () => {
 			onSuccess(data) {
 				quizDetails.doc.total_marks = data.total_marks
 				toast.success(__('Quiz updated successfully'))
+				// Reload category counts to update the status dropdown
+				categoryCounts.submit()
 			},
 			onError(err) {
 				toast.error(err.messages?.[0] || err)

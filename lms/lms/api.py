@@ -3407,25 +3407,17 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		cat_name = cat.category_name
 		items = items_by_cat.get(cat_name, [])
 		weight = cat.weight or 0
-		drop_lowest = cat.drop_lowest or 0
+		number_of_assessments = cat.number_of_assessments or 0
 
 		if items:
-			sorted_items = sorted(items, key=lambda x: x["score"])
-			for i in range(min(drop_lowest, len(sorted_items))):
-				sorted_items[i]["dropped"] = True
-
-			active_items = [x for x in sorted_items if not x.get("dropped")]
-			if active_items:
-				cat_average = sum(x["score"] for x in active_items) / len(active_items)
-			else:
-				cat_average = 0
+			cat_average = sum(x["score"] for x in items) / len(items)
 
 			category_results.append({
 				"category_name": cat_name,
 				"weight": weight,
-				"drop_lowest": drop_lowest,
+				"number_of_assessments": number_of_assessments,
 				"average": round(cat_average, 2),
-				"items": sorted_items
+				"items": items
 			})
 
 			total_weight += weight
@@ -3434,7 +3426,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 			category_results.append({
 				"category_name": cat_name,
 				"weight": weight,
-				"drop_lowest": drop_lowest,
+				"number_of_assessments": number_of_assessments,
 				"average": 0,
 				"items": []
 			})
@@ -3445,7 +3437,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		category_results.append({
 			"category_name": "Uncategorized",
 			"weight": 0,
-			"drop_lowest": 0,
+			"number_of_assessments": 0,
 			"average": round(uncat_average, 2),
 			"items": uncat_items
 		})
@@ -3474,4 +3466,23 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		"final_percentage": final_percentage,
 		"final_grade": final_grade
 	}
+
+
+@frappe.whitelist()
+def get_category_counts(course: str) -> dict:
+	quizzes = frappe.get_all("LMS Quiz", filters={"course": course}, fields=["grading_category"])
+	assignments = frappe.get_all("LMS Assignment", filters={"course": course}, fields=["grading_category"])
+
+	counts = {}
+	for q in quizzes:
+		cat = q.get("grading_category")
+		if cat:
+			counts[cat] = counts.get(cat, 0) + 1
+	for a in assignments:
+		cat = a.get("grading_category")
+		if cat:
+			counts[cat] = counts.get(cat, 0) + 1
+	return counts
+
+
 

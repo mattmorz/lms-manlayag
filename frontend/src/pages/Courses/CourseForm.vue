@@ -273,16 +273,22 @@
 					</div>
 
 					<div class="pr-5 md:pr-10 pb-5 mb-5 space-y-5 border-b">
-						<div class="text-lg font-semibold text-ink-gray-9">
-							{{ __('Grading Policy') }}
+						<div class="flex items-center space-x-2 text-lg font-semibold text-ink-gray-9">
+							<Sliders class="size-5 text-ink-blue-3 stroke-1.5" />
+							<span>{{ __('Grading Policy') }}</span>
 						</div>
-						<FormControl
-							type="checkbox"
-							v-model="courseResource.doc.enable_grading_policy"
-							:label="__('Enable Grading Policy')"
-							@change="makeFormDirty()"
-						/>
-						<div v-if="courseResource.doc.enable_grading_policy" class="space-y-6">
+						<div class="bg-surface-gray-2 p-4 rounded-xl border border-outline-gray-modals shadow-sm space-y-4">
+							<div class="text-xs text-ink-gray-5 leading-relaxed">
+								{{ __('Enable grading policy to automatically compute student grades based on weighted assessment categories, custom letter scales, and optional late penalties.') }}
+							</div>
+							<FormControl
+								type="checkbox"
+								v-model="courseResource.doc.enable_grading_policy"
+								:label="__('Enable Grading Policy')"
+								@change="makeFormDirty()"
+							/>
+						</div>
+						<div v-if="courseResource.doc.enable_grading_policy" class="space-y-6 bg-surface-white p-5 border border-outline-gray-modals rounded-xl shadow-sm mt-4">
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 								<FormControl
 									v-model="courseResource.doc.grading_grace_period"
@@ -294,62 +300,66 @@
 							</div>
 
 							<!-- Grading Categories -->
-							<div class="space-y-2">
-								<div class="text-sm font-medium text-ink-gray-7">
-									{{ __('Assignment Weights & Category Settings') }}
+							<div class="space-y-3">
+								<div class="text-sm font-semibold text-ink-gray-8 flex items-center space-x-1.5">
+									<Sliders class="size-4 text-ink-gray-6 stroke-1.5" />
+									<span>{{ __('Assignment Weights & Category Settings') }}</span>
 								</div>
-								<div class="border border-outline-gray-modals rounded-md overflow-hidden">
-									<table class="w-full text-left border-collapse">
+								<div class="text-xs text-ink-gray-5">
+									{{ __('Define the assessment limit and grade weight for each category. Quizzes and assignments in this course must belong to one of these categories.') }}
+								</div>
+								<div class="border border-outline-gray-modals rounded-lg overflow-hidden shadow-sm">
+									<table class="w-full text-left border-collapse bg-surface-white">
 										<thead>
-											<tr class="bg-surface-gray-2 border-b text-xs font-semibold text-ink-gray-5">
-												<th class="p-3">{{ __('Category Name') }}</th>
-												<th class="p-3 w-1/4">{{ __('Weight (%)') }}</th>
-												<th class="p-3 w-1/4">{{ __('Drop Lowest Scores') }}</th>
-												<th class="p-3 w-12"></th>
+											<tr class="bg-surface-gray-2 border-b text-xs font-semibold text-ink-gray-6">
+												<th class="p-3.5">{{ __('Category Name') }}</th>
+												<th class="p-3.5 w-1/4">{{ __('Weight (%)') }}</th>
+												<th class="p-3.5 w-1/4">{{ __('Number of Assessments') }}</th>
+												<th class="p-3.5 w-12"></th>
 											</tr>
 										</thead>
 										<tbody>
 											<tr v-for="(cat, idx) in courseResource.doc.grading_categories" :key="idx" class="border-b last:border-0 hover:bg-surface-gray-1">
-												<td class="p-2">
+												<td class="p-2.5">
 													<input
 														v-model="cat.category_name"
 														type="text"
-														class="w-full p-1.5 border border-outline-gray-2 rounded text-sm bg-transparent"
+														class="w-full p-2 border border-outline-gray-2 rounded-lg text-sm bg-transparent focus:border-ink-blue-2 focus:ring-1 focus:ring-ink-blue-2 transition"
 														placeholder="e.g. Homework, Final Exam"
 														@input="makeFormDirty()"
 													/>
 												</td>
-												<td class="p-2">
+												<td class="p-2.5">
 													<input
 														v-model.number="cat.weight"
 														type="number"
-														class="w-full p-1.5 border border-outline-gray-2 rounded text-sm bg-transparent"
+														class="w-full p-2 border border-outline-gray-2 rounded-lg text-sm bg-transparent focus:border-ink-blue-2 focus:ring-1 focus:ring-ink-blue-2 transition"
 														placeholder="20"
 														min="0"
 														max="100"
 														@input="makeFormDirty()"
 													/>
 												</td>
-												<td class="p-2">
+												<td class="p-2.5">
 													<input
-														v-model.number="cat.drop_lowest"
+														v-model.number="cat.number_of_assessments"
 														type="number"
-														class="w-full p-1.5 border border-outline-gray-2 rounded text-sm bg-transparent"
+														class="w-full p-2 border border-outline-gray-2 rounded-lg text-sm bg-transparent focus:border-ink-blue-2 focus:ring-1 focus:ring-ink-blue-2 transition"
 														placeholder="0"
  														min="0"
 														@input="makeFormDirty()"
 													/>
 												</td>
-												<td class="p-2 text-center">
+												<td class="p-2.5 text-center">
 													<Button variant="ghost" @click="removeGradingCategory(idx)">
 														<template #icon>
-															<Trash2 class="size-4 text-ink-red-3" />
+															<Trash2 class="size-4 text-ink-red-3 hover:text-ink-red-4 transition" />
 														</template>
 													</Button>
 												</td>
 											</tr>
 											<tr v-if="!courseResource.doc.grading_categories?.length">
-												<td colspan="4" class="p-4 text-center text-sm italic text-ink-gray-5">
+												<td colspan="4" class="p-5 text-center text-sm italic text-ink-gray-5">
 													{{ __('No categories defined. Click Add Category to define weights.') }}
 												</td>
 											</tr>
@@ -365,51 +375,55 @@
 							</div>
 
 							<!-- Grading Scale -->
-							<div class="space-y-2">
-								<div class="text-sm font-medium text-ink-gray-7">
-									{{ __('Grading Scale Settings') }}
+							<div class="space-y-3">
+								<div class="text-sm font-semibold text-ink-gray-8 flex items-center space-x-1.5">
+									<Award class="size-4 text-ink-gray-6 stroke-1.5" />
+									<span>{{ __('Grading Scale Settings') }}</span>
 								</div>
-								<div class="border border-outline-gray-modals rounded-md overflow-hidden">
-									<table class="w-full text-left border-collapse">
+								<div class="text-xs text-ink-gray-5">
+									{{ __('Configure the letter grade mapping based on the final weighted percentage score.') }}
+								</div>
+								<div class="border border-outline-gray-modals rounded-lg overflow-hidden shadow-sm">
+									<table class="w-full text-left border-collapse bg-surface-white">
 										<thead>
-											<tr class="bg-surface-gray-2 border-b text-xs font-semibold text-ink-gray-5">
-												<th class="p-3">{{ __('Letter Grade / Status') }}</th>
-												<th class="p-3 w-1/3">{{ __('Minimum Percentage (%)') }}</th>
-												<th class="p-3 w-12"></th>
+											<tr class="bg-surface-gray-2 border-b text-xs font-semibold text-ink-gray-6">
+												<th class="p-3.5">{{ __('Letter Grade / Status') }}</th>
+												<th class="p-3.5 w-1/3">{{ __('Minimum Percentage (%)') }}</th>
+												<th class="p-3.5 w-12"></th>
 											</tr>
 										</thead>
 										<tbody>
 											<tr v-for="(scale, idx) in courseResource.doc.grading_scale" :key="idx" class="border-b last:border-0 hover:bg-surface-gray-1">
-												<td class="p-2">
+												<td class="p-2.5">
 													<input
 														v-model="scale.grade"
 														type="text"
-														class="w-full p-1.5 border border-outline-gray-2 rounded text-sm bg-transparent"
+														class="w-full p-2 border border-outline-gray-2 rounded-lg text-sm bg-transparent focus:border-ink-blue-2 focus:ring-1 focus:ring-ink-blue-2 transition"
 														placeholder="e.g. A, Pass"
 														@input="makeFormDirty()"
 													/>
 												</td>
-												<td class="p-2">
+												<td class="p-2.5">
 													<input
 														v-model.number="scale.min_percentage"
 														type="number"
-														class="w-full p-1.5 border border-outline-gray-2 rounded text-sm bg-transparent"
+														class="w-full p-2 border border-outline-gray-2 rounded-lg text-sm bg-transparent focus:border-ink-blue-2 focus:ring-1 focus:ring-ink-blue-2 transition"
 														placeholder="90"
 														min="0"
 														max="100"
 														@input="makeFormDirty()"
 													/>
 												</td>
-												<td class="p-2 text-center">
+												<td class="p-2.5 text-center">
 													<Button variant="ghost" @click="removeGradingScale(idx)">
 														<template #icon>
-															<Trash2 class="size-4 text-ink-red-3" />
+															<Trash2 class="size-4 text-ink-red-3 hover:text-ink-red-4 transition" />
 														</template>
 													</Button>
 												</td>
 											</tr>
 											<tr v-if="!courseResource.doc.grading_scale?.length">
-												<td colspan="3" class="p-4 text-center text-sm italic text-ink-gray-5">
+												<td colspan="3" class="p-5 text-center text-sm italic text-ink-gray-5">
 													{{ __('No grades defined. Click Add Grade Scale to define letter grades.') }}
 												</td>
 											</tr>
@@ -487,7 +501,7 @@ import {
 	sanitizeHTML,
 	updateMetaInfo,
 } from '@/utils'
-import { Trash2, X, Plus } from 'lucide-vue-next'
+import { Trash2, X, Plus, Sliders, Award } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '../../stores/session'
 import Link from '@/components/Controls/Link.vue'
@@ -584,7 +598,7 @@ const addGradingCategory = () => {
 	courseResource.doc.grading_categories.push({
 		category_name: '',
 		weight: 0,
-		drop_lowest: 0,
+		number_of_assessments: 0,
 	})
 	makeFormDirty()
 }

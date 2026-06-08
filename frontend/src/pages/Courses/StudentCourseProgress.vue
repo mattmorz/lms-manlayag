@@ -103,8 +103,8 @@
 									<div class="flex justify-between text-xs text-ink-gray-5">
 										<span>
 											{{ __('Weight: {0}%').format(cat.weight) }}
-											<span v-if="cat.drop_lowest">
-												| {{ __('Drop lowest: {0}').format(cat.drop_lowest) }}
+											<span v-if="cat.number_of_assessments">
+												| {{ __('Assessments: {0} / {1}').format(cat.items?.length || 0, cat.number_of_assessments) }}
 											</span>
 										</span>
 									</div>

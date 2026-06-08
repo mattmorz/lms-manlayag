@@ -127,8 +127,8 @@
 								>
 									<span>
 										{{ cat.category_name }} ({{ cat.weight }}%)
-										<span v-if="cat.drop_lowest" class="text-ink-gray-4">
-											[dropped {{ cat.drop_lowest }}]
+										<span v-if="cat.number_of_assessments" class="text-ink-gray-4">
+											({{ cat.items?.length || 0 }} / {{ cat.number_of_assessments }})
 										</span>
 									</span>
 									<span class="font-medium">

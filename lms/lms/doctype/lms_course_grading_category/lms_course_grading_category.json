@@ -8,7 +8,7 @@
  "field_order": [
   "category_name",
   "weight",
-  "drop_lowest"
+  "number_of_assessments"
  ],
  "fields": [
   {
@@ -27,10 +27,10 @@
    "non_negative": 1
   },
   {
-   "fieldname": "drop_lowest",
+   "fieldname": "number_of_assessments",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Drop Lowest Scores",
+   "label": "Number of Assessments",
    "default": "0",
    "non_negative": 1
   }

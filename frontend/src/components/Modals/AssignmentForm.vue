@@ -152,11 +152,22 @@ const courseResource = createResource({
 	auto: false,
 })
 
+const categoryCounts = createResource({
+	url: 'lms.lms.api.get_category_counts',
+	makeParams() {
+		return {
+			course: assignment.course,
+		}
+	},
+	auto: false,
+})
+
 watch(
 	() => assignment.course,
 	(val) => {
 		if (val) {
 			courseResource.submit()
+			categoryCounts.submit()
 		}
 	},
 	{ immediate: true }
@@ -167,10 +178,23 @@ const gradingCategoryOptions = computed(() => {
 	if (!courseDoc || !courseDoc.enable_grading_policy || !courseDoc.grading_categories) {
 		return []
 	}
-	return courseDoc.grading_categories.map((cat) => ({
-		label: cat.category_name,
-		value: cat.category_name,
-	}))
+	const counts = categoryCounts.data || {}
+	return courseDoc.grading_categories.map((cat) => {
+		const currentCount = counts[cat.category_name] || 0
+		const limit = cat.number_of_assessments || 0
+		const isCurrentCategory = assignment.grading_category === cat.category_name
+		const isFull = limit > 0 && currentCount >= limit && !isCurrentCategory
+
+		return {
+			label: isFull
+				? `${cat.category_name} (${__('Full - {0}/{1}').format(currentCount, limit)})`
+				: limit > 0
+					? `${cat.category_name} (${currentCount}/${limit})`
+					: cat.category_name,
+			value: cat.category_name,
+			disabled: isFull,
+		}
+	})
 })
 
 watch(
@@ -211,6 +235,21 @@ const validateFields = () => {
 
 const saveAssignment = () => {
 	validateFields()
+
+	const courseDoc = courseResource.data
+	if (courseDoc && courseDoc.enable_grading_policy) {
+		if (!assignment.grading_category) {
+			toast.error(__('Please select a Grading Category first.'))
+			return
+		}
+		const selectedCatName = assignment.grading_category
+		const optionObj = gradingCategoryOptions.value.find(o => o.value === selectedCatName)
+		if (optionObj && optionObj.disabled) {
+			toast.error(__('The selected category has reached its assessment limit.'))
+			return
+		}
+	}
+
 	if (props.assignmentID == 'new') {
 		createAssignment()
 	} else {
@@ -227,6 +266,7 @@ const createAssignment = () => {
 			onSuccess() {
 				show.value = false
 				toast.success(__('Assignment created successfully'))
+				categoryCounts.submit()
 			},
 		}
 	)
@@ -242,6 +282,7 @@ const updateAssignment = () => {
 			onSuccess() {
 				show.value = false
 				toast.success(__('Assignment updated successfully'))
+				categoryCounts.submit()
 			},
 		}
 	)
