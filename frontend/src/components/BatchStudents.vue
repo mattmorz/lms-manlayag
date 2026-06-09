@@ -20,12 +20,11 @@
 			</div>
 			<div class="flex items-center space-x-2 self-end sm:self-auto">
 				<!-- Course selector for Grade tab -->
-				<FormControl
+				<Select
 					v-if="activeSubTab === 'grade' && gradingCourses.length"
-					type="select"
 					v-model="selectedGradingCourse"
 					:options="gradingCourses.map(c => ({ label: c.title, value: c.title }))"
-					class="w-48 !mb-0"
+					class="w-48"
 				/>
 
 				<Button
@@ -195,6 +194,7 @@ import {
 	ListView,
 	ListRowItem,
 	FormControl,
+	Select,
 	toast,
 } from 'frappe-ui'
 import { Plus, Trash2, Download, ChevronRight, ChevronDown } from 'lucide-vue-next'
