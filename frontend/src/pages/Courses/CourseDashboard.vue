@@ -40,7 +40,7 @@
 							v-model="searchFilter"
 							:placeholder="__('Search by name')"
 							type="text"
-							class="!mb-0"
+							class="w-72 !mb-0"
 						/>
 						<Button @click="showEnrollmentModal = true">
 							<template #prefix>
@@ -49,6 +49,17 @@
 							{{ __('Enroll') }}
 						</Button>
 					</div>
+				</div>
+				<!-- Selected Batch Indicator -->
+				<div v-if="selectedBatch && courseBatches.data" class="text-xs text-ink-gray-5 mb-3 mt-[-0.5rem] flex items-center gap-1.5">
+					<span class="inline-block w-1.5 h-1.5 rounded-full bg-ink-green-3"></span>
+					<span>{{ __('Filtered by Batch:') }}</span>
+					<span class="font-medium text-ink-gray-9">
+						{{ courseBatches.data.find((b: any) => b.name === selectedBatch)?.title || selectedBatch }}
+					</span>
+					<button @click="selectedBatch = ''" class="text-ink-red-3 hover:underline ml-1 cursor-pointer">
+						({{ __('Clear filter') }})
+					</button>
 				</div>
 				<div
 					v-if="progressList.loading || progressList.data?.length"
@@ -322,6 +333,7 @@ const chartDetails = createResource({
 	makeParams() {
 		return {
 			course: props.course.data?.name,
+			batch: selectedBatch.value,
 		}
 	},
 	auto: true,
@@ -348,8 +360,11 @@ const progressList = createListResource({
 
 const lessonProgress = createResource({
 	url: 'lms.lms.api.get_lesson_completion_stats',
-	params: {
-		course: props.course.data?.name,
+	makeParams() {
+		return {
+			course: props.course.data?.name,
+			batch: selectedBatch.value,
+		}
 	},
 	auto: true,
 })
@@ -406,6 +421,22 @@ const updateProgressListFilters = (members: string[] | null) => {
 }
 
 watch(selectedBatch, (newBatch) => {
+	chartDetails.update({
+		params: {
+			course: props.course.data?.name,
+			batch: newBatch,
+		}
+	})
+	chartDetails.reload()
+
+	lessonProgress.update({
+		params: {
+			course: props.course.data?.name,
+			batch: newBatch,
+		}
+	})
+	lessonProgress.reload()
+
 	if (newBatch) {
 		batchMembers.submit(
 			{},
@@ -429,6 +460,9 @@ watch([searchFilter], () => {
 })
 
 const totalEnrollments = computed(() => {
+	if (selectedBatch.value) {
+		return progressList.data?.length || 0
+	}
 	return props.course.data?.enrollments || progressList.data?.length || 0
 })
 

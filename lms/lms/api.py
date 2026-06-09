@@ -1630,17 +1630,29 @@ def track_new_watch_time(lesson: str, video: dict, has_duration_field: bool = Fa
 
 
 @frappe.whitelist()
-def get_course_progress_distribution(course: str):
+def get_course_progress_distribution(course: str, batch: str = None):
 	if not can_modify_course(course):
 		frappe.throw(
 			_("You do not have permission to access this course's progress data."), frappe.PermissionError
 		)
 
+	filters = {"course": course}
+	if batch:
+		enrolled_students = frappe.get_all(
+			"LMS Batch Enrollment",
+			filters={"batch": batch},
+			pluck="member",
+		)
+		if not enrolled_students:
+			return {
+				"average_progress": 0,
+				"progress_distribution": [],
+			}
+		filters["member"] = ["in", enrolled_students]
+
 	all_progress = frappe.get_all(
 		"LMS Enrollment",
-		{
-			"course": course,
-		},
+		filters=filters,
 		pluck="progress",
 	)
 
@@ -2058,7 +2070,7 @@ def delete_programming_exercise(exercise: str):
 
 
 @frappe.whitelist()
-def get_lesson_completion_stats(course: str):
+def get_lesson_completion_stats(course: str, batch: str = None):
 	roles = frappe.get_roles()
 	if "Course Creator" not in roles and "Moderator" not in roles:
 		frappe.throw(_("You do not have permission to access lesson completion stats."))
@@ -2068,6 +2080,23 @@ def get_lesson_completion_stats(course: str):
 	ChapterReference = frappe.qb.DocType("Chapter Reference")
 	Lesson = frappe.qb.DocType("Course Lesson")
 
+	join_cond = (
+		(CourseProgress.lesson == LessonReference.lesson)
+		& (CourseProgress.course == course)
+		& (CourseProgress.status == "Complete")
+	)
+
+	if batch:
+		enrolled_students = frappe.get_all(
+			"LMS Batch Enrollment",
+			filters={"batch": batch},
+			pluck="member",
+		)
+		if enrolled_students:
+			join_cond &= (CourseProgress.member.isin(enrolled_students))
+		else:
+			join_cond &= (CourseProgress.member == "")
+
 	rows = (
 		frappe.qb.from_(LessonReference)
 		.join(ChapterReference)
@@ -2075,11 +2104,7 @@ def get_lesson_completion_stats(course: str):
 		.join(Lesson)
 		.on(LessonReference.lesson == Lesson.name)
 		.left_join(CourseProgress)
-		.on(
-			(CourseProgress.lesson == LessonReference.lesson)
-			& (CourseProgress.course == course)
-			& (CourseProgress.status == "Complete")
-		)
+		.on(join_cond)
 		.select(
 			LessonReference.idx,
 			ChapterReference.idx.as_("chapter_idx"),
