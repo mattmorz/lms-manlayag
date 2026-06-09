@@ -26,10 +26,21 @@
 						{{ __('Students') }}
 					</div>
 					<div class="flex items-center space-x-2">
+						<Select
+							v-if="courseBatches.data?.length"
+							v-model="selectedBatch"
+							:options="[
+								{ label: __('All Batches'), value: '' },
+								...courseBatches.data.map((b: any) => ({ label: b.title, value: b.name }))
+							]"
+							:placeholder="__('Filter by Batch')"
+							class="w-48"
+						/>
 						<FormControl
 							v-model="searchFilter"
 							:placeholder="__('Search by name')"
 							type="text"
+							class="!mb-0"
 						/>
 						<Button @click="showEnrollmentModal = true">
 							<template #prefix>
@@ -357,21 +368,64 @@ const updateLessonProgress = (value: string) => {
 	}
 }
 
-watch([searchFilter], () => {
-	let filterApplied = false
-	let filters: Filters = {
+const selectedBatch = ref<string | null>(null)
+
+const courseBatches = createResource({
+	url: 'lms.lms.api.get_course_batches',
+	makeParams() {
+		return {
+			course: props.course.data?.name,
+		}
+	},
+	auto: true,
+})
+
+const batchMembers = createResource({
+	url: 'lms.lms.api.get_batch_members',
+	makeParams() {
+		return {
+			batch: selectedBatch.value,
+		}
+	},
+})
+
+const updateProgressListFilters = (members: string[] | null) => {
+	let filters: any = {
 		course: props.course.data?.name,
 	}
-
 	if (searchFilter.value) {
 		filters.member_name = ['like', `%${searchFilter.value}%`]
-		filterApplied = true
 	}
-
+	if (selectedBatch.value && members) {
+		filters.member = ['in', members.length ? members : ['']]
+	}
 	progressList.update({
 		filters: filters,
 	})
 	progressList.reload()
+}
+
+watch(selectedBatch, (newBatch) => {
+	if (newBatch) {
+		batchMembers.submit(
+			{},
+			{
+				onSuccess(members: any) {
+					updateProgressListFilters(members)
+				},
+			}
+		)
+	} else {
+		updateProgressListFilters(null)
+	}
+})
+
+watch([searchFilter], () => {
+	if (selectedBatch.value) {
+		updateProgressListFilters(batchMembers.data as string[] | null)
+	} else {
+		updateProgressListFilters(null)
+	}
 })
 
 const totalEnrollments = computed(() => {

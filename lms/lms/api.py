@@ -3610,6 +3610,33 @@ def get_used_quizzes(course: str) -> list:
 					used_quizzes.add(quiz)
 	return list(used_quizzes)
 
+@frappe.whitelist()
+def get_course_batches(course: str) -> list:
+	batch_courses = frappe.get_all(
+		"Batch Course",
+		filters={"course": course},
+		fields=["parent"],
+	)
+	batch_names = [bc.parent for bc in batch_courses]
+	if not batch_names:
+		return []
+
+	batches = frappe.get_all(
+		"LMS Batch",
+		filters={"name": ["in", batch_names]},
+		fields=["name", "title"],
+	)
+	return batches
+
+@frappe.whitelist()
+def get_batch_members(batch: str) -> list:
+	return frappe.get_all(
+		"LMS Batch Enrollment",
+		filters={"batch": batch},
+		pluck="member",
+	)
+
+
 
 
 
