@@ -29,13 +29,14 @@
 					class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
 				>
 					<ListHeaderItem :item="item" v-for="item in getCoursesColumns()">
-						<template #prefix="{ item }">
+						<template #prefix>
 							<component
 								v-if="item.icon"
 								:is="item.icon"
 								class="h-4 w-4 stroke-1.5 ml-4"
 							/>
 						</template>
+						<span>{{ item.label }}</span>
 					</ListHeaderItem>
 				</ListHeader>
 				<ListRows>

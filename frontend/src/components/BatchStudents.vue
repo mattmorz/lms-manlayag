@@ -63,29 +63,26 @@
 					<ListHeaderItem
 						:item="item"
 						v-for="item in activeColumns"
-						:title="item.label"
 					>
-						<template #default="{ item }">
-							<div class="flex items-center space-x-1">
-								<span>{{ item.label }}</span>
-								<button
-									v-if="item.isCategoryAverage"
-									class="hover:bg-surface-gray-3 p-0.5 rounded cursor-pointer transition-colors"
-									@click.stop="toggleCategory(item.categoryName)"
-									:title="expandedCategories[item.categoryName] ? __('Collapse Assessments') : __('Expand Assessments')"
-								>
-									<ChevronRight v-if="!expandedCategories[item.categoryName]" class="h-3.5 w-3.5 text-ink-gray-5" />
-									<ChevronDown v-else class="h-3.5 w-3.5 text-ink-gray-5" />
-								</button>
-							</div>
-						</template>
-						<template #prefix="{ item }">
+						<template #prefix>
 							<FeatherIcon
 								v-if="item.icon"
 								:name="item.icon"
 								class="h-4 w-4 stroke-1.5"
 							/>
 						</template>
+						<div class="flex items-center space-x-1">
+							<span>{{ item.label }}</span>
+							<button
+								v-if="item.isCategoryAverage"
+								class="hover:bg-surface-gray-3 p-0.5 rounded cursor-pointer transition-colors"
+								@click.stop="toggleCategory(item.categoryName)"
+								:title="expandedCategories[item.categoryName] ? __('Collapse Assessments') : __('Expand Assessments')"
+							>
+								<ChevronRight v-if="!expandedCategories[item.categoryName]" class="h-3.5 w-3.5 text-ink-gray-5" />
+								<ChevronDown v-else class="h-3.5 w-3.5 text-ink-gray-5" />
+							</button>
+						</div>
 					</ListHeaderItem>
 				</ListHeader>
 				<ListRows>
