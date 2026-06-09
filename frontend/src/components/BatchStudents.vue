@@ -111,24 +111,24 @@
 										/>
 									</div>
 								</template>
-								<div v-slot:default v-if="column.isCourseProgress" class="font-medium text-ink-gray-7">
+								<div v-if="column.isCourseProgress" class="font-medium text-ink-gray-7">
 									{{ Math.floor(row.courses?.[column.courseTitle] || 0) }}%
 								</div>
-								<div v-slot:default v-else-if="column.isAssessmentsProgress" class="font-medium text-ink-gray-7">
+								<div v-else-if="column.isAssessmentsProgress" class="font-medium text-ink-gray-7">
 									{{ Math.floor(row.average_assessments_progress || 0) }}%
 								</div>
-								<div v-slot:default v-else-if="column.isFinalGrade" class="font-medium text-ink-gray-7">
+								<div v-else-if="column.isFinalGrade" class="font-medium text-ink-gray-7">
 									<span v-if="row.course_grades?.[selectedGradingCourse]?.enable_grading_policy" class="font-semibold text-ink-green-3">
 										{{ row.course_grades[selectedGradingCourse].final_percentage }}% ({{ row.course_grades[selectedGradingCourse].final_grade }})
 									</span>
 									<span v-else class="text-ink-gray-4">-</span>
 								</div>
-								<div v-slot:default v-else-if="column.isCategoryAverage" class="font-medium text-ink-gray-7">
+								<div v-else-if="column.isCategoryAverage" class="font-medium text-ink-gray-7">
 									<span>
 										{{ row.course_grades?.[selectedGradingCourse]?.categories?.find(c => c.category_name === column.categoryName)?.average || 0 }}%
 									</span>
 								</div>
-								<div v-slot:default v-else-if="column.isCategoryItem" class="font-medium text-ink-gray-7">
+								<div v-else-if="column.isCategoryItem" class="font-medium text-ink-gray-7">
 									<span v-if="getItemScoreInfo(row, column.categoryName, column.itemName)" :class="getItemScoreInfo(row, column.categoryName, column.itemName).class">
 										{{ getItemScoreInfo(row, column.categoryName, column.itemName).label }}
 									</span>
