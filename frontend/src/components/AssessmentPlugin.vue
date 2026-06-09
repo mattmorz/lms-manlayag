@@ -98,7 +98,7 @@
 import { Dialog, FormControl, createResource, toast } from 'frappe-ui'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Link } from 'frappe-ui/frappe'
+import Link from '@/components/Controls/Link.vue'
 import { getLmsRoute } from '@/utils/basePath'
 
 const show = ref(false)
