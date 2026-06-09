@@ -2,7 +2,7 @@
 	<div>
 		<div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 border-b pb-4">
 			<div class="flex items-center space-x-6">
-				<div class="text-ink-gray-9 font-medium text-lg pr-4 border-r">
+				<div class="text-ink-gray-9 font-medium text-base pr-4 border-r">
 					{{ studentCount.data ?? 0 }} {{ __('Students') }}
 				</div>
 				<!-- Sub tabs for Course Progress and Grade -->
@@ -58,7 +58,7 @@
 				}"
 			>
 				<ListHeader
-					class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
+					class="mb-2 grid items-center rounded bg-surface-gray-2 p-2"
 				>
 					<ListHeaderItem
 						:item="item"
@@ -476,29 +476,23 @@ const exportCSV = () => {
 						})
 					}
 				} else {
-					const hasGradingPolicy = allStudents.some(student => {
-						return Object.values(student.course_grades || {}).some(g => g.enable_grading_policy)
-					})
-
 					const courses = props.batch?.data?.courses || []
 
-					if (hasGradingPolicy && courses.length) {
-						courses.forEach(course => {
-							headers.push(`${course.title} Progress`)
-							rowMappers.push(row => `${Math.floor(row.courses?.[course.title] || 0)}%`)
-						})
+					courses.forEach(course => {
+						headers.push(`${course.title} Progress`)
+						rowMappers.push(row => `${Math.floor(row.courses?.[course.title] || 0)}%`)
+					})
 
-						const hasAssessments = allStudents.some(student => {
-							return Object.keys(student.assessments || {}).length > 0
-						})
-						if (hasAssessments) {
-							headers.push('Assessments Progress')
-							rowMappers.push(row => `${Math.floor(row.average_assessments_progress || 0)}%`)
-						}
-					} else {
-						headers.push('Progress')
-						rowMappers.push(row => `${row.progress || 0}%`)
+					const hasAssessments = allStudents.some(student => {
+						return Object.keys(student.assessments || {}).length > 0
+					})
+					if (hasAssessments) {
+						headers.push('Assessments Progress')
+						rowMappers.push(row => `${Math.floor(row.average_assessments_progress || 0)}%`)
 					}
+
+					headers.push('Overall Progress')
+					rowMappers.push(row => `${row.progress || 0}%`)
 				}
 
 				headers.push('Last Active')
