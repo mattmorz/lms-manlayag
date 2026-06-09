@@ -1638,19 +1638,34 @@ def get_course_progress_distribution(course: str, batch: str = None):
 
 	filters = {"course": course}
 	if batch:
-		enrolled_students = frappe.get_all(
-			"LMS Batch Enrollment",
-			filters={"batch": batch},
-			pluck="member",
-		)
-		if not enrolled_students:
-			return {
-				"average_progress": 0,
-				"progress_distribution": [],
-				"enrolled_count": 0,
-				"average_rating": 0,
-			}
-		filters["member"] = ["in", enrolled_students]
+		if batch == "unbatched":
+			batch_courses = frappe.get_all(
+				"Batch Course",
+				filters={"course": course},
+				pluck="parent",
+			)
+			if batch_courses:
+				batch_members = frappe.get_all(
+					"LMS Batch Enrollment",
+					filters={"batch": ["in", batch_courses]},
+					pluck="member",
+				)
+				if batch_members:
+					filters["member"] = ["not in", batch_members]
+		else:
+			enrolled_students = frappe.get_all(
+				"LMS Batch Enrollment",
+				filters={"batch": batch},
+				pluck="member",
+			)
+			if not enrolled_students:
+				return {
+					"average_progress": 0,
+					"progress_distribution": [],
+					"enrolled_count": 0,
+					"average_rating": 0,
+				}
+			filters["member"] = ["in", enrolled_students]
 
 	all_progress = frappe.get_all(
 		"LMS Enrollment",
@@ -1676,19 +1691,50 @@ def get_batch_average_rating(course: str, batch: str = None) -> float:
 		val = frappe.db.get_value("LMS Course", course, "rating")
 		return flt(val) if val is not None else 0.0
 
-	enrolled_students = frappe.get_all(
-		"LMS Batch Enrollment",
-		filters={"batch": batch},
-		pluck="member",
-	)
-	if not enrolled_students:
-		return 0.0
+	if batch == "unbatched":
+		batch_courses = frappe.get_all(
+			"Batch Course",
+			filters={"course": course},
+			pluck="parent",
+		)
+		if batch_courses:
+			batch_members = frappe.get_all(
+				"LMS Batch Enrollment",
+				filters={"batch": ["in", batch_courses]},
+				pluck="member",
+			)
+			if batch_members:
+				reviews = frappe.get_all(
+					"LMS Course Review",
+					filters={"course": course, "owner": ["not in", batch_members]},
+					fields=["rating"],
+				)
+			else:
+				reviews = frappe.get_all(
+					"LMS Course Review",
+					filters={"course": course},
+					fields=["rating"],
+				)
+		else:
+			reviews = frappe.get_all(
+				"LMS Course Review",
+				filters={"course": course},
+				fields=["rating"],
+			)
+	else:
+		enrolled_students = frappe.get_all(
+			"LMS Batch Enrollment",
+			filters={"batch": batch},
+			pluck="member",
+		)
+		if not enrolled_students:
+			return 0.0
 
-	reviews = frappe.get_all(
-		"LMS Course Review",
-		filters={"course": course, "owner": ["in", enrolled_students]},
-		fields=["rating"],
-	)
+		reviews = frappe.get_all(
+			"LMS Course Review",
+			filters={"course": course, "owner": ["in", enrolled_students]},
+			fields=["rating"],
+		)
 	if not reviews:
 		return 0.0
 
@@ -2124,23 +2170,59 @@ def get_lesson_completion_stats(course: str, batch: str = None):
 	)
 
 	if batch:
-		enrolled_students = frappe.get_all(
-			"LMS Batch Enrollment",
-			filters={"batch": batch},
-			pluck="member",
-		)
-		if enrolled_students:
-			course_enrolled_batch_students = frappe.get_all(
-				"LMS Enrollment",
-				filters={"course": course, "member": ["in", enrolled_students]},
-				pluck="member",
+		if batch == "unbatched":
+			batch_courses = frappe.get_all(
+				"Batch Course",
+				filters={"course": course},
+				pluck="parent",
 			)
-			if course_enrolled_batch_students:
-				join_cond &= (CourseProgress.member.isin(course_enrolled_batch_students))
+			if batch_courses:
+				batch_members = frappe.get_all(
+					"LMS Batch Enrollment",
+					filters={"batch": ["in", batch_courses]},
+					pluck="member",
+				)
+				if batch_members:
+					course_students = frappe.get_all(
+						"LMS Enrollment",
+						filters={"course": course, "member": ["not in", batch_members]},
+						pluck="member",
+					)
+				else:
+					course_students = frappe.get_all(
+						"LMS Enrollment",
+						filters={"course": course},
+						pluck="member",
+					)
+			else:
+				course_students = frappe.get_all(
+					"LMS Enrollment",
+					filters={"course": course},
+					pluck="member",
+				)
+			
+			if course_students:
+				join_cond &= (CourseProgress.member.isin(course_students))
 			else:
 				join_cond &= (CourseProgress.member == "")
 		else:
-			join_cond &= (CourseProgress.member == "")
+			enrolled_students = frappe.get_all(
+				"LMS Batch Enrollment",
+				filters={"batch": batch},
+				pluck="member",
+			)
+			if enrolled_students:
+				course_enrolled_batch_students = frappe.get_all(
+					"LMS Enrollment",
+					filters={"course": course, "member": ["in", enrolled_students]},
+					pluck="member",
+				)
+				if course_enrolled_batch_students:
+					join_cond &= (CourseProgress.member.isin(course_enrolled_batch_students))
+				else:
+					join_cond &= (CourseProgress.member == "")
+			else:
+				join_cond &= (CourseProgress.member == "")
 	else:
 		course_students = frappe.get_all(
 			"LMS Enrollment",
@@ -3709,7 +3791,21 @@ def get_course_batches(course: str) -> list:
 	return batches
 
 @frappe.whitelist()
-def get_batch_members(batch: str) -> list:
+def get_batch_members(batch: str, course: str = None) -> list:
+	if batch == "unbatched" and course:
+		batch_courses = frappe.get_all(
+			"Batch Course",
+			filters={"course": course},
+			pluck="parent",
+		)
+		if not batch_courses:
+			return []
+		return frappe.get_all(
+			"LMS Batch Enrollment",
+			filters={"batch": ["in", batch_courses]},
+			pluck="member",
+		)
+
 	return frappe.get_all(
 		"LMS Batch Enrollment",
 		filters={"batch": batch},

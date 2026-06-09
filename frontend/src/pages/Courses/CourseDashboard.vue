@@ -27,10 +27,12 @@
 					</div>
 					<div class="flex items-center space-x-2">
 						<Select
+							v-slot="{ open }"
 							v-if="courseBatches.data?.length"
 							v-model="selectedBatch"
 							:options="[
 								{ label: __('All Batches'), value: '' },
+								{ label: __('Without Batch'), value: 'unbatched' },
 								...courseBatches.data.map((b: any) => ({ label: b.title, value: b.name }))
 							]"
 							:placeholder="__('Filter by Batch')"
@@ -55,7 +57,7 @@
 					<span class="inline-block w-1.5 h-1.5 rounded-full bg-ink-green-3"></span>
 					<span>{{ __('Filtered by Batch:') }}</span>
 					<span class="font-medium text-ink-gray-9">
-						{{ courseBatches.data.find((b: any) => b.name === selectedBatch)?.title || selectedBatch }}
+						{{ selectedBatch === 'unbatched' ? __('Without Batch') : (courseBatches.data.find((b: any) => b.name === selectedBatch)?.title || selectedBatch) }}
 					</span>
 					<button @click="selectedBatch = ''" class="text-ink-red-3 hover:underline ml-1 cursor-pointer">
 						({{ __('Clear filter') }})
@@ -400,6 +402,7 @@ const batchMembers = createResource({
 	makeParams() {
 		return {
 			batch: selectedBatch.value,
+			course: props.course.data?.name,
 		}
 	},
 })
@@ -412,7 +415,11 @@ const updateProgressListFilters = (members: string[] | null) => {
 		filters.member_name = ['like', `%${searchFilter.value}%`]
 	}
 	if (selectedBatch.value && members) {
-		filters.member = ['in', members.length ? members : ['']]
+		if (selectedBatch.value === 'unbatched') {
+			filters.member = ['not in', members.length ? members : ['']]
+		} else {
+			filters.member = ['in', members.length ? members : ['']]
+		}
 	}
 	progressList.update({
 		filters: filters,
