@@ -11,7 +11,7 @@
 			/>
 			<NumberChartGraph
 				:title="__('Average Rating')"
-				:value="course.data?.rating || 0"
+				:value="averageRating"
 			>
 				<template #prefix>
 					<Star class="size-5 text-transparent fill-amber-500" />
@@ -40,7 +40,7 @@
 							v-model="searchFilter"
 							:placeholder="__('Search by name')"
 							type="text"
-							class="w-72 !mb-0"
+							class="w-96 !mb-0"
 						/>
 						<Button @click="showEnrollmentModal = true">
 							<template #prefix>
@@ -145,7 +145,7 @@
 			</div>
 			<div class="space-y-5">
 				<div
-					v-if="chartDetails.data?.average_progress > 0"
+					v-if="chartDetails.data"
 					class="border rounded-lg p-4"
 				>
 					<div class="text-ink-gray-5 mb-4">
@@ -328,6 +328,8 @@ type Filters = {
 	member_name?: string[]
 }
 
+const selectedBatch = ref<string>('')
+
 const chartDetails = createResource({
 	url: 'lms.lms.api.get_course_progress_distribution',
 	makeParams() {
@@ -382,8 +384,6 @@ const updateLessonProgress = (value: string) => {
 		})
 	}
 }
-
-const selectedBatch = ref<string | null>(null)
 
 const courseBatches = createResource({
 	url: 'lms.lms.api.get_course_batches',
@@ -460,10 +460,20 @@ watch([searchFilter], () => {
 })
 
 const totalEnrollments = computed(() => {
+	if (chartDetails.data && chartDetails.data.enrolled_count !== undefined) {
+		return chartDetails.data.enrolled_count
+	}
 	if (selectedBatch.value) {
 		return progressList.data?.length || 0
 	}
 	return props.course.data?.enrollments || progressList.data?.length || 0
+})
+
+const averageRating = computed(() => {
+	if (chartDetails.data && chartDetails.data.average_rating !== undefined) {
+		return chartDetails.data.average_rating || 0
+	}
+	return props.course.data?.rating || 0
 })
 
 const averageCompletionRate = computed(() => {

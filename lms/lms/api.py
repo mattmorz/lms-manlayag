@@ -1647,6 +1647,8 @@ def get_course_progress_distribution(course: str, batch: str = None):
 			return {
 				"average_progress": 0,
 				"progress_distribution": [],
+				"enrolled_count": 0,
+				"average_rating": 0,
 			}
 		filters["member"] = ["in", enrolled_students]
 
@@ -1658,11 +1660,46 @@ def get_course_progress_distribution(course: str, batch: str = None):
 
 	average_progress = get_average_course_progress(all_progress)
 	progress_distribution = get_progress_distribution(all_progress)
+	enrolled_count = len(all_progress)
+	average_rating = get_batch_average_rating(course, batch)
 
 	return {
 		"average_progress": average_progress,
 		"progress_distribution": progress_distribution,
+		"enrolled_count": enrolled_count,
+		"average_rating": average_rating,
 	}
+
+
+def get_batch_average_rating(course: str, batch: str = None) -> float:
+	if not batch:
+		val = frappe.db.get_value("LMS Course", course, "rating")
+		return flt(val) if val is not None else 0.0
+
+	enrolled_students = frappe.get_all(
+		"LMS Batch Enrollment",
+		filters={"batch": batch},
+		pluck="member",
+	)
+	if not enrolled_students:
+		return 0.0
+
+	reviews = frappe.get_all(
+		"LMS Course Review",
+		filters={"course": course, "owner": ["in", enrolled_students]},
+		fields=["rating"],
+	)
+	if not reviews:
+		return 0.0
+
+	out_of_ratings = frappe.db.get_all(
+		"DocField", {"parent": "LMS Course Review", "fieldtype": "Rating"}, ["options"]
+	)
+	out_of_ratings = (len(out_of_ratings) and out_of_ratings[0].options) or 5
+
+	ratings = [r.rating * out_of_ratings for r in reviews]
+	avg_rating = sum(ratings) / len(ratings)
+	return flt(avg_rating, frappe.get_system_settings("float_precision") or 3)
 
 
 def get_average_course_progress(progress_list: list):
@@ -2093,7 +2130,25 @@ def get_lesson_completion_stats(course: str, batch: str = None):
 			pluck="member",
 		)
 		if enrolled_students:
-			join_cond &= (CourseProgress.member.isin(enrolled_students))
+			course_enrolled_batch_students = frappe.get_all(
+				"LMS Enrollment",
+				filters={"course": course, "member": ["in", enrolled_students]},
+				pluck="member",
+			)
+			if course_enrolled_batch_students:
+				join_cond &= (CourseProgress.member.isin(course_enrolled_batch_students))
+			else:
+				join_cond &= (CourseProgress.member == "")
+		else:
+			join_cond &= (CourseProgress.member == "")
+	else:
+		course_students = frappe.get_all(
+			"LMS Enrollment",
+			filters={"course": course},
+			pluck="member",
+		)
+		if course_students:
+			join_cond &= (CourseProgress.member.isin(course_students))
 		else:
 			join_cond &= (CourseProgress.member == "")
 
