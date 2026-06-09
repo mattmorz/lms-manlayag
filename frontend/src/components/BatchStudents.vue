@@ -6,7 +6,6 @@
 			</div>
 			<div class="flex items-center space-x-2">
 				<Button
-					v-slot:default
 					v-if="students.data?.length"
 					:loading="exporting"
 					@click="exportCSV()"
@@ -87,7 +86,6 @@
 									{{ Math.floor(row.average_assessments_progress || 0) }}%
 								</div>
 								<div
-									v-slot:default
 									v-else-if="column.key == 'progress'"
 									class="flex items-center space-x-4 w-full"
 								>
