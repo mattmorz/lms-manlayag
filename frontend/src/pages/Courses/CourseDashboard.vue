@@ -34,7 +34,7 @@
 								...courseBatches.data.map((b: any) => ({ label: b.title, value: b.name }))
 							]"
 							:placeholder="__('Filter by Batch')"
-							class="w-48"
+							class="w-36"
 						/>
 						<FormControl
 							v-model="searchFilter"
