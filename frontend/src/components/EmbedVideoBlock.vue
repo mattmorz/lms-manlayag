@@ -32,11 +32,11 @@
 			<div class="flex items-center space-x-2">
 				<Button
 					variant="ghost"
-					class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+					class="inline-flex items-center !gap-1 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 					@click="showTranscript = !showTranscript"
 				>
 					<template #prefix>
-						<FileText class="w-4 h-4 stroke-1.5 mr-2" />
+						<FileText class="w-4 h-4 stroke-1.5 !mr-0" />
 					</template>
 					<span>{{ showTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
 				</Button>
@@ -44,11 +44,11 @@
 				<Button
 					v-if="isCourseCreator"
 					variant="ghost"
-					class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+					class="inline-flex items-center !gap-1 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 					@click="triggerTranscriptUpload"
 				>
 					<template #prefix>
-						<Upload class="w-4 h-4 stroke-1.5 mr-2" />
+						<Upload class="w-4 h-4 stroke-1.5 !mr-0" />
 					</template>
 					<span>{{ __('Upload Transcript') }}</span>
 				</Button>
@@ -56,11 +56,11 @@
 				<Button
 					v-if="isCourseCreator && wordsList.length > 0"
 					variant="ghost"
-					class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+					class="inline-flex items-center !gap-1 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 					@click="openEditTranscriptModal"
 				>
 					<template #prefix>
-						<Edit class="w-4 h-4 stroke-1.5 mr-2" />
+						<Edit class="w-4 h-4 stroke-1.5 !mr-0" />
 					</template>
 					<span>{{ __('Edit Transcript') }}</span>
 				</Button>
@@ -220,7 +220,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, onBeforeUnmount, inject } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount, inject, nextTick } from 'vue'
 import { Button, Dialog, LoadingIndicator, createResource, toast } from 'frappe-ui'
 import { FileText, Upload, Edit, Trash2, Plus } from 'lucide-vue-next'
 import { formatSeconds, formatTimestamp } from '@/utils'
@@ -251,6 +251,7 @@ const showQuizLoader = ref(false)
 const quizLoadTimer = ref(0)
 const currentQuiz = ref(null)
 const nextQuiz = ref({})
+const completedQuizNames = ref(new Set())
 const duration = ref(0)
 const currentTime = ref(0)
 const showTranscript = ref(false)
@@ -485,13 +486,22 @@ const seekToWord = (start) => {
 }
 
 const resumeVideo = () => {
+	const completedQuiz = currentQuiz.value
 	showQuiz.value = false
+	showQuizLoader.value = false
+	quizLoadTimer.value = 0
 	currentQuiz.value = null
-	passedQuizzes.reload()
-	if (player) {
-		player.play()
+	if (completedQuiz) {
+		completedQuizNames.value.add(completedQuiz)
 	}
-	updateNextQuiz()
+	passedQuizzes.reload()
+	nextTick(() => {
+		if (player) {
+			player.play()
+		}
+		updateNextQuiz()
+		window.dispatchEvent(new Event('lms-lesson-quiz-passed'))
+	})
 }
 
 const updateNextQuiz = () => {
@@ -512,7 +522,10 @@ const updateNextQuiz = () => {
 	quizzes.sort((a, b) => a.time - b.time)
 
 	const nextQuizIndex = quizzes.findIndex(
-		(quiz) => quiz.time > currentTime.value && !passedQuizNames.value.has(quiz.quiz)
+		(quiz) =>
+			quiz.time > currentTime.value &&
+			!passedQuizNames.value.has(quiz.quiz) &&
+			!completedQuizNames.value.has(quiz.quiz)
 	)
 	if (nextQuizIndex !== -1) {
 		nextQuiz.value = quizzes[nextQuizIndex]

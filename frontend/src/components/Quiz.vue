@@ -652,7 +652,9 @@ const createSubmission = () => {
 		{
 			onSuccess(data) {
 				markLessonProgress()
-				window.dispatchEvent(new Event('lms-lesson-quiz-passed'))
+				if (!props.inVideo) {
+					window.dispatchEvent(new Event('lms-lesson-quiz-passed'))
+				}
 				attempts.reload()
 				if (quiz.data.duration) clearInterval(timerInterval)
 			},
