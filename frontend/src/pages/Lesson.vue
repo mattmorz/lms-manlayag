@@ -324,7 +324,7 @@
 								</Button>
 
 								<Button
-									v-if="isAdmin"
+									v-if="isCourseCreator"
 									variant="ghost"
 									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 									@click="triggerTranscriptUpload"
@@ -336,7 +336,7 @@
 								</Button>
 
 								<Button
-									v-if="isAdmin && lessonWordsList.length > 0"
+									v-if="isCourseCreator && lessonWordsList.length > 0"
 									variant="ghost"
 									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 									@click="openEditTranscriptModal"
@@ -630,10 +630,20 @@ const props = defineProps({
 	},
 })
 
+const reloadLessonData = () => {
+	if (lesson.data?.name) {
+		lesson.reload()
+	}
+	if (lessonQuizIds.value.length > 0) {
+		quizSubmissions.reload()
+	}
+}
+
 onMounted(() => {
 	startTimer()
 	sidebarStore.isSidebarCollapsed = true
 	document.addEventListener('fullscreenchange', attachFullscreenEvent)
+	window.addEventListener('lms-lesson-quiz-passed', reloadLessonData)
 	socket.on('update_lesson_progress', (data) => {
 		if (data.course === props.courseName) {
 			lessonProgress.value = data.progress
@@ -655,6 +665,7 @@ const attachFullscreenEvent = () => {
 
 onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
+	window.removeEventListener('lms-lesson-quiz-passed', reloadLessonData)
 	sidebarStore.isSidebarCollapsed = false
 	trackVideoWatchDuration()
 })
@@ -670,6 +681,89 @@ const lesson = createResource({
 	},
 	auto: true,
 })
+
+const getLessonQuizIds = (lessonData) => {
+	const ids = new Set()
+	if (!lessonData) return []
+
+	if (lessonData.quiz_id) {
+		lessonData.quiz_id.split(',').forEach((quiz) => {
+			if (quiz && quiz.trim()) {
+				ids.add(quiz.trim())
+			}
+		})
+	}
+
+	if (lessonData.content) {
+		try {
+			const content = JSON.parse(lessonData.content)
+			content.blocks?.forEach((block) => {
+				if (block.type === 'quiz' && block.data?.quiz) {
+					ids.add(block.data.quiz)
+				}
+			})
+		} catch (error) {
+			// Ignore malformed editor content
+		}
+	}
+
+	if (lessonData.body) {
+		const quizRegex = /\{\{\s*Quiz\(["']([^"']+)["']\)\s*\}\}/g
+		let match
+		while ((match = quizRegex.exec(lessonData.body))) {
+			ids.add(match[1])
+		}
+	}
+
+	return Array.from(ids)
+}
+
+const lessonQuizIds = computed(() => getLessonQuizIds(lesson.data))
+const lessonHasEmbeddedQuiz = computed(() => lessonQuizIds.value.length > 0)
+const lessonHasVideoQuiz = computed(() => lesson.data?.icon === 'icon-youtube' && lessonQuizIds.value.length > 0)
+
+const quizSubmissions = createResource({
+	url: 'frappe.client.get_list',
+	makeParams() {
+		return {
+			doctype: 'LMS Quiz Submission',
+			filters: {
+				member: user.data?.name,
+				quiz: ['in', lessonQuizIds.value],
+			},
+			fields: ['quiz', 'percentage', 'passing_percentage'],
+		}
+	},
+	auto: false,
+})
+
+const passedLessonQuizIds = computed(() => {
+	const submissions = quizSubmissions.data || []
+	const passed = new Set()
+	submissions.forEach((submission) => {
+		const passingPercentage = submission.passing_percentage || 0
+		if (Math.ceil(submission.percentage) >= passingPercentage) {
+			passed.add(submission.quiz)
+		}
+	})
+	return passed
+})
+
+const hasPassedAllLessonQuizzes = computed(() => {
+	return lessonQuizIds.value.length > 0 && lessonQuizIds.value.every((quizId) => passedLessonQuizIds.value.has(quizId))
+})
+
+watch(
+	() => [lessonQuizIds.value, user.data?.name],
+	() => {
+		if (lessonQuizIds.value.length > 0 && user.data?.name) {
+			quizSubmissions.reload()
+		} else {
+			quizSubmissions.reset()
+		}
+	},
+	{ immediate: true }
+)
 
 const lessonLocked = computed(() => {
     return lesson.data?.locked
@@ -1034,50 +1128,52 @@ const switchLesson = (direction) => {
     })
 }
 
+const hasWatchedRequiredVideo = () => {
+	if (lesson.data?.icon !== 'icon-youtube') return false
+
+	const videos = Array.from(document.querySelectorAll('video'))
+	if (videos.length > 0) {
+		return videos.every((vid) => vid.duration && vid.currentTime >= 0.9 * vid.duration)
+	}
+
+	if (plyrSources.value && plyrSources.value.length > 0) {
+		return plyrSources.value.every((source) => source.duration && source.currentTime >= 0.9 * source.duration)
+	}
+
+	return false
+}
+
 const canProceedToNext = () => {
-    if (!lesson.data?.next) return true
+	if (!lesson.data?.next) return true
 
-    if (lesson.data?.enable_sequential_lessons === 0 || lesson.data?.enable_sequential_lessons === false) {
-        return true
-    }
+	if (lesson.data?.enable_sequential_lessons === 0 || lesson.data?.enable_sequential_lessons === false) {
+		return true
+	}
 
-    // Moderators/Instructors can bypass
-    if (
-        user.data?.is_moderator ||
-        user.data?.is_instructor ||
-        user.data?.is_evaluator
-    ) {
-        return true
-    }
+	if (
+		user.data?.is_moderator ||
+		user.data?.is_instructor ||
+		user.data?.is_evaluator
+	) {
+		return true
+	}
 
-    if (lesson.data?.progress) return true
+	if (lesson.data?.progress) return true
 
-    // Enforce 90% watch time check locally on the frontend
-    if (lesson.data?.icon === 'icon-youtube') {
-        const videos = document.querySelectorAll('video')
-        if (videos.length > 0) {
-            let allWatched = true
-            videos.forEach((vid) => {
-                if (!vid.duration || vid.currentTime < 0.9 * vid.duration) {
-                    allWatched = false
-                }
-            })
-            if (allWatched) return true
-        }
+	const watchedEnough = hasWatchedRequiredVideo()
 
-        if (plyrSources.value && plyrSources.value.length > 0) {
-            let allWatched = true
-            plyrSources.value.forEach((source) => {
-                if (!source.duration || source.currentTime < 0.9 * source.duration) {
-                    allWatched = false
-                }
-            })
-            if (allWatched) return true
-        }
-        return false
-    }
+	if (lesson.data?.icon === 'icon-youtube') {
+		if (lessonHasVideoQuiz.value) {
+			return hasPassedAllLessonQuizzes.value && watchedEnough
+		}
+		return watchedEnough
+	}
 
-    return lesson.data?.progress
+	if (lessonHasEmbeddedQuiz.value) {
+		return hasPassedAllLessonQuizzes.value
+	}
+
+	return false
 }
 
 watch(
@@ -1309,6 +1405,14 @@ const checkIfDiscussionsAllowed = () => {
 const isAdmin = computed(() => {
 	let isInstructor = lesson.data?.instructors?.includes(user.data?.name)
 	return user.data?.is_moderator || isInstructor
+})
+
+const isCourseCreator = computed(() => {
+	return (
+		user.data?.is_course_creator ||
+		user.data?.course_creator ||
+		(Array.isArray(user.data?.roles) && user.data.roles.includes('Course Creator'))
+	)
 })
 
 const allowEdit = () => {
@@ -1640,3 +1744,4 @@ usePageMeta(() => {
 	--plyr-video-control-background-hover: transparent;
 }
 </style>
+

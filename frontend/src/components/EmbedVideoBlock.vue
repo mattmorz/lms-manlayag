@@ -42,7 +42,7 @@
 				</Button>
 
 				<Button
-					v-if="isAdmin"
+					v-if="isCourseCreator"
 					variant="ghost"
 					class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 					@click="triggerTranscriptUpload"
@@ -54,7 +54,7 @@
 				</Button>
 
 				<Button
-					v-if="isAdmin && wordsList.length > 0"
+					v-if="isCourseCreator && wordsList.length > 0"
 					variant="ghost"
 					class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 					@click="openEditTranscriptModal"
@@ -274,11 +274,11 @@ const getRouteParams = () => {
 	return {}
 }
 
-const isAdmin = computed(() => {
+const isCourseCreator = computed(() => {
 	return (
-		user.data?.is_instructor ||
-		user.data?.is_moderator ||
-		user.data?.is_evaluator
+		user.data?.is_course_creator ||
+		user.data?.course_creator ||
+		(Array.isArray(user.data?.roles) && user.data.roles.includes('Course Creator'))
 	)
 })
 
