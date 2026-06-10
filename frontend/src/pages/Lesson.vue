@@ -314,11 +314,11 @@
 							<div class="flex items-center space-x-2">
 								<Button
 									variant="ghost"
-									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 									@click="showLessonTranscript = !showLessonTranscript"
 								>
 									<template #prefix>
-										<FileText class="w-4 h-4 stroke-1.5" />
+										<FileText class="w-4 h-4 stroke-1.5 mr-2" />
 									</template>
 									<span>{{ showLessonTranscript ? __('Hide Transcript') : __('Show Transcript') }}</span>
 								</Button>
@@ -326,11 +326,11 @@
 								<Button
 									v-if="isCourseCreator"
 									variant="ghost"
-									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 									@click="triggerTranscriptUpload"
 								>
 									<template #prefix>
-										<Upload class="w-4 h-4 stroke-1.5" />
+										<Upload class="w-4 h-4 stroke-1.5 mr-2" />
 									</template>
 									<span>{{ __('Upload Transcript') }}</span>
 								</Button>
@@ -338,11 +338,11 @@
 								<Button
 									v-if="isCourseCreator && lessonWordsList.length > 0"
 									variant="ghost"
-									class="flex items-center space-x-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+									class="inline-flex items-center gap-2 text-sm text-ink-gray-7 hover:text-ink-gray-9 hover:bg-gray-100 dark:hover:bg-gray-800"
 									@click="openEditTranscriptModal"
 								>
 									<template #prefix>
-										<Edit class="w-4 h-4 stroke-1.5" />
+										<Edit class="w-4 h-4 stroke-1.5 mr-2" />
 									</template>
 									<span>{{ __('Edit Transcript') }}</span>
 								</Button>
@@ -1744,4 +1744,5 @@ usePageMeta(() => {
 	--plyr-video-control-background-hover: transparent;
 }
 </style>
+
 
