@@ -268,6 +268,20 @@
 							/>
 						</div>
 
+						<div class="mt-4 flex justify-end">
+							<Button
+								variant="ghost"
+								class="text-sm text-ink-gray-7 hover:text-ink-gray-9"
+								@click="toggleCodeHighlightTheme"
+							>
+								{{
+									codeHighlightTheme === 'light'
+										? __('Code Theme: Light')
+										: __('Code Theme: Dark')
+								}}
+							</Button>
+						</div>
+
 						<div
 							v-if="
 								lesson.data.instructor_content &&
@@ -275,7 +289,7 @@
 									1 &&
 								allowInstructorContent()
 							"
-							class="bg-surface-gray-2 p-3 rounded-md mt-6"
+							:class="['bg-surface-gray-2 p-3 rounded-md mt-6', codeHighlightThemeClass]"
 						>
 							<div class="text-ink-gray-5 font-medium">
 								{{ __('Instructor Notes') }}
@@ -287,26 +301,39 @@
 						</div>
 						<div
 							v-else-if="lesson.data.instructor_notes"
-							class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8"
+							:class="[
+								'ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8',
+								codeHighlightThemeClass,
+							]"
 						>
-							<LessonContent :content="lesson.data.instructor_notes" />
+							<LessonContent
+								:content="lesson.data.instructor_notes"
+								:highlightTheme="codeHighlightTheme"
+							/>
 						</div>
 						<div
 							v-if="lesson.data.content"
 							@mouseup="toggleInlineMenu"
-							class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8"
+							:class="[
+								'ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8',
+								codeHighlightThemeClass,
+							]"
 						>
 							<div id="editor"></div>
 						</div>
 						<div
 							v-else
-							class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8"
+							:class="[
+								'ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8',
+								codeHighlightThemeClass,
+							]"
 						>
 							<LessonContent
 								v-if="lesson.data?.body"
 								:content="lesson.data.body"
 								:youtube="lesson.data.youtube"
 								:quizId="lesson.data.quiz_id"
+								:highlightTheme="codeHighlightTheme"
 							/>
 						</div>
 
@@ -604,6 +631,21 @@ const sidebarStore = useSidebar()
 const plyrSources = ref([])
 const showInlineMenu = ref(false)
 const currentTab = ref('Notes')
+const CODE_HIGHLIGHT_THEME_KEY = 'lms-code-highlight-theme'
+const codeHighlightTheme = ref(
+	localStorage.getItem(CODE_HIGHLIGHT_THEME_KEY) === 'light' ? 'light' : 'dark'
+)
+const codeHighlightThemeClass = computed(() =>
+	codeHighlightTheme.value === 'light'
+		? 'highlight-theme-light'
+		: 'highlight-theme-dark'
+)
+
+const toggleCodeHighlightTheme = () => {
+	codeHighlightTheme.value =
+		codeHighlightTheme.value === 'light' ? 'dark' : 'light'
+	localStorage.setItem(CODE_HIGHLIGHT_THEME_KEY, codeHighlightTheme.value)
+}
 let timerInterval
 
 
@@ -1709,6 +1751,19 @@ usePageMeta(() => {
 
 .codeBoxTextArea {
 	line-height: 1.7;
+}
+
+.highlight-theme-dark .codeBoxTextArea,
+.highlight-theme-dark pre code.hljs {
+	background-color: #282c34 !important;
+	color: #abb2bf !important;
+}
+
+.highlight-theme-light .codeBoxTextArea,
+.highlight-theme-light pre code.hljs {
+	background-color: #fafafa !important;
+	color: #383a42 !important;
+	border: 1px solid #e5e7eb;
 }
 
 .tc-table {
