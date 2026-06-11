@@ -1666,6 +1666,12 @@ usePageMeta(() => {
 	align-items: flex-start;
 }
 
+.codeBoxControls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .codeBoxTextArea {
 	width: 100%;
 	min-height: 30px;
@@ -1737,6 +1743,17 @@ usePageMeta(() => {
 
 .codeBoxShow {
 	display: flex !important;
+}
+
+.codeBoxThemeToggle {
+	border: none;
+	outline: none;
+	border-radius: 999px;
+	padding: 2px 10px;
+	font-size: 12px;
+	cursor: pointer;
+	background: #e5e7eb;
+	color: #111827;
 }
 
 .dark {

@@ -23,6 +23,7 @@ export class CodeBox {
 	codeArea: HTMLDivElement;
 	selectInput: HTMLInputElement;
 	selectDropIcon: HTMLElement;
+	themeToggleButton: HTMLButtonElement;
 
 	constructor({ data, api, config, readOnly }) {
 		this.api = api;
@@ -31,18 +32,21 @@ export class CodeBox {
 			themeName: config.themeName && typeof config.themeName === 'string' ? config.themeName : '',
 			themeURL: config.themeURL && typeof config.themeURL === 'string' ? config.themeURL : '',
 			useDefaultTheme: (config.useDefaultTheme && typeof config.useDefaultTheme === 'string'
-				&& DEFAULT_THEMES.includes(config.useDefaultTheme.toLowerCase())) ? config.useDefaultTheme : 'dark',
+				&& DEFAULT_THEMES.includes(config.useDefaultTheme.toLowerCase())) ? config.useDefaultTheme : 'light',
 		};
 		this.data = {
 			code: data.code && typeof data.code === 'string' ? data.code : '',
-			language: data.language && typeof data.language === 'string' ? data.language : 'Auto-detect',
-			theme: data.theme && typeof data.theme === 'string' ? data.theme : this._getThemeURLFromConfig(),
+			language: data.language && typeof data.language === 'string' ? data.language : 'none',
+			theme: data.theme && typeof data.theme === 'string' && DEFAULT_THEMES.includes(data.theme)
+				? data.theme
+				: this.config.useDefaultTheme,
 		};
 		this.highlightScriptID = 'highlightJSScriptElement';
 		this.highlightCSSID = 'highlightJSCSSElement';
 		this.codeArea = document.createElement('div');
 		this.selectInput = document.createElement('input');
 		this.selectDropIcon = document.createElement('i');
+		this.themeToggleButton = document.createElement('button');
 
 		this._injectHighlightJSCSSElement();
 
@@ -86,22 +90,28 @@ export class CodeBox {
 	render() {
 		const codeAreaHolder = document.createElement('pre');
 		const languageSelect = this._createLanguageSelectElement();
+		const themeToggle = this._createThemeToggleElement();
+		const controlsHolder = document.createElement('div');
 
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder');
-		this.codeArea.setAttribute('class', `codeBoxTextArea ${this.config.useDefaultTheme} ${this.data.language}`);
+		this._applyCodeAreaClass();
 		this.codeArea.setAttribute('contenteditable', 'true');
 		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 
+		controlsHolder.setAttribute('class', 'codeBoxControls');
+		controlsHolder.appendChild(languageSelect);
+		controlsHolder.appendChild(themeToggle);
+
 		codeAreaHolder.appendChild(this.codeArea);
-		!this.readOnly && codeAreaHolder.appendChild(languageSelect);
+		!this.readOnly && codeAreaHolder.appendChild(controlsHolder);
 
 		return codeAreaHolder;
 	}
 
 	save(blockContent) {
-		return Object.assign(this.data, { code: this.codeArea.innerHTML, theme: this._getThemeURLFromConfig() });
+		return Object.assign(this.data, { code: this.codeArea.innerHTML, theme: this.data.theme });
 	}
 
 	validate(savedData) {
@@ -114,6 +124,7 @@ export class CodeBox {
 		this.api.listeners.off(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.off(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 		this.api.listeners.off(this.selectInput, 'click', event => this._handleSelectInputClick(event), false);
+		this.api.listeners.off(this.themeToggleButton, 'click', event => this._handleThemeToggleClick(event), false);
 	}
 
 	_createLanguageSelectElement() {
@@ -123,19 +134,19 @@ export class CodeBox {
 
 		selectHolder.setAttribute('class', 'codeBoxSelectDiv');
 
-		this.selectDropIcon.setAttribute('class', `codeBoxSelectDropIcon ${this.config.useDefaultTheme}`);
+		this.selectDropIcon.setAttribute('class', `codeBoxSelectDropIcon ${this.data.theme}`);
 		this.selectDropIcon.innerHTML = '&#8595;';
-		this.selectInput.setAttribute('class', `codeBoxSelectInput ${this.config.useDefaultTheme}`);
+		this.selectInput.setAttribute('class', `codeBoxSelectInput ${this.data.theme}`);
 		this.selectInput.setAttribute('type', 'text');
 		this.selectInput.setAttribute('readonly', 'true');
-		this.selectInput.value = this.data.language;
+		this.selectInput.value = COMMON_LANGUAGES[this.data.language] || COMMON_LANGUAGES.none;
 		this.api.listeners.on(this.selectInput, 'click', event => this._handleSelectInputClick(event), false);
 
 		selectPreview.setAttribute('class', 'codeBoxSelectPreview');
 
 		languages.forEach(language => {
 			const selectItem = document.createElement('p');
-			selectItem.setAttribute('class', `codeBoxSelectItem ${this.config.useDefaultTheme}`);
+			selectItem.setAttribute('class', `codeBoxSelectItem ${this.data.theme}`);
 			selectItem.setAttribute('data-key', language[0]);
 			selectItem.textContent = language[1];
 			this.api.listeners.on(selectItem, 'click', event => this._handleSelectItemClick(event, language), false);
@@ -148,6 +159,15 @@ export class CodeBox {
 		selectHolder.appendChild(selectPreview);
 
 		return selectHolder;
+	}
+
+	_createThemeToggleElement() {
+		this.themeToggleButton.setAttribute('type', 'button');
+		this.themeToggleButton.setAttribute('class', 'codeBoxThemeToggle');
+		this.themeToggleButton.textContent = this.data.theme === 'light' ? 'Light' : 'Dark';
+		this.api.listeners.on(this.themeToggleButton, 'click', event => this._handleThemeToggleClick(event), false);
+
+		return this.themeToggleButton;
 	}
 
 	_highlightCodeArea(event) {
@@ -165,11 +185,36 @@ export class CodeBox {
 	_handleSelectItemClick(event, language) {
 		event.target.parentNode.parentNode.querySelector('.codeBoxSelectInput').value = language[1];
 		event.target.parentNode.classList.remove('codeBoxShow');
-		this.codeArea.removeAttribute('class');
 		this.data.language = language[0];
-		this.codeArea.setAttribute('class', `codeBoxTextArea ${this.config.useDefaultTheme} ${this.data.language}`);
+		this._applyCodeAreaClass();
 	
 		hljs.highlightElement(this.codeArea);
+	}
+
+	_handleThemeToggleClick(event) {
+		event.preventDefault();
+		this.data.theme = this.data.theme === 'light' ? 'dark' : 'light';
+		this.themeToggleButton.textContent = this.data.theme === 'light' ? 'Light' : 'Dark';
+		this._applyControlThemeClass();
+		this._applyCodeAreaClass();
+		delete this.codeArea.dataset.highlighted;
+		hljs.highlightElement(this.codeArea);
+	}
+
+	_applyCodeAreaClass() {
+		this.codeArea.setAttribute('class', `codeBoxTextArea ${this.data.theme} ${this.data.language}`);
+	}
+
+	_applyControlThemeClass() {
+		this.selectInput.setAttribute('class', `codeBoxSelectInput ${this.data.theme}`);
+		this.selectDropIcon.setAttribute('class', `codeBoxSelectDropIcon ${this.data.theme}`);
+
+		const selectHolder = this.selectInput.parentElement;
+		const items = selectHolder ? selectHolder.querySelectorAll('.codeBoxSelectItem') : [];
+		items.forEach((item) => {
+			item.classList.remove('light', 'dark');
+			item.classList.add(this.data.theme);
+		});
 	}
 
 	_closeAllLanguageSelects() {

@@ -149,7 +149,7 @@ export function getEditorTools() {
 		codeBox: {
 			class: CodeBox,
 			config: {
-				useDefaultTheme: 'dark',
+				useDefaultTheme: 'light',
 			},
 		},
 		inlineCode: {
