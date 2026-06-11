@@ -145,7 +145,7 @@ const applySyntaxHighlighting = async () => {
 	ensureHighlightTheme()
 
 	if (!contentRoot.value) return
-	const codeElements = contentRoot.value.querySelectorAll('pre code, .codeBoxTextArea')
+	const codeElements = contentRoot.value.querySelectorAll('pre code')
 	codeElements.forEach((el) => {
 		if (!el.classList.contains('hljs')) {
 			el.classList.add('hljs')
@@ -169,7 +169,8 @@ watch(
 
 <style scoped>
 .highlight-theme-dark :deep(pre code.hljs),
-.highlight-theme-dark :deep(.codeBoxTextArea.hljs) {
+
+.highlight-theme-dark :deep(pre code.hljs) {
 	display: block;
 	overflow-x: auto;
 	padding: 0.75rem 0.9rem;
@@ -179,7 +180,8 @@ watch(
 }
 
 .highlight-theme-light :deep(pre code.hljs),
-.highlight-theme-light :deep(.codeBoxTextArea.hljs) {
+
+.highlight-theme-light :deep(pre code.hljs) {
 	display: block;
 	overflow-x: auto;
 	padding: 0.75rem 0.9rem;

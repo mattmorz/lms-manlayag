@@ -1770,13 +1770,11 @@ usePageMeta(() => {
 	line-height: 1.7;
 }
 
-.highlight-theme-dark .codeBoxTextArea,
 .highlight-theme-dark pre code.hljs {
 	background-color: #282c34 !important;
 	color: #abb2bf !important;
 }
 
-.highlight-theme-light .codeBoxTextArea,
 .highlight-theme-light pre code.hljs {
 	background-color: #fafafa !important;
 	color: #383a42 !important;
