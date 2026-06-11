@@ -7,6 +7,8 @@
 					? __('Add a quiz to your lesson')
 					: __('Add an assignment to your lesson'),
 			size: 'xl',
+			position: 'top',
+			paddingTop: '3rem',
 			actions: [
 				{
 					label: __('Save'),
@@ -19,12 +21,12 @@
 		}"
 	>
 		<template #body-content>
-			<div class="space-y-4 pb-56 md:pb-64">
+			<div class="space-y-4">
 				<div v-if="courseDoc?.enable_grading_policy" class="space-y-4 pb-4 border-b border-outline-gray-modals">
 					<div class="text-sm font-semibold text-ink-gray-9 mb-2">
 						{{ __('Grading & Deadline (Required)') }}
 					</div>
-					<div class="grid grid-cols-1 gap-y-4 md:grid-cols-3 md:gap-x-6">
+					<div class="grid grid-cols-1 gap-y-4 md:grid-cols-[1.2fr_1fr_1fr] md:gap-x-8">
 						<FormControl
 							v-if="gradingCategoryOptions.length"
 							v-model="grading_category"
