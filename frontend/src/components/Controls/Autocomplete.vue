@@ -19,7 +19,7 @@
 
 				<!-- Dropdown -->
 				<ComboboxOptions
-					class="absolute z-20 mt-1 w-full rounded-lg bg-surface-modal py-1 text-base border-2 border-outline-gray-modals shadow-lg"
+					class="absolute z-[120] mt-1 w-full rounded-lg bg-surface-modal py-1 text-base border-2 border-outline-gray-modals shadow-lg"
 				>
 					<input
 						ref="search"
@@ -55,7 +55,7 @@
 										<div class="text-base font-medium text-ink-gray-8">
 											{{
 												option.value === option.label
-													? option.description
+													? (option.description || option.label || option.value)
 													: option.label
 											}}
 										</div>
