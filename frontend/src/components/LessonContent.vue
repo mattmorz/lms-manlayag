@@ -150,6 +150,7 @@ const applySyntaxHighlighting = async () => {
 		if (!el.classList.contains('hljs')) {
 			el.classList.add('hljs')
 		}
+		delete el.dataset.highlighted
 		hljs.highlightElement(el)
 	})
 }
