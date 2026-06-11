@@ -24,7 +24,7 @@
 					<div class="text-sm font-semibold text-ink-gray-9 mb-2">
 						{{ __('Grading & Deadline (Required)') }}
 					</div>
-					<div class="grid grid-cols-3 gap-4">
+					<div class="grid grid-cols-1 gap-y-4 md:grid-cols-3 md:gap-x-6">
 						<FormControl
 							v-if="gradingCategoryOptions.length"
 							v-model="grading_category"
@@ -243,3 +243,10 @@ const redirectToForm = () => {
 	}
 }
 </script>
+
+<style scoped>
+:deep([data-dialog='Add a quiz to your lesson'] .dialog-content),
+:deep([data-dialog='Add an assignment to your lesson'] .dialog-content) {
+	overflow: visible;
+}
+</style>
