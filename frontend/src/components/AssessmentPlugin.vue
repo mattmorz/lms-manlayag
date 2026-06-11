@@ -19,7 +19,7 @@
 		}"
 	>
 		<template #body-content>
-			<div class="space-y-4">
+			<div class="space-y-4 pb-56 md:pb-64">
 				<div v-if="courseDoc?.enable_grading_policy" class="space-y-4 pb-4 border-b border-outline-gray-modals">
 					<div class="text-sm font-semibold text-ink-gray-9 mb-2">
 						{{ __('Grading & Deadline (Required)') }}
