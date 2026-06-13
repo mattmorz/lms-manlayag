@@ -1543,6 +1543,7 @@ def get_batch_details(batch: str):
 			"paid_batch",
 			"evaluation_end_date",
 			"allow_self_enrollment",
+			"allow_delayed_enrollment",
 			"certification",
 			"timezone",
 			"category",
@@ -1552,14 +1553,17 @@ def get_batch_details(batch: str):
 	)
 
 	batch_details.instructors = get_instructors("LMS Batch", batch)
-	batch_details.accept_enrollments = batch_details.start_date > getdate()
+	if batch_details.allow_delayed_enrollment:
+		batch_details.accept_enrollments = batch_details.end_date >= getdate()
+	else:
+		batch_details.accept_enrollments = batch_details.start_date > getdate()
 
-	if (
-		not batch_details.accept_enrollments
-		and batch_details.start_date == getdate()
-		and get_time_str(batch_details.start_time) > nowtime()
-	):
-		batch_details.accept_enrollments = True
+		if (
+			not batch_details.accept_enrollments
+			and batch_details.start_date == getdate()
+			and get_time_str(batch_details.start_time) > nowtime()
+		):
+			batch_details.accept_enrollments = True
 
 	batch_details.courses = frappe.get_all(
 		"Batch Course", filters={"parent": batch}, fields=["course", "title", "evaluator"]
@@ -1569,7 +1573,7 @@ def get_batch_details(batch: str):
 	elif is_student_enrolled:
 		batch_details.students = [frappe.session.user]
 
-	if batch_details.paid_batch and batch_details.start_date >= getdate():
+	if batch_details.paid_batch and batch_details.accept_enrollments:
 		batch_details.amount, batch_details.currency = check_multicurrency(
 			batch_details.amount, batch_details.currency, None, batch_details.amount_usd
 		)

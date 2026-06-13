@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.email.doctype.email_template.email_template import get_email_template
 from frappe.model.document import Document
+from frappe.utils import get_time_str, getdate, nowtime
 
 
 class LMSBatchEnrollment(Document):
@@ -49,10 +50,28 @@ class LMSBatchEnrollment(Document):
 
 	def validate_self_enrollment(self):
 		batch_details = frappe.db.get_value(
-			"LMS Batch", self.batch, ["allow_self_enrollment", "paid_batch"], as_dict=True
+			"LMS Batch",
+			self.batch,
+			[
+				"allow_self_enrollment",
+				"allow_delayed_enrollment",
+				"paid_batch",
+				"start_date",
+				"start_time",
+				"end_date",
+			],
+			as_dict=True,
 		)
 		if batch_details.paid_batch:
 			return
+		if not self.is_admin():
+			if batch_details.allow_delayed_enrollment:
+				if batch_details.end_date < getdate():
+					frappe.throw(_("Enrollment in this batch has ended."))
+			elif batch_details.start_date < getdate() or (
+				batch_details.start_date == getdate() and get_time_str(batch_details.start_time) <= nowtime()
+			):
+				frappe.throw(_("Enrollment for this batch has closed."))
 		if not batch_details.allow_self_enrollment and not self.is_admin():
 			frappe.throw(_("Enrollment in this batch is restricted. Please contact the Administrator."))
 

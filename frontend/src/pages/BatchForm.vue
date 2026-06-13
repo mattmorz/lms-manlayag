@@ -64,6 +64,12 @@
 						:label="__('Allow self enrollment')"
 					/>
 					<FormControl
+						v-if="batch.allow_self_enrollment"
+						v-model="batch.allow_delayed_enrollment"
+						type="checkbox"
+						:label="__('Allow delayed enrollment')"
+					/>
+					<FormControl
 						v-model="batch.certification"
 						type="checkbox"
 						:label="__('Certification')"
@@ -335,6 +341,7 @@ const batch = reactive({
 	medium: '',
 	category: '',
 	allow_self_enrollment: false,
+	allow_delayed_enrollment: false,
 	certification: false,
 	meta_image: null,
 	paid_batch: false,
@@ -423,6 +430,7 @@ const updateBatchData = (data) => {
 		'published',
 		'paid_batch',
 		'allow_self_enrollment',
+		'allow_delayed_enrollment',
 		'certification',
 	]
 	for (let idx in checkboxes) {
@@ -458,6 +466,9 @@ const editBatch = createResource({
 const validateFields = () => {
 	batch.description = sanitizeHTML(batch.description)
 	batch.batch_details = sanitizeHTML(batch.batch_details)
+	if (!batch.allow_self_enrollment) {
+		batch.allow_delayed_enrollment = false
+	}
 
 	Object.keys(batch).forEach((key) => {
 		if (

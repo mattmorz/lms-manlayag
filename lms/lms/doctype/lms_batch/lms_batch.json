@@ -20,6 +20,7 @@
   "published",
   "column_break_wfkz",
   "allow_self_enrollment",
+    "allow_delayed_enrollment",
   "column_break_vnrp",
   "certification",
   "section_break_6",
@@ -314,6 +315,13 @@
    "fieldtype": "Check",
    "label": "Allow Self Enrollment"
   },
+    {
+     "default": "0",
+     "depends_on": "eval:doc.allow_self_enrollment",
+     "fieldname": "allow_delayed_enrollment",
+     "fieldtype": "Check",
+     "label": "Allow Delayed Enrollment"
+    },
   {
    "fieldname": "timezone",
    "fieldtype": "Data",

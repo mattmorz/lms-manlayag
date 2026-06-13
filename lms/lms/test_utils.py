@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.utils import getdate, to_timedelta
+from frappe.utils import add_days, getdate, nowdate, to_timedelta
 
 from lms.lms.doctype.lms_certificate.lms_certificate import is_certified
 from lms.lms.test_helpers import BaseTestUtils
@@ -300,3 +300,62 @@ class TestLMSUtils(BaseTestUtils):
 		self.assertEqual(batch_details.evaluation_end_date, getdate(self.batch.evaluation_end_date))
 		self.assertEqual(len(batch_details.instructors), len(self.batch.instructors))
 		self.assertEqual(len(batch_details.students), 2)
+
+	def test_get_batch_details_accept_enrollments_for_ongoing_batch_with_delayed_enrollment(self):
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"allow_delayed_enrollment": 1,
+				"start_date": add_days(nowdate(), -2),
+				"end_date": add_days(nowdate(), 2),
+			},
+		)
+		batch_details = get_batch_details(self.batch.name)
+		self.assertTrue(batch_details.accept_enrollments)
+
+	def test_get_batch_details_accept_enrollments_false_for_ongoing_batch_without_delayed_enrollment(self):
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"allow_delayed_enrollment": 0,
+				"start_date": add_days(nowdate(), -2),
+				"end_date": add_days(nowdate(), 2),
+			},
+		)
+		batch_details = get_batch_details(self.batch.name)
+		self.assertFalse(batch_details.accept_enrollments)
+
+	def test_get_batch_details_accept_enrollments_false_for_ended_batch(self):
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"start_date": add_days(nowdate(), -5),
+				"end_date": add_days(nowdate(), -1),
+			},
+		)
+		batch_details = get_batch_details(self.batch.name)
+		self.assertFalse(batch_details.accept_enrollments)
+
+	def test_self_enrollment_not_allowed_after_batch_end_date(self):
+		student3 = self._create_user("student3@example.com", "Emily", "Cooper", ["LMS Student"])
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"allow_self_enrollment": 1,
+				"allow_delayed_enrollment": 1,
+				"end_date": add_days(nowdate(), -1),
+			},
+		)
+
+		frappe.session.user = student3.email
+		try:
+			with self.assertRaises(frappe.exceptions.ValidationError):
+				enrollment = frappe.new_doc("LMS Batch Enrollment")
+				enrollment.update({"member": student3.email, "batch": self.batch.name})
+				enrollment.insert()
+		finally:
+			frappe.session.user = "Administrator"
