@@ -8,6 +8,7 @@ from lms.lms.doctype.lms_certificate.lms_certificate import is_certified
 from lms.lms.test_helpers import BaseTestUtils
 from lms.lms.utils import (
 	get_average_rating,
+	get_batches,
 	get_batch_details,
 	get_chapters,
 	get_course_details,
@@ -357,5 +358,45 @@ class TestLMSUtils(BaseTestUtils):
 				enrollment = frappe.new_doc("LMS Batch Enrollment")
 				enrollment.update({"member": student3.email, "batch": self.batch.name})
 				enrollment.insert()
+		finally:
+			frappe.session.user = "Administrator"
+
+	def test_get_batches_shows_delayed_enrollment_batches_for_learners(self):
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"allow_self_enrollment": 1,
+				"allow_delayed_enrollment": 1,
+				"start_date": add_days(nowdate(), -2),
+				"end_date": add_days(nowdate(), 2),
+				"published": 1,
+			},
+		)
+
+		frappe.session.user = self.student1.email
+		try:
+			batches = get_batches(filters={"published": 1, "start_date": [">=", nowdate()]})
+			self.assertIn(self.batch.name, [batch.name for batch in batches])
+		finally:
+			frappe.session.user = "Administrator"
+
+	def test_get_batches_hides_started_batches_without_delayed_enrollment_for_learners(self):
+		frappe.db.set_value(
+			"LMS Batch",
+			self.batch.name,
+			{
+				"allow_self_enrollment": 1,
+				"allow_delayed_enrollment": 0,
+				"start_date": add_days(nowdate(), -2),
+				"end_date": add_days(nowdate(), 2),
+				"published": 1,
+			},
+		)
+
+		frappe.session.user = self.student1.email
+		try:
+			batches = get_batches(filters={"published": 1, "start_date": [">=", nowdate()]})
+			self.assertNotIn(self.batch.name, [batch.name for batch in batches])
 		finally:
 			frappe.session.user = "Administrator"

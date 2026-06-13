@@ -2567,34 +2567,81 @@ def get_batches(filters: dict = None, start: int = 0, order_by: str = "start_dat
 		filters.update({"name": ["in", enrolled_batches]})
 		del filters["enrolled"]
 
+	batch_fields = [
+		"name",
+		"title",
+		"description",
+		"seat_count",
+		"paid_batch",
+		"amount",
+		"amount_usd",
+		"currency",
+		"start_date",
+		"end_date",
+		"start_time",
+		"end_time",
+		"timezone",
+		"published",
+		"category",
+	]
+
 	batches = frappe.get_all(
 		"LMS Batch",
 		filters=filters,
-		fields=[
-			"name",
-			"title",
-			"description",
-			"seat_count",
-			"paid_batch",
-			"amount",
-			"amount_usd",
-			"currency",
-			"start_date",
-			"end_date",
-			"start_time",
-			"end_time",
-			"timezone",
-			"published",
-			"category",
-		],
+		fields=batch_fields,
 		order_by=order_by,
 		start=start,
 		page_length=20,
 	)
 
+	if should_include_delayed_enrollment_batches(filters):
+		delayed_batches = get_delayed_enrollment_batches(filters, batch_fields, order_by)
+		batch_names = {batch.name for batch in batches}
+		for batch in delayed_batches:
+			if batch.name not in batch_names:
+				batches.append(batch)
+
 	batches = filter_batches_based_on_start_time(batches, filters)
 	batches = get_batch_card_details(batches)
 	return batches
+
+
+def should_include_delayed_enrollment_batches(filters: dict) -> bool:
+	return bool(
+		has_student_role()
+		and filters.get("published") == 1
+		and has_upcoming_start_date_filter(filters)
+	)
+
+
+def has_upcoming_start_date_filter(filters: dict) -> bool:
+	start_date_filter = filters.get("start_date")
+	if not start_date_filter:
+		return False
+
+	sign = start_date_filter[0]
+	return ">" in sign
+
+
+def get_delayed_enrollment_batches(filters: dict, fields: list, order_by: str) -> list:
+	delayed_filters = dict(filters)
+	delayed_filters.pop("start_date", None)
+	delayed_filters.update(
+		{
+			"allow_self_enrollment": 1,
+			"allow_delayed_enrollment": 1,
+			"start_date": ["<", getdate()],
+			"end_date": [">=", getdate()],
+		}
+	)
+
+	return frappe.get_all(
+		"LMS Batch",
+		filters=delayed_filters,
+		fields=fields,
+		order_by=order_by,
+		page_length=20,
+	)
 
 
 def filter_batches_based_on_start_time(batches: list, filters: dict) -> list:
