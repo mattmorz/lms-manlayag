@@ -111,8 +111,10 @@ export function htmlToText(html) {
 	return div.textContent || div.innerText || ''
 }
 
-export function getEditorTools() {
-	return {
+export function getEditorTools(options = {}) {
+	const allowAssessments = options.allowAssessments ?? true
+
+	const tools = {
 		header: {
 			class: Header,
 			config: {
@@ -130,9 +132,6 @@ export function getEditorTools() {
 			class: Table,
 			inlineToolbar: true,
 		},
-		quiz: Quiz,
-		assignment: Assignment,
-		program: Program,
 		upload: Upload,
 		markdown: {
 			class: Markdown,
@@ -245,6 +244,14 @@ export function getEditorTools() {
 			},
 		},
 	}
+
+	if (allowAssessments) {
+		tools.quiz = Quiz
+		tools.assignment = Assignment
+		tools.program = Program
+	}
+
+	return tools
 }
 
 export function getTimezones() {

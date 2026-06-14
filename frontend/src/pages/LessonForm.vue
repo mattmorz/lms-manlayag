@@ -38,7 +38,7 @@
 								<FormControl
 									v-model="lesson.require_quiz_pass"
 									type="checkbox"
-									:label="__('Require Quiz Pass Before Next Lesson')"
+									:label="__('Require Quiz Pass')"
 								/>
 
 								<MultiSelect
@@ -153,11 +153,13 @@ import MultiSelect from '@/components/Controls/MultiSelect.vue'
 import { ChevronRight } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr } from '@/utils'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
+import { useRoute } from 'vue-router'
 
 const { brand } = sessionStore()
 const editor = ref(null)
 const instructorEditor = ref(null)
 const user = inject('$user')
+const route = useRoute()
 const openInstructorEditor = ref(false)
 const requiredQuizzes = ref([])
 const { capture } = useTelemetry()
@@ -185,21 +187,59 @@ onMounted(() => {
 		window.location.href = '/login'
 	}
 	capture('lesson_form_opened')
-	editor.value = renderEditor('content')
-	instructorEditor.value = renderEditor('instructor-notes')
 	window.addEventListener('keydown', keyboardShortcut)
 	enablePlyr()
 })
 
-const renderEditor = (holder) => {
+const renderEditor = (holder, allowAssessments = true) => {
 	return new EditorJS({
 		holder: holder,
-		tools: getEditorTools(true),
+		tools: getEditorTools({ allowAssessments }),
 		defaultBlock: 'markdown',
 		onChange: async (api, event) => {
 			enablePlyr()
 		},
 	})
+}
+
+const hasAssessmentBlocks = (content) => {
+	if (!content) {
+		return false
+	}
+
+	try {
+		const parsedContent = JSON.parse(content)
+		return parsedContent.blocks?.some((block) =>
+			['quiz', 'assignment', 'program'].includes(block.type)
+		)
+	} catch {
+		return false
+	}
+}
+
+const shouldAllowAssessmentTools = (lessonData) => {
+	if (route.query.mode === 'assessment') {
+		return true
+	}
+
+	if (!lessonData) {
+		return false
+	}
+
+	return (
+		hasAssessmentBlocks(lessonData.content) ||
+		hasAssessmentBlocks(lessonData.instructor_content)
+	)
+}
+
+const initEditors = (allowAssessments) => {
+	if (!editor.value) {
+		editor.value = renderEditor('content', allowAssessments)
+	}
+
+	if (!instructorEditor.value) {
+		instructorEditor.value = renderEditor('instructor-notes', allowAssessments)
+	}
 }
 
 const lesson = reactive({
@@ -224,6 +264,7 @@ const lessonDetails = createResource({
 	},
 	auto: true,
 	onSuccess(data) {
+		initEditors(shouldAllowAssessmentTools(data.lesson))
 		if (data.lesson) {
 			window.current_lesson_name = data.lesson.name
 			Object.keys(data.lesson).forEach((key) => {

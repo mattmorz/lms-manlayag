@@ -199,7 +199,7 @@
 											</div>
 									</template>
 								</Draggable>
-								<div v-if="allowEdit" class="flex mt-2 mb-4 pl-8">
+								<div v-if="allowEdit" class="flex mt-2 mb-4 pl-8 gap-2">
 									<router-link
 										v-if="!chapter.is_scorm_package"
 										:to="{
@@ -209,10 +209,31 @@
 												chapterNumber: chapter.idx,
 												lessonNumber: chapter.lessons.length + 1,
 											},
+											query: {
+												mode: 'lesson',
+											},
 										}"
 									>
 										<Button>
 											{{ __('Add Lesson') }}
+										</Button>
+									</router-link>
+									<router-link
+										v-if="!chapter.is_scorm_package"
+										:to="{
+											name: 'LessonForm',
+											params: {
+												courseName: courseName,
+												chapterNumber: chapter.idx,
+												lessonNumber: chapter.lessons.length + 1,
+											},
+											query: {
+												mode: 'assessment',
+											},
+										}"
+									>
+										<Button variant="outline">
+											{{ __('Add Assessment') }}
 										</Button>
 									</router-link>
 								</div>
