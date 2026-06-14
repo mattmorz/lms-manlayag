@@ -62,23 +62,24 @@
 				</div>
 
 				<div>
-					<Link
-						v-if="type == 'quiz'"
-						v-model="quiz"
-						doctype="LMS Quiz"
-						:filters="quizFilters"
-						:label="__('Select a quiz')"
-						placeholder=" "
-						:onCreate="(value, close) => redirectToForm()"
-					/>
-					<FormControl
-						v-if="type == 'quiz' && allowCheckpointQuiz"
-						type="checkbox"
-						:label="__('Checkpoint quiz')"
-						v-model="checkpoint_quiz"
-						class="mt-3"
-					/>
-					<div v-else class="space-y-4">
+					<div v-if="type == 'quiz'" class="space-y-4">
+						<Link
+							v-model="quiz"
+							doctype="LMS Quiz"
+							:filters="quizFilters"
+							:label="__('Select a quiz')"
+							placeholder=" "
+							:onCreate="(value, close) => redirectToForm()"
+						/>
+						<FormControl
+							v-if="allowCheckpointQuiz"
+							type="checkbox"
+							:label="__('Checkpoint quiz')"
+							v-model="checkpoint_quiz"
+							class="mt-3"
+						/>
+					</div>
+					<div v-else-if="type == 'assignment'" class="space-y-4">
 						<Link
 							v-if="filterAssignmentsByCourse"
 							v-model="assignment"
