@@ -1,13 +1,13 @@
 <template>
 	<div v-if="quiz.data">
 		<div
-			v-if="!(isPassed && quiz.data.checkpoint_quiz)"
+			v-if="!(isPassed && isCheckpointQuiz)"
 			class="bg-surface-blue-2 space-y-2 py-2 px-3 mb-4 rounded-md text-sm text-ink-blue-2 leading-5"
 		>
 			<div v-if="inVideo">
 				{{ __('You will have to complete the quiz to continue the video') }}
 			</div>
-			<div v-if="quiz.data.checkpoint_quiz && !inVideo" class="leading-5 font-semibold">
+			<div v-if="isCheckpointQuiz && !inVideo" class="leading-5 font-semibold">
 				{{ __('Complete the checkpoint quiz to unlock the next section.') }}
 			</div>
 			<div class="leading-5">
@@ -67,7 +67,7 @@
 			<ProgressBar :progress="timerProgress" />
 		</div>
 
-		<div v-if="isPassed && quiz.data.checkpoint_quiz" class="border rounded-md p-5 space-y-4">
+		<div v-if="isPassed && isCheckpointQuiz" class="border rounded-md p-5 space-y-4">
 			<div class="flex items-center justify-between gap-2">
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
@@ -367,7 +367,7 @@ import {
 	FormControl,
 	toast,
 } from 'frappe-ui'
-import { ref, watch, reactive, inject, computed } from 'vue'
+import { ref, watch, reactive, inject, computed, onMounted } from 'vue'
 import { CheckCircle, XCircle, MinusCircle } from 'lucide-vue-next'
 import { timeAgo } from '@/utils'
 import { useRouter } from 'vue-router'
@@ -381,9 +381,23 @@ const selectedOptions = reactive([0, 0, 0, 0])
 const showAnswers = reactive([])
 let questions = reactive([])
 const possibleAnswer = ref(null)
-const showSavedQuestions = ref(false)
+const showSavedQuestions = ref(true)
 const timer = ref(0)
 let timerInterval = null
+
+const isCheckpointQuiz = computed(() => {
+	return props.isCheckpoint || new URLSearchParams(window.location.search).get('checkpoint') === '1'
+})
+
+onMounted(() => {
+	if (window.frameElement) {
+		const resizeObserver = new ResizeObserver(() => {
+			const height = document.documentElement.scrollHeight || document.body.scrollHeight
+			window.frameElement.style.height = `${height}px`
+		})
+		resizeObserver.observe(document.body)
+	}
+})
 
 const props = defineProps({
 	quizName: {
@@ -401,6 +415,10 @@ const props = defineProps({
 	backToVideo: {
 		type: Function,
 		default: () => {},
+	},
+	isCheckpoint: {
+		type: Boolean,
+		default: false,
 	},
 })
 

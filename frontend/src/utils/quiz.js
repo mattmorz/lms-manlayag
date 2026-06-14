@@ -58,7 +58,7 @@ export class Quiz {
 		checkpoint_quiz = false
 	) {
 		if (this.readOnly) {
-			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1`)
+			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1${checkpoint_quiz ? '&checkpoint=1' : ''}`)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
 			return
 		}
