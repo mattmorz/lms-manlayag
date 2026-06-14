@@ -781,6 +781,11 @@ const quizSubmissions = createResource({
 		}
 	},
 	auto: false,
+	onSuccess() {
+		if (lesson.data?.content) {
+			renderLessonContent(lesson.data.content)
+		}
+	},
 })
 
 const passedLessonQuizIds = computed(() => {
@@ -1091,7 +1096,7 @@ const setupLesson = (data) => {
 	}
 	lessonProgress.value = data.membership?.progress
 	if (data.content) {
-		editor.value = renderEditor('editor', getVisibleLessonContent(data.content))
+		renderLessonContent(data.content)
 	}
 	if (
 		data.instructor_content &&
@@ -1131,11 +1136,22 @@ const renderEditor = (holder, content) => {
 	})
 }
 
+const destroyEditor = (instance) => {
+	if (instance?.destroy) {
+		instance.destroy()
+	}
+}
+
+const renderLessonContent = (content) => {
+	destroyEditor(editor.value)
+	editor.value = renderEditor('editor', getVisibleLessonContent(content))
+}
+
 watch(
 	[passedLessonQuizSignature, () => lesson.data?.content],
 	() => {
 		if (lesson.data?.content) {
-			editor.value = renderEditor('editor', getVisibleLessonContent(lesson.data.content))
+			renderLessonContent(lesson.data.content)
 		}
 	}
 )
