@@ -249,15 +249,18 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	if scorm_details:
 		scorm_details = frappe._dict(**scorm_details)
 
-	if not progress_already_exists and quiz_completed and assignment_completed and video_completed and not scorm_details:
-		frappe.get_doc(
-			{
-				"doctype": "LMS Course Progress",
-				"lesson": lesson,
-				"status": "Complete",
-				"member": frappe.session.user,
-			}
-		).save(ignore_permissions=True)
+	if not lesson_already_completed and quiz_completed and assignment_completed and video_completed and not scorm_details:
+		if progress_already_exists:
+			frappe.db.set_value("LMS Course Progress", progress_already_exists, "status", "Complete")
+		else:
+			frappe.get_doc(
+				{
+					"doctype": "LMS Course Progress",
+					"lesson": lesson,
+					"status": "Complete",
+					"member": frappe.session.user,
+				}
+			).save(ignore_permissions=True)
 	elif scorm_details and not lesson_already_completed and not progress_already_exists:
 		# Create new SCORM progress
 		frappe.get_doc(

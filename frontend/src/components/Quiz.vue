@@ -93,7 +93,7 @@
 					:key="question.question || index"
 					class="rounded-md border border-outline-gray-2 bg-surface-gray-2 p-4"
 				>
-					<div class="text-sm font-semibold text-ink-gray-9" v-html="question.question"></div>
+					<div class="text-sm font-semibold text-ink-gray-9" v-html="question.question_detail || question.question"></div>
 					<div class="mt-2 text-sm text-ink-gray-7">
 						<span class="font-medium text-ink-gray-9">{{ __('Answer') }}:</span>
 						<span class="ml-1">{{ getSavedAnswer(question.question) || __('No answer recorded') }}</span>

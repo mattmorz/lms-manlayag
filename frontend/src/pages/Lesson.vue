@@ -676,6 +676,7 @@ const reloadLessonData = () => {
 	if (lessonQuizIds.value.length > 0) {
 		quizSubmissions.reload()
 	}
+	lesson.reload()
 }
 
 onMounted(() => {
@@ -835,14 +836,7 @@ const getVisibleLessonContent = (content) => {
 			}
 		}
 
-		if (isLockedAfterCheckpoint) {
-			visibleBlocks.push({
-				type: 'paragraph',
-				data: {
-					text: __('Complete the checkpoint quiz above to unlock the next section.'),
-				},
-			})
-		}
+
 
 		return JSON.stringify({
 			...parsedContent,
