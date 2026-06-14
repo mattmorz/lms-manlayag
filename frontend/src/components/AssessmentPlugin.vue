@@ -72,7 +72,7 @@
 						:onCreate="(value, close) => redirectToForm()"
 					/>
 					<FormControl
-						v-if="type == 'quiz'"
+						v-if="type == 'quiz' && allowCheckpointQuiz"
 						type="checkbox"
 						:label="__('Checkpoint quiz')"
 						v-model="checkpoint_quiz"
@@ -143,6 +143,10 @@ const props = defineProps({
 	currentAssessments: {
 		type: Array,
 		default: () => [],
+	},
+	allowCheckpointQuiz: {
+		type: Boolean,
+		default: true,
 	},
 })
 

@@ -113,6 +113,9 @@ export function htmlToText(html) {
 
 export function getEditorTools(options = {}) {
 	const allowAssessments = options.allowAssessments ?? true
+	const allowQuiz = options.allowQuiz ?? allowAssessments
+	const allowAssignment = options.allowAssignment ?? allowAssessments
+	const allowProgram = options.allowProgram ?? allowAssessments
 
 	const tools = {
 		header: {
@@ -245,9 +248,15 @@ export function getEditorTools(options = {}) {
 		},
 	}
 
-	if (allowAssessments) {
+	if (allowQuiz) {
 		tools.quiz = Quiz
+	}
+
+	if (allowAssignment) {
 		tools.assignment = Assignment
+	}
+
+	if (allowProgram) {
 		tools.program = Program
 	}
 

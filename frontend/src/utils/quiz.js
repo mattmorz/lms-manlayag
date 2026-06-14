@@ -97,6 +97,8 @@ export class Quiz {
 			const app = createApp(AssessmentPlugin, {
 				type: 'quiz',
 				courseName: router.currentRoute.value?.params?.courseName,
+				allowCheckpointQuiz:
+					router.currentRoute.value?.query?.mode !== 'assessment',
 				currentAssessments: currentAssessments,
 				onAddition: (data) => {
 					this.data.quiz = data.item

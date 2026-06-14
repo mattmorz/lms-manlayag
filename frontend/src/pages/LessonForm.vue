@@ -191,10 +191,10 @@ onMounted(() => {
 	enablePlyr()
 })
 
-const renderEditor = (holder, allowAssessments = true) => {
+const renderEditor = (holder, toolOptions = { allowAssessments: true }) => {
 	return new EditorJS({
 		holder: holder,
-		tools: getEditorTools({ allowAssessments }),
+		tools: getEditorTools(toolOptions),
 		defaultBlock: 'markdown',
 		onChange: async (api, event) => {
 			enablePlyr()
@@ -202,43 +202,91 @@ const renderEditor = (holder, allowAssessments = true) => {
 	})
 }
 
-const hasAssessmentBlocks = (content) => {
+const getAssessmentBlockTypes = (content) => {
 	if (!content) {
-		return false
+		return new Set()
 	}
 
 	try {
 		const parsedContent = JSON.parse(content)
-		return parsedContent.blocks?.some((block) =>
-			['quiz', 'assignment', 'program'].includes(block.type)
-		)
+		const blockTypes = new Set()
+		for (const block of parsedContent.blocks || []) {
+			if (['quiz', 'assignment', 'program'].includes(block.type)) {
+				blockTypes.add(block.type)
+			}
+		}
+		return blockTypes
 	} catch {
-		return false
+		return new Set()
 	}
 }
 
-const shouldAllowAssessmentTools = (lessonData) => {
+const getEditorToolOptions = (lessonData) => {
 	if (route.query.mode === 'assessment') {
-		return true
+		return {
+			allowAssessments: true,
+			allowQuiz: true,
+			allowAssignment: true,
+			allowProgram: true,
+		}
+	}
+
+	if (route.query.mode === 'lesson') {
+		return {
+			allowAssessments: true,
+			allowQuiz: true,
+			allowAssignment: false,
+			allowProgram: false,
+		}
 	}
 
 	if (!lessonData) {
-		return false
+		return {
+			allowAssessments: false,
+			allowQuiz: false,
+			allowAssignment: false,
+			allowProgram: false,
+		}
 	}
 
+	const contentBlockTypes = getAssessmentBlockTypes(lessonData.content)
+	const instructorBlockTypes = getAssessmentBlockTypes(
+		lessonData.instructor_content
+	)
+	const hasAssessmentBlocks =
+		contentBlockTypes.size > 0 || instructorBlockTypes.size > 0
+	const hasQuiz =
+		contentBlockTypes.has('quiz') || instructorBlockTypes.has('quiz')
+	const hasAssignment =
+		contentBlockTypes.has('assignment') ||
+		instructorBlockTypes.has('assignment')
+	const hasProgram =
+		contentBlockTypes.has('program') || instructorBlockTypes.has('program')
+
 	return (
-		hasAssessmentBlocks(lessonData.content) ||
-		hasAssessmentBlocks(lessonData.instructor_content)
+		hasAssessmentBlocks
+			? {
+					allowAssessments: true,
+					allowQuiz: hasQuiz,
+					allowAssignment: hasAssignment,
+					allowProgram: hasProgram,
+				}
+			: {
+					allowAssessments: true,
+					allowQuiz: true,
+					allowAssignment: false,
+					allowProgram: false,
+				}
 	)
 }
 
-const initEditors = (allowAssessments) => {
+const initEditors = (toolOptions) => {
 	if (!editor.value) {
-		editor.value = renderEditor('content', allowAssessments)
+		editor.value = renderEditor('content', toolOptions)
 	}
 
 	if (!instructorEditor.value) {
-		instructorEditor.value = renderEditor('instructor-notes', allowAssessments)
+		instructorEditor.value = renderEditor('instructor-notes', toolOptions)
 	}
 }
 
@@ -264,7 +312,7 @@ const lessonDetails = createResource({
 	},
 	auto: true,
 	onSuccess(data) {
-		initEditors(shouldAllowAssessmentTools(data.lesson))
+		initEditors(getEditorToolOptions(data.lesson))
 		if (data.lesson) {
 			window.current_lesson_name = data.lesson.name
 			Object.keys(data.lesson).forEach((key) => {
