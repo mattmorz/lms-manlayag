@@ -122,8 +122,6 @@ const assignment = ref(null)
 const grading_category = ref('')
 const due_date = ref('')
 const due_time = ref('')
-const include_in_grading = ref(true)
-const checkpoint_quiz = ref(false)
 const filterAssignmentsByCourse = ref(false)
 const route = useRoute()
 
@@ -131,6 +129,10 @@ const props = defineProps({
 	type: {
 		type: String,
 		required: true,
+	},
+	creationMode: {
+		type: String,
+		default: 'lesson',
 	},
 	onAddition: {
 		type: Function,
@@ -149,6 +151,9 @@ const props = defineProps({
 		default: true,
 	},
 })
+
+const include_in_grading = ref(props.creationMode === 'lesson' ? false : true)
+const checkpoint_quiz = ref(props.creationMode === 'lesson' && props.allowCheckpointQuiz)
 
 const courseName = computed(() => {
 	return props.courseName || route?.params?.courseName || ''

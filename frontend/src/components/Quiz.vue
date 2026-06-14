@@ -63,7 +63,33 @@
 			<ProgressBar :progress="timerProgress" />
 		</div>
 
-		<div v-if="activeQuestion == 0">
+		<div v-if="isPassed && quiz.data.checkpoint_quiz" class="border rounded-md p-5 space-y-4">
+			<div class="flex items-center justify-between gap-2">
+				<div class="font-semibold text-lg text-ink-gray-9">
+					{{ quiz.data.title }}
+				</div>
+				<Badge theme="green" variant="subtle" :label="__('Passed')">
+					<template #prefix>
+						<CheckCircle class="w-4 h-4 text-ink-green-2 mr-1" />
+					</template>
+				</Badge>
+			</div>
+			<div class="space-y-3">
+				<div
+					v-for="(question, index) in questions"
+					:key="question.question || index"
+					class="rounded-md border border-outline-gray-2 bg-surface-gray-2 p-4"
+				>
+					<div class="text-sm font-semibold text-ink-gray-9" v-html="question.question"></div>
+					<div class="mt-2 text-sm text-ink-gray-7">
+						<span class="font-medium text-ink-gray-9">{{ __('Answer') }}:</span>
+						<span class="ml-1">{{ getSavedAnswer(question.question) || __('No answer recorded') }}</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div v-else-if="activeQuestion == 0">
 			<div class="border text-center p-20 rounded-md">
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
@@ -374,6 +400,22 @@ const isPassed = computed(() => {
 	}
 	return false
 })
+
+const savedResponses = computed(() => {
+	if (!quiz.data?.title) {
+		return []
+	}
+	try {
+		return JSON.parse(localStorage.getItem(quiz.data.title) || '[]')
+	} catch {
+		return []
+	}
+})
+
+const getSavedAnswer = (questionName) => {
+	const response = savedResponses.value.find((item) => item.question_name === questionName)
+	return response?.answer || ''
+}
 
 const isLateAttempt = computed(() => {
 	if (!quiz.data?.due_date) return false
