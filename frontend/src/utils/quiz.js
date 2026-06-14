@@ -40,7 +40,8 @@ export class Quiz {
 				this.data.grading_category,
 				this.data.due_date,
 				this.data.due_time,
-				this.data.include_in_grading
+				this.data.include_in_grading,
+				this.data.checkpoint_quiz
 			)
 		} else {
 			this.renderQuizModal()
@@ -48,7 +49,14 @@ export class Quiz {
 		return this.wrapper
 	}
 
-	renderQuiz(quiz, category, due_date, due_time, include_in_grading = true) {
+	renderQuiz(
+		quiz,
+		category,
+		due_date,
+		due_time,
+		include_in_grading = true,
+		checkpoint_quiz = false
+	) {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1`)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
@@ -58,6 +66,7 @@ export class Quiz {
 			<div class="font-medium">
 				Quiz: ${quiz}
 			</div>
+			${checkpoint_quiz ? `<div class="text-xs text-ink-blue-7 mt-1">${__('Checkpoint Quiz')}</div>` : ''}
 			${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : !include_in_grading ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Not included in grading')}</div>` : ''}
 		</div>`
 		return
@@ -93,6 +102,7 @@ export class Quiz {
 					this.data.quiz = data.item
 					this.data.grading_category = data.grading_category
 					this.data.include_in_grading = data.include_in_grading
+					this.data.checkpoint_quiz = data.checkpoint_quiz
 					this.data.due_date = data.due_date
 					this.data.due_time = data.due_time
 					this.renderQuiz(
@@ -100,7 +110,8 @@ export class Quiz {
 						data.grading_category,
 						data.due_date,
 						data.due_time,
-						data.include_in_grading
+						data.include_in_grading,
+						data.checkpoint_quiz
 					)
 				},
 			})
@@ -116,6 +127,7 @@ export class Quiz {
 			quiz: this.data.quiz,
 			grading_category: this.data.grading_category,
 			include_in_grading: this.data.include_in_grading,
+			checkpoint_quiz: this.data.checkpoint_quiz,
 			due_date: this.data.due_date,
 			due_time: this.data.due_time,
 		}

@@ -760,6 +760,13 @@ const getLessonQuizIds = (lessonData) => {
 const lessonQuizIds = computed(() => getLessonQuizIds(lesson.data))
 const lessonHasEmbeddedQuiz = computed(() => lessonQuizIds.value.length > 0)
 const lessonHasVideoQuiz = computed(() => lesson.data?.icon === 'icon-youtube' && lessonQuizIds.value.length > 0)
+const canBypassCheckpointGates = computed(() => {
+	return (
+		user.data?.is_moderator ||
+		user.data?.is_instructor ||
+		user.data?.is_evaluator
+	)
+})
 
 const quizSubmissions = createResource({
 	url: 'frappe.client.get_list',
@@ -791,6 +798,55 @@ const passedLessonQuizIds = computed(() => {
 const hasPassedAllLessonQuizzes = computed(() => {
 	return lessonQuizIds.value.length > 0 && lessonQuizIds.value.every((quizId) => passedLessonQuizIds.value.has(quizId))
 })
+
+const passedLessonQuizSignature = computed(() => {
+	return Array.from(passedLessonQuizIds.value).sort().join(',')
+})
+
+const getVisibleLessonContent = (content) => {
+	if (!content || canBypassCheckpointGates.value) {
+		return content
+	}
+
+	try {
+		const parsedContent = JSON.parse(content)
+		const visibleBlocks = []
+		let isLockedAfterCheckpoint = false
+
+		for (const block of parsedContent.blocks || []) {
+			if (isLockedAfterCheckpoint) {
+				break
+			}
+
+			visibleBlocks.push(block)
+
+			if (
+				block.type === 'quiz' &&
+				block.data?.quiz &&
+				block.data?.checkpoint_quiz &&
+				!passedLessonQuizIds.value.has(block.data.quiz)
+			) {
+				isLockedAfterCheckpoint = true
+			}
+		}
+
+		if (isLockedAfterCheckpoint) {
+			visibleBlocks.push({
+				type: 'paragraph',
+				data: {
+					text: __('Complete the checkpoint quiz above to unlock the next section.'),
+				},
+			})
+		}
+
+		return JSON.stringify({
+			...parsedContent,
+			blocks: visibleBlocks,
+		})
+	} catch (error) {
+		return content
+	}
+}
 
 watch(
 	() => [lessonQuizIds.value, user.data?.name],
@@ -1034,7 +1090,9 @@ const setupLesson = (data) => {
 		})
 	}
 	lessonProgress.value = data.membership?.progress
-	if (data.content) editor.value = renderEditor('editor', data.content)
+	if (data.content) {
+		editor.value = renderEditor('editor', getVisibleLessonContent(data.content))
+	}
 	if (
 		data.instructor_content &&
 		JSON.parse(data.instructor_content)?.blocks?.length > 1
@@ -1072,6 +1130,15 @@ const renderEditor = (holder, content) => {
 		defaultBlock: 'embed',
 	})
 }
+
+watch(
+	[passedLessonQuizSignature, () => lesson.data?.content],
+	() => {
+		if (lesson.data?.content) {
+			editor.value = renderEditor('editor', getVisibleLessonContent(lesson.data.content))
+		}
+	}
+)
 
 const markProgress = () => {
 	if (user.data && lesson.data && !lesson.data.progress) {

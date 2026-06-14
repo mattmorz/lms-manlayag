@@ -71,6 +71,13 @@
 						placeholder=" "
 						:onCreate="(value, close) => redirectToForm()"
 					/>
+					<FormControl
+						v-if="type == 'quiz'"
+						type="checkbox"
+						:label="__('Checkpoint quiz')"
+						v-model="checkpoint_quiz"
+						class="mt-3"
+					/>
 					<div v-else class="space-y-4">
 						<Link
 							v-if="filterAssignmentsByCourse"
@@ -116,6 +123,7 @@ const grading_category = ref('')
 const due_date = ref('')
 const due_time = ref('')
 const include_in_grading = ref(true)
+const checkpoint_quiz = ref(false)
 const filterAssignmentsByCourse = ref(false)
 const route = useRoute()
 
@@ -239,6 +247,7 @@ const addAssessment = () => {
 		item: selectedItem,
 		grading_category: (props.type == 'quiz' && !include_in_grading.value) ? '' : grading_category.value,
 		include_in_grading: props.type == 'quiz' ? include_in_grading.value : true,
+		checkpoint_quiz: props.type == 'quiz' ? checkpoint_quiz.value : false,
 		due_date: due_date.value,
 		due_time: due_time.value,
 	})
