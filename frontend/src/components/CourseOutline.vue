@@ -215,7 +215,10 @@
 										}"
 									>
 										<Button>
-											{{ __('Add Lesson') }}
+											<template #prefix>
+												<Plus class="size-4 stroke-1.5" />
+											</template>
+											{{ __('Lesson') }}
 										</Button>
 									</router-link>
 									<router-link
@@ -233,7 +236,10 @@
 										}"
 									>
 										<Button variant="outline">
-											{{ __('Add Assessment') }}
+											<template #prefix>
+												<Plus class="size-4 stroke-1.5" />
+											</template>
+											{{ __('Activity') }}
 										</Button>
 									</router-link>
 								</div>
