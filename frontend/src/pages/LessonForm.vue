@@ -664,8 +664,8 @@ const breadcrumbs = computed(() => {
 	}
 	crumbs.push({
 		label: lessonDetails?.data?.lesson
-			? __('Edit Lesson')
-			: __('Create Lesson'),
+			? (route.query.mode === 'assessment' ? __('Edit Activity') : __('Edit Lesson'))
+			: (route.query.mode === 'assessment' ? __('Create Activity') : __('Create Lesson')),
 		route: {
 			name: 'LessonForm',
 			params: {
@@ -682,7 +682,7 @@ usePageMeta(() => {
 	return {
 		title: lessonDetails?.data?.lesson
 			? lessonDetails.data.lesson.title
-			: __('New Lesson'),
+			: (route.query.mode === 'assessment' ? __('New Activity') : __('New Lesson')),
 		icon: brand.favicon,
 	}
 })
