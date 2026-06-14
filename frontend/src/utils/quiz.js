@@ -39,7 +39,8 @@ export class Quiz {
 				this.data.quiz,
 				this.data.grading_category,
 				this.data.due_date,
-				this.data.due_time
+				this.data.due_time,
+				this.data.include_in_grading
 			)
 		} else {
 			this.renderQuizModal()
@@ -47,7 +48,7 @@ export class Quiz {
 		return this.wrapper
 	}
 
-	renderQuiz(quiz, category, due_date, due_time) {
+	renderQuiz(quiz, category, due_date, due_time, include_in_grading = true) {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1`)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
@@ -57,7 +58,7 @@ export class Quiz {
 			<div class="font-medium">
 				Quiz: ${quiz}
 			</div>
-			${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : ''}
+			${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : !include_in_grading ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Not included in grading')}</div>` : ''}
 		</div>`
 		return
 	}
@@ -91,9 +92,16 @@ export class Quiz {
 				onAddition: (data) => {
 					this.data.quiz = data.item
 					this.data.grading_category = data.grading_category
+					this.data.include_in_grading = data.include_in_grading
 					this.data.due_date = data.due_date
 					this.data.due_time = data.due_time
-					this.renderQuiz(data.item, data.grading_category, data.due_date, data.due_time)
+					this.renderQuiz(
+						data.item,
+						data.grading_category,
+						data.due_date,
+						data.due_time,
+						data.include_in_grading
+					)
 				},
 			})
 			app.use(translationPlugin)
@@ -107,6 +115,7 @@ export class Quiz {
 		return {
 			quiz: this.data.quiz,
 			grading_category: this.data.grading_category,
+			include_in_grading: this.data.include_in_grading,
 			due_date: this.data.due_date,
 			due_time: this.data.due_time,
 		}

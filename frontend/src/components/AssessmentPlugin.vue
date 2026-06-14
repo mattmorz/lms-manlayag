@@ -24,19 +24,25 @@
 			<div class="space-y-4">
 				<div v-if="courseDoc?.enable_grading_policy" class="space-y-4 pb-4 border-b border-outline-gray-modals">
 					<div class="text-sm font-semibold text-ink-gray-9 mb-2">
-						{{ __('Grading & Deadline (Required)') }}
+						{{ __('Grading & Deadline') }}
 					</div>
+					<FormControl
+						v-if="type == 'quiz'"
+						v-model="include_in_grading"
+						type="checkbox"
+						:label="__('Include in grading')"
+					/>
 					<div class="grid grid-cols-1 gap-y-4 md:grid-cols-[1.2fr_1fr_1fr] md:gap-x-8">
 						<FormControl
-							v-if="gradingCategoryOptions.length"
+							v-if="gradingCategoryOptions.length && (type != 'quiz' || include_in_grading)"
 							v-model="grading_category"
 							type="select"
 							:options="[{ label: __('Select Category'), value: '' }, ...gradingCategoryOptions]"
 							:label="__('Grading Category')"
-							:required="true"
+							:required="type != 'quiz' || include_in_grading"
 						/>
 						<FormControl
-							v-else
+							v-else-if="type != 'quiz' || include_in_grading"
 							v-model="grading_category"
 							type="text"
 							:label="__('Grading Category')"
@@ -109,6 +115,7 @@ const assignment = ref(null)
 const grading_category = ref('')
 const due_date = ref('')
 const due_time = ref('')
+const include_in_grading = ref(true)
 const filterAssignmentsByCourse = ref(false)
 const route = useRoute()
 
@@ -217,7 +224,7 @@ const addAssessment = () => {
 		toast.error(props.type == 'quiz' ? __('Please select a quiz') : __('Please select an assignment'))
 		return
 	}
-	if (courseDoc.value?.enable_grading_policy) {
+	if (courseDoc.value?.enable_grading_policy && (props.type != 'quiz' || include_in_grading.value)) {
 		if (!grading_category.value) {
 			toast.error(__('Please select a Grading Category first.'))
 			return
@@ -230,7 +237,8 @@ const addAssessment = () => {
 	}
 	props.onAddition({
 		item: selectedItem,
-		grading_category: grading_category.value,
+		grading_category: (props.type == 'quiz' && !include_in_grading.value) ? '' : grading_category.value,
+		include_in_grading: props.type == 'quiz' ? include_in_grading.value : true,
 		due_date: due_date.value,
 		due_time: due_time.value,
 	})

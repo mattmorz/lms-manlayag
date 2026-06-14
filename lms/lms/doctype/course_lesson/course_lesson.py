@@ -47,16 +47,21 @@ class CourseLesson(Document):
 				cat = data.get("grading_category")
 				due_date = data.get("due_date")
 				due_time = data.get("due_time")
+				include_in_grading = data.get("include_in_grading", 1)
 				lesson_assessments.append({
 					"id": item_id,
 					"type": item_type,
 					"category": cat,
 					"due_date": due_date,
-					"due_time": due_time
+					"due_time": due_time,
+					"include_in_grading": include_in_grading,
 				})
 
-		# 1. Check if all quizzes/assignments have a category selected
+		# 1. Check if all graded quizzes/assignments have a category selected
 		for item in lesson_assessments:
+			if not item.get("include_in_grading"):
+				continue
+
 			if not item["category"]:
 				frappe.throw(
 					_("{0} '{1}' is missing a Grading Category, which is required by the course grading policy.").format(
@@ -105,6 +110,8 @@ class CourseLesson(Document):
 
 		# Add counts from current lesson
 		for item in lesson_assessments:
+			if not item.get("include_in_grading"):
+				continue
 			cat = item["category"]
 			cat_counts[cat] = cat_counts.get(cat, 0) + 1
 
