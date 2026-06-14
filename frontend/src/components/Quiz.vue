@@ -408,7 +408,7 @@ const isLoggedIn = computed(() => {
 })
 
 const redirectToLogin = () => {
-	window.location.href = '/login'
+	window.top.location.href = '/login'
 }
 
 onMounted(() => {
