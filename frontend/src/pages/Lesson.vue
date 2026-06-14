@@ -1142,9 +1142,16 @@ const destroyEditor = (instance) => {
 	}
 }
 
+let lastRenderedContent = null
+
 const renderLessonContent = (content) => {
+	const visibleContent = getVisibleLessonContent(content)
+	if (visibleContent === lastRenderedContent) {
+		return
+	}
+	lastRenderedContent = visibleContent
 	destroyEditor(editor.value)
-	editor.value = renderEditor('editor', getVisibleLessonContent(content))
+	editor.value = renderEditor('editor', visibleContent)
 }
 
 watch(

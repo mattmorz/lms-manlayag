@@ -1,10 +1,14 @@
 <template>
 	<div v-if="quiz.data">
 		<div
+			v-if="!(isPassed && quiz.data.checkpoint_quiz)"
 			class="bg-surface-blue-2 space-y-2 py-2 px-3 mb-4 rounded-md text-sm text-ink-blue-2 leading-5"
 		>
 			<div v-if="inVideo">
 				{{ __('You will have to complete the quiz to continue the video') }}
+			</div>
+			<div v-if="quiz.data.checkpoint_quiz && !inVideo" class="leading-5 font-semibold">
+				{{ __('Complete the checkpoint quiz to unlock the next section.') }}
 			</div>
 			<div class="leading-5">
 				{{
@@ -68,13 +72,22 @@
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
 				</div>
-				<Badge theme="green" variant="subtle" :label="__('Passed')">
-					<template #prefix>
-						<CheckCircle class="w-4 h-4 text-ink-green-2 mr-1" />
-					</template>
-				</Badge>
+				<div class="flex items-center gap-2">
+					<Badge theme="green" variant="subtle" :label="__('Passed')">
+						<template #prefix>
+							<CheckCircle class="w-4 h-4 text-ink-green-2 mr-1" />
+						</template>
+					</Badge>
+					<Button
+						variant="ghost"
+						class="text-ink-gray-7 hover:text-ink-gray-9 text-xs"
+						@click="showSavedQuestions = !showSavedQuestions"
+					>
+						{{ showSavedQuestions ? __('Hide Questions') : __('Show Questions') }}
+					</Button>
+				</div>
 			</div>
-			<div class="space-y-3">
+			<div v-if="showSavedQuestions" class="space-y-3">
 				<div
 					v-for="(question, index) in questions"
 					:key="question.question || index"
@@ -368,6 +381,7 @@ const selectedOptions = reactive([0, 0, 0, 0])
 const showAnswers = reactive([])
 let questions = reactive([])
 const possibleAnswer = ref(null)
+const showSavedQuestions = ref(false)
 const timer = ref(0)
 let timerInterval = null
 
@@ -696,6 +710,9 @@ const createSubmission = () => {
 				markLessonProgress()
 				if (!props.inVideo) {
 					window.dispatchEvent(new Event('lms-lesson-quiz-passed'))
+					if (window.parent && window.parent !== window) {
+						window.parent.dispatchEvent(new Event('lms-lesson-quiz-passed'))
+					}
 				}
 				attempts.reload()
 				if (quiz.data.duration) clearInterval(timerInterval)
