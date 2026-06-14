@@ -7,7 +7,7 @@
 	</header>
 	<div
 		class="md:w-7/12 md:mx-auto mx-4"
-		:class="fromLesson ? 'pt-4 pb-0 md:w-full' : 'py-10'"
+		:class="fromLesson ? 'pt-0 pb-0 md:w-full' : 'py-10'"
 	>
 		<Quiz :quizName="quizID" />
 	</div>
@@ -64,3 +64,10 @@ usePageMeta(() => {
 	}
 })
 </script>
+
+<style>
+body {
+	margin: 0 !important;
+	padding: 0 !important;
+}
+</style>

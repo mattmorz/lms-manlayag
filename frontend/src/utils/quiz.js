@@ -60,6 +60,10 @@ export class Quiz {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1${checkpoint_quiz ? '&checkpoint=1' : ''}`)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
+			if (checkpoint_quiz) {
+				this.wrapper.style.marginTop = '8px'
+				this.wrapper.style.marginBottom = '8px'
+			}
 			return
 		}
 		this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-menu-bar mb-4'>
