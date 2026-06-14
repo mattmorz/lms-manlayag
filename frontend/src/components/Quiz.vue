@@ -8,7 +8,12 @@
 				{{ __('You will have to complete the quiz to continue the video') }}
 			</div>
 			<div v-if="isCheckpointQuiz && !inVideo" class="leading-5 font-semibold">
-				{{ __('Complete the checkpoint quiz to unlock the next section.') }}
+				<span v-if="isLoggedIn">
+					{{ __('Complete the checkpoint quiz to unlock the next section.') }}
+				</span>
+				<span v-else>
+					{{ __('Remaining lessons can be accessed after answering a checkpoint quiz.') }}
+				</span>
 			</div>
 			<div class="leading-5">
 				{{
@@ -116,14 +121,23 @@
 				<div class="flex items-center justify-center space-x-2 mt-4">
 					<Button
 						v-if="
-							!quiz.data.max_attempts ||
-							attempts.data?.length < quiz.data.max_attempts
+							isLoggedIn && (!quiz.data.max_attempts ||
+							attempts.data?.length < quiz.data.max_attempts)
 						"
 						variant="solid"
 						@click="startQuiz"
 					>
 						<span>
 							{{ inVideo ? __('Start the Quiz') : __('Start') }}
+						</span>
+					</Button>
+					<Button
+						v-else-if="!isLoggedIn"
+						variant="solid"
+						@click="redirectToLogin"
+					>
+						<span>
+							{{ __('Log In to Start') }}
 						</span>
 					</Button>
 					<Button v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
@@ -389,6 +403,14 @@ const isCheckpointQuiz = computed(() => {
 	return props.isCheckpoint || new URLSearchParams(window.location.search).get('checkpoint') === '1'
 })
 
+const isLoggedIn = computed(() => {
+	return !!user.data
+})
+
+const redirectToLogin = () => {
+	window.location.href = '/login'
+}
+
 onMounted(() => {
 	if (window.frameElement) {
 		const resizeObserver = new ResizeObserver(() => {
@@ -559,7 +581,9 @@ watch(
 	() => {
 		if (quiz.data) {
 			populateQuestions()
-			attempts.reload()
+			if (isLoggedIn.value) {
+				attempts.reload()
+			}
 		}
 		if (quiz.data && quiz.data.max_attempts) {
 			resetQuiz()
