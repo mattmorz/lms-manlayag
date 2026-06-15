@@ -37,6 +37,7 @@ export class Quiz {
 		if (Object.keys(this.data).length) {
 			const enable_proctoring = this.data.enable_proctoring !== undefined ? this.data.enable_proctoring : true
 			const max_proctor_warnings = this.data.max_proctor_warnings !== undefined ? this.data.max_proctor_warnings : 3
+			const shuffle_answers = this.data.shuffle_answers !== undefined ? this.data.shuffle_answers : false
 			this.renderQuiz(
 				this.data.quiz,
 				this.data.grading_category,
@@ -45,7 +46,8 @@ export class Quiz {
 				this.data.include_in_grading,
 				this.data.checkpoint_quiz,
 				enable_proctoring,
-				max_proctor_warnings
+				max_proctor_warnings,
+				shuffle_answers
 			)
 		} else {
 			this.renderQuizModal()
@@ -61,7 +63,8 @@ export class Quiz {
 		include_in_grading = true,
 		checkpoint_quiz = false,
 		enable_proctoring = true,
-		max_proctor_warnings = 3
+		max_proctor_warnings = 3,
+		shuffle_answers = false
 	) {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(
@@ -69,7 +72,8 @@ export class Quiz {
 				`${checkpoint_quiz ? '&checkpoint=1' : ''}` +
 				`${include_in_grading ? '&grading=1' : ''}` +
 				`${enable_proctoring ? '&proctor=1' : '&proctor=0'}` +
-				`&warnings=${max_proctor_warnings}`
+				`&warnings=${max_proctor_warnings}` +
+				`${shuffle_answers ? '&shuffle_answers=1' : ''}`
 			)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]" allow="fullscreen" allowfullscreen></iframe>`
 			if (checkpoint_quiz) {
@@ -126,6 +130,7 @@ export class Quiz {
 					this.data.due_time = data.due_time
 					this.data.enable_proctoring = data.enable_proctoring
 					this.data.max_proctor_warnings = data.max_proctor_warnings
+					this.data.shuffle_answers = data.shuffle_answers
 					this.renderQuiz(
 						data.item,
 						data.grading_category,
@@ -134,7 +139,8 @@ export class Quiz {
 						data.include_in_grading,
 						data.checkpoint_quiz,
 						data.enable_proctoring,
-						data.max_proctor_warnings
+						data.max_proctor_warnings,
+						data.shuffle_answers
 					)
 				},
 			})
@@ -155,6 +161,7 @@ export class Quiz {
 			due_time: this.data.due_time,
 			enable_proctoring: this.data.enable_proctoring,
 			max_proctor_warnings: this.data.max_proctor_warnings,
+			shuffle_answers: this.data.shuffle_answers,
 		}
 	}
 }

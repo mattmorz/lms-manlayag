@@ -2,14 +2,12 @@
 	<Dialog
 		v-model="show"
 		:options="{
+			title: __(props.title),
 			size: '5xl',
 		}"
 	>
-		<template #body>
-			<div class="p-5 space-y-5">
-				<div class="text-lg font-semibold text-ink-gray-9 mb-5">
-					{{ __(props.title) }}
-				</div>
+		<template #body-content>
+			<div class="space-y-5">
 				<div
 					v-if="!editMode"
 					class="flex items-center text-xs text-ink-gray-7 space-x-5"
@@ -350,5 +348,20 @@ input[type='radio']:checked {
 	background-color: theme('colors.gray.900') !important;
 	border-color: theme('colors.gray.900') !important;
 	--tw-ring-color: theme('colors.gray.900') !important;
+}
+[data-dialog='Add a new question'] .dialog-content,
+[data-dialog='Edit the question'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Add a new question'] .dialog-content > :first-child,
+[data-dialog='Edit the question'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Add a new question'] .dialog-content > :last-child,
+[data-dialog='Edit the question'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
 }
 </style>

@@ -10,6 +10,7 @@
  "engine": "InnoDB",
  "field_order": [
   "question",
+  "question_bank",
   "type",
   "multiple",
   "section_break_ytxi",
@@ -45,6 +46,13 @@
    "fieldtype": "Text Editor",
    "in_list_view": 1,
    "label": "Question"
+  },
+  {
+   "fieldname": "question_bank",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Question Bank"
   },
   {
    "fieldname": "type",

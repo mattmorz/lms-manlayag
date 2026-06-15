@@ -3813,6 +3813,242 @@ def get_batch_members(batch: str, course: str = None) -> list:
 	)
 
 
+@frappe.whitelist()
+def import_question_bank(file_content: str, format_type: str, bank_label: str):
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
+		frappe.throw(_("You do not have permission to import to the Question Bank."), frappe.PermissionError)
+
+	if "question_bank" not in frappe.db.get_table_columns("LMS Question"):
+		frappe.db.add_column("LMS Question", "question_bank", "Data")
+
+	questions = []
+	if format_type.upper() == "AIKEN":
+		questions = parse_aiken_questions(file_content)
+	elif format_type.upper() == "GIFT":
+		questions = parse_gift_questions(file_content)
+	else:
+		frappe.throw(_("Unsupported format type. Use GIFT or AIKEN."))
+
+	for q_data in questions:
+		lms_q = frappe.new_doc("LMS Question")
+		lms_q.type = q_data["type"]
+		lms_q.question = q_data["question"]
+		lms_q.question_bank = bank_label
+
+		if q_data["type"] == "Choices":
+			for idx, ans in enumerate(q_data["answers"][:4]):
+				lms_q.set(f"option_{idx+1}", ans["text"])
+				lms_q.set(f"is_correct_{idx+1}", ans["is_correct"])
+				if ans.get("explanation"):
+					lms_q.set(f"explanation_{idx+1}", ans["explanation"])
+		elif q_data["type"] == "User Input":
+			for idx, ans in enumerate(q_data["answers"][:4]):
+				lms_q.set(f"possibility_{idx+1}", ans["text"])
+
+		lms_q.insert(ignore_permissions=True)
+
+	return {"status": "success", "count": len(questions)}
+
+
+def parse_aiken_questions(file_content):
+	lines = [line.strip() for line in file_content.split("\n") if line.strip()]
+	questions = []
+	current_question = None
+	current_options = []
+
+	for line in lines:
+		if line.startswith("ANSWER:") or line.startswith("ANSWER :"):
+			correct_ans = line.split(":", 1)[1].strip()
+			if current_question and correct_ans:
+				if len(current_options) < 2:
+					frappe.throw(_("Question '{0}' must have at least two options.").format(current_question))
+				
+				answers = []
+				for idx, (letter, text) in enumerate(current_options[:4]):
+					is_correct = 1 if letter.upper() == correct_ans.upper() else 0
+					answers.append({
+						"text": text,
+						"is_correct": is_correct
+					})
+				
+				questions.append({
+					"question": current_question,
+					"type": "Choices",
+					"answers": answers
+				})
+			current_question = None
+			current_options = []
+		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]):
+			letter = line[0]
+			opt_text = line[2:].strip()
+			current_options.append((letter, opt_text))
+		else:
+			current_question = line
+			current_options = []
+	return questions
+
+
+def parse_gift_questions(file_content):
+	content_normalized = file_content.replace("\r\n", "\n")
+	blocks = [b.strip() for b in content_normalized.split("\n\n") if b.strip()]
+	questions = []
+
+	for block in blocks:
+		lines = [line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")]
+		if not lines:
+			continue
+
+		block_text = "\n".join(lines)
+		if block_text.startswith("::"):
+			parts = block_text.split("::", 2)
+			if len(parts) >= 3:
+				block_text = parts[2].strip()
+
+		import re
+		match = re.search(r'\{(.*?)\}', block_text, re.DOTALL)
+		if not match:
+			q_text = block_text.strip()
+			q_type = "Open Ended"
+			answers = []
+		else:
+			q_text = block_text[:match.start()].strip() + block_text[match.end():].strip()
+			q_text = q_text.strip()
+			answer_content = match.group(1).strip()
+
+			if not answer_content:
+				q_type = "Open Ended"
+				answers = []
+			elif answer_content in ["T", "F", "TRUE", "FALSE"]:
+				q_type = "Choices"
+				is_true = answer_content in ["T", "TRUE"]
+				answers = [
+					{"text": "True", "is_correct": 1 if is_true else 0},
+					{"text": "False", "is_correct": 0 if is_true else 1}
+				]
+			else:
+				options = []
+				idx = 0
+				while idx < len(answer_content):
+					char = answer_content[idx]
+					if char in ["~", "="]:
+						is_correct = 1 if char == "=" else 0
+						next_idx = len(answer_content)
+						for next_prefix in ["~", "="]:
+							p_idx = answer_content.find(next_prefix, idx + 1)
+							if p_idx != -1 and p_idx < next_idx:
+								next_idx = p_idx
+						opt_content = answer_content[idx+1:next_idx].strip()
+						opt_text = opt_content
+						explanation = ""
+						if "#" in opt_content:
+							opt_parts = opt_content.split("#", 1)
+							opt_text = opt_parts[0].strip()
+							explanation = opt_parts[1].strip()
+
+						options.append({
+							"text": opt_text,
+							"is_correct": is_correct,
+							"explanation": explanation
+						})
+						idx = next_idx
+					else:
+						idx += 1
+
+				has_choice_prefix = "~" in answer_content
+				if has_choice_prefix:
+					q_type = "Choices"
+					answers = options
+				else:
+					q_type = "User Input"
+					answers = options
+
+		questions.append({
+			"question": q_text,
+			"type": q_type,
+			"answers": answers
+		})
+
+	return questions
+
+
+@frappe.whitelist()
+def get_question_banks():
+	if "question_bank" not in frappe.db.get_table_columns("LMS Question"):
+		frappe.db.add_column("LMS Question", "question_bank", "Data")
+
+	data = frappe.db.sql("""
+		SELECT question_bank, COUNT(*) as question_count 
+		FROM `tabLMS Question` 
+		WHERE question_bank IS NOT NULL AND question_bank != '' 
+		GROUP BY question_bank
+	""", as_dict=True)
+	return data
+
+
+@frappe.whitelist()
+def get_bank_questions(bank_label: str):
+	return frappe.get_all(
+		"LMS Question",
+		filters={"question_bank": bank_label},
+		fields=["name", "question", "type"]
+	)
+
+
+@frappe.whitelist()
+def add_questions_to_quiz(quiz_name: str, question_names, marks: int = 1):
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
+		frappe.throw(_("You do not have permission to modify this quiz."), frappe.PermissionError)
+
+	import json
+	if isinstance(question_names, str):
+		question_names = json.loads(question_names)
+
+	quiz = frappe.get_doc("LMS Quiz", quiz_name)
+	existing_questions = {q.question for q in quiz.questions}
+
+	added_count = 0
+	for q_name in question_names:
+		if q_name not in existing_questions:
+			quiz.append("questions", {
+				"doctype": "LMS Quiz Question",
+				"question": q_name,
+				"marks": frappe.utils.cint(marks) or 1
+			})
+			added_count += 1
+
+	if added_count > 0:
+		quiz.save(ignore_permissions=True)
+
+	return {"status": "success", "added_count": added_count}
+
+
+@frappe.whitelist()
+def delete_question_bank(bank_label: str):
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
+		frappe.throw(_("You do not have permission to delete question banks."), frappe.PermissionError)
+
+	questions = frappe.get_all("LMS Question", filters={"question_bank": bank_label}, pluck="name")
+	for q in questions:
+		frappe.delete_doc("LMS Question", q, ignore_permissions=True)
+
+	return {"status": "success"}
+
+
+@frappe.whitelist()
+def delete_bank_question(question_name: str):
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
+		frappe.throw(_("You do not have permission to delete questions."), frappe.PermissionError)
+
+	frappe.delete_doc("LMS Question", question_name, ignore_permissions=True)
+	return {"status": "success"}
+
+
+
+
 
 
 

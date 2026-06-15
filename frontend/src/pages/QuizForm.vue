@@ -132,18 +132,16 @@
 					{{ __('Questions') }}
 				</div>
 				<div class="flex items-center space-x-2">
-					<Button v-if="!readOnlyMode" @click="showImportModal = true">
-						<template #prefix>
-							<Upload class="size-4 stroke-1.5" />
+					<Dropdown
+						v-if="!readOnlyMode"
+						:options="quizActionOptions"
+					>
+						<template v-slot="{ open }">
+							<Button variant="ghost" class="p-1.5">
+								<FeatherIcon name="more-vertical" class="w-4 h-4 text-ink-gray-7" />
+							</Button>
 						</template>
-						{{ __('Import Quiz') }}
-					</Button>
-					<Button v-if="!readOnlyMode" @click="openExportModal()">
-						<template #prefix>
-							<Download class="size-4 stroke-1.5" />
-						</template>
-						{{ __('Export Quiz') }}
-					</Button>
+					</Dropdown>
 					<Button v-if="!readOnlyMode" @click="openQuestionModal()">
 						<template #prefix>
 							<Plus class="w-4 h-4" />
@@ -291,11 +289,97 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<Dialog
+		v-model="showBankImportModal"
+		:options="{
+			title: __('Import from Question Bank'),
+			size: '2xl',
+			actions: [
+				{
+					label: __('Import'),
+					variant: 'solid',
+					onClick: (dialog) => handleBankQuestionsImport(dialog),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-4 text-base">
+				<FormControl
+					type="select"
+					v-model="selectedBank"
+					:options="availableBanks"
+					:label="__('Select Question Bank')"
+					:placeholder="__('Choose a Question Bank')"
+				/>
+
+				<div v-if="selectedBank" class="space-y-4 mt-4">
+					<div v-if="loadingBankQuestions" class="flex justify-center items-center py-6">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+					</div>
+					<div v-else-if="!bankQuestions.length" class="text-ink-gray-5 text-sm py-4">
+						{{ __('No questions available in this bank.') }}
+					</div>
+					<div v-else class="space-y-4">
+						<div class="flex justify-between items-center">
+							<TabButtons :buttons="importModeTabs" v-model="importMode" class="w-fit" />
+							<span class="text-xs text-ink-gray-5">
+								{{ __('Available: {0} questions').format(bankQuestions.length) }}
+							</span>
+						</div>
+
+						<div v-if="importMode === 'random'">
+							<FormControl
+								type="number"
+								v-model="randomCount"
+								:label="__('Number of Questions')"
+								:min="1"
+								:max="bankQuestions.length"
+							/>
+						</div>
+						<div v-else-if="importMode === 'manual'">
+							<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">
+								{{ __('Select Questions ({0} selected)').format(selectedQuestionNames.length) }}
+							</label>
+							<div class="border border-outline-gray-2 rounded-lg max-h-[35vh] overflow-y-auto p-2 bg-surface-gray-2 space-y-2">
+								<div
+									v-for="q in bankQuestions"
+									:key="q.name"
+									class="flex items-start gap-3 p-2 hover:bg-surface-white rounded transition-colors duration-200"
+								>
+									<input
+										type="checkbox"
+										v-model="selectedQuestionNames"
+										:value="q.name"
+										class="mt-1 rounded border-outline-gray-3 text-ink-gray-9 focus:ring-ink-gray-9"
+									/>
+									<div class="flex-1 min-w-0">
+										<div class="flex items-center gap-2 mb-1">
+											<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-white border border-outline-gray-3 text-ink-gray-7">
+												{{ q.type }}
+											</span>
+											<span class="text-[10px] text-ink-gray-4">
+												{{ q.name }}
+											</span>
+										</div>
+										<div class="prose-sm text-ink-gray-9" v-html="q.question"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup>
 import {
 	Breadcrumbs,
 	createResource,
+	call,
+	Dropdown,
 	FormControl,
 	ListView,
 	ListHeader,
@@ -310,6 +394,8 @@ import {
 	createDocumentResource,
 	Badge,
 	Dialog,
+	TabButtons,
+	FeatherIcon,
 } from 'frappe-ui'
 import {
 	computed,
@@ -324,6 +410,7 @@ import { sessionStore } from '../stores/session'
 import { ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { escapeHTML } from '@/utils'
+
 import Question from '@/components/Modals/Question.vue'
 
 const { brand } = sessionStore()
@@ -342,6 +429,148 @@ const currentQuestion = reactive({
 const user = inject('$user')
 const router = useRouter()
 const readOnlyMode = window.read_only_mode
+
+// Question Banks State
+const showBankImportModal = ref(false)
+const availableBanks = ref([])
+const selectedBank = ref('')
+const bankQuestions = ref([])
+const loadingBankQuestions = ref(false)
+const importMode = ref('random')
+const randomCount = ref(1)
+const selectedQuestionNames = ref([])
+
+const importModeTabs = computed(() => [
+	{ label: __('Random Selection'), value: 'random' },
+	{ label: __('Manual Selection'), value: 'manual' },
+])
+
+const quizActionOptions = computed(() => [
+	{
+		label: __('Import Quiz'),
+		icon: 'upload',
+		onClick() {
+			showImportModal.value = true
+		},
+	},
+	{
+		label: __('Export Quiz'),
+		icon: 'download',
+		onClick() {
+			openExportModal()
+		},
+	},
+	{
+		label: __('From Question Bank'),
+		icon: 'database',
+		onClick() {
+			openBankImportModal()
+		},
+	},
+])
+
+const openBankImportModal = () => {
+	availableBanks.value = []
+	selectedBank.value = ''
+	bankQuestions.value = []
+	selectedQuestionNames.value = []
+	randomCount.value = 1
+	importMode.value = 'random'
+	showBankImportModal.value = true
+
+	call('lms.lms.api.get_question_banks')
+		.then(res => {
+			if (res && res.length) {
+				availableBanks.value = res.map(b => ({
+					label: `${b.question_bank} (${b.question_count} ${b.question_count === 1 ? 'question' : 'questions'})`,
+					value: b.question_bank,
+				}))
+			} else {
+				availableBanks.value = []
+				toast.info(__('No question banks found. Please create one in Quizzes first.'))
+			}
+		})
+		.catch(err => {
+			toast.error(err.messages?.[0] || err.message || err)
+		})
+}
+
+watch(selectedBank, (newBank) => {
+	if (newBank) {
+		loadingBankQuestions.value = true
+		bankQuestions.value = []
+		selectedQuestionNames.value = []
+		randomCount.value = 1
+		call('lms.lms.api.get_bank_questions', { bank_label: newBank })
+			.then(res => {
+				bankQuestions.value = res || []
+			})
+			.catch(err => {
+				toast.error(err.messages?.[0] || err.message || err)
+			})
+			.finally(() => {
+				loadingBankQuestions.value = false
+			})
+	} else {
+		bankQuestions.value = []
+		selectedQuestionNames.value = []
+	}
+})
+
+const handleBankQuestionsImport = (dialog) => {
+	if (!selectedBank.value) {
+		toast.error(__('Please select a question bank'))
+		return
+	}
+
+	let qNames = []
+
+	if (importMode.value === 'random') {
+		const count = parseInt(randomCount.value, 10)
+		if (isNaN(count) || count <= 0) {
+			toast.error(__('Please enter a valid number of questions'))
+			return
+		}
+		if (count > bankQuestions.value.length) {
+			toast.error(__('Cannot select more questions than available ({0})').format(bankQuestions.value.length))
+			return
+		}
+
+		// Pick count questions randomly from bankQuestions
+		const tempQuestions = [...bankQuestions.value]
+		const picked = []
+		while (picked.length < count && tempQuestions.length > 0) {
+			const idx = Math.floor(Math.random() * tempQuestions.length)
+			picked.push(tempQuestions.splice(idx, 1)[0].name)
+		}
+		qNames = picked
+	} else {
+		if (selectedQuestionNames.value.length === 0) {
+			toast.error(__('Please select at least one question'))
+			return
+		}
+		qNames = selectedQuestionNames.value
+	}
+
+	call('lms.lms.api.add_questions_to_quiz', {
+		quiz_name: props.quizID,
+		question_names: JSON.stringify(qNames),
+		marks: 1
+	})
+		.then(res => {
+			if (res.added_count > 0) {
+				toast.success(__('Successfully added {0} questions.').format(res.added_count))
+				quizDetails.reload()
+			} else {
+				toast.info(__('No new questions were added (all selected questions already exist in the quiz).'))
+			}
+			dialog.close()
+		})
+		.catch(err => {
+			toast.error(err.messages?.[0] || err.message || err)
+		})
+}
+
 
 const props = defineProps({
 	quizID: {

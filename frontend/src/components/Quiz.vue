@@ -256,7 +256,7 @@
 						class="text-ink-gray-9 font-semibold mt-2 leading-5"
 						v-html="questionDetails.data.question"
 					></div>
-					<div v-if="questionDetails.data.type == 'Choices'" v-for="index in 4">
+					<div v-if="questionDetails.data.type == 'Choices'" v-for="index in optionIndices" :key="index">
 						<label
 							v-if="questionDetails.data[`option_${index}`]"
 							class="flex items-center bg-surface-gray-3 rounded-md p-3 mt-4 w-full cursor-pointer focus:border-blue-600"
@@ -529,6 +529,25 @@ const isCheckpointQuiz = computed(() => {
 const isIncludedInGrading = computed(() => {
 	return new URLSearchParams(window.location.search).get('grading') === '1'
 })
+
+const isShuffleAnswersEnabled = computed(() => {
+	return new URLSearchParams(window.location.search).get('shuffle_answers') === '1'
+})
+
+const optionIndices = ref([1, 2, 3, 4])
+
+watch(
+	() => questionDetails.data,
+	(data) => {
+		if (data) {
+			let indices = [1, 2, 3, 4]
+			if (isShuffleAnswersEnabled.value) {
+				indices = shuffleArray(indices)
+			}
+			optionIndices.value = indices
+		}
+	}
+)
 
 const isLoggedIn = computed(() => {
 	return !!user.data

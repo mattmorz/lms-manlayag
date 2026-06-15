@@ -86,6 +86,7 @@
 							class="mt-3"
 						/>
 						<FormControl
+							v-slot="{ value }"
 							v-if="!checkpoint_quiz && enable_proctoring && props.creationMode !== 'lesson'"
 							type="number"
 							:label="__('Max proctor warnings')"
@@ -93,6 +94,12 @@
 							class="mt-3"
 							min="1"
 							max="10"
+						/>
+						<FormControl
+							type="checkbox"
+							:label="__('Shuffle answers')"
+							v-model="shuffle_answers"
+							class="mt-3"
 						/>
 					</div>
 					<div v-else-if="type == 'assignment'" class="space-y-4">
@@ -141,6 +148,7 @@ const due_date = ref('')
 const due_time = ref('')
 const filterAssignmentsByCourse = ref(false)
 const route = useRoute()
+const shuffle_answers = ref(false)
 
 const props = defineProps({
 	type: {
@@ -293,6 +301,7 @@ const addAssessment = () => {
 		due_time: due_time.value,
 		enable_proctoring: props.type == 'quiz' ? enable_proctoring.value : false,
 		max_proctor_warnings: props.type == 'quiz' ? max_proctor_warnings.value : 3,
+		shuffle_answers: props.type == 'quiz' ? shuffle_answers.value : false,
 	})
 	show.value = false
 }
