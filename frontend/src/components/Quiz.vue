@@ -77,22 +77,12 @@
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
 				</div>
-				<div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+				<div class="flex items-center gap-2">
 					<Badge theme="green" variant="subtle" :label="__('Passed')">
 						<template #prefix>
 							<CheckCircle class="w-4 h-4 text-ink-green-2 mr-1" />
 						</template>
 					</Badge>
-					<Button
-						v-if="hasNextLesson"
-						variant="solid"
-						class="text-xs"
-						@click="proceedToNextLesson"
-					>
-						<span>
-							{{ nextLessonLabel }}
-						</span>
-					</Button>
 					<Button
 						variant="ghost"
 						class="text-ink-gray-7 hover:text-ink-gray-9 text-xs"
@@ -354,7 +344,7 @@
 					</span>
 				</Button>
 				<Button
-					v-if="isPassed && hasNextLesson"
+					v-if="isPassed && hasNextLesson && !isCheckpointQuiz && isIncludedInGrading"
 					variant="solid"
 					class="mt-2"
 					@click="proceedToNextLesson"
@@ -421,6 +411,10 @@ let timerInterval = null
 
 const isCheckpointQuiz = computed(() => {
 	return props.isCheckpoint || new URLSearchParams(window.location.search).get('checkpoint') === '1'
+})
+
+const isIncludedInGrading = computed(() => {
+	return new URLSearchParams(window.location.search).get('grading') === '1'
 })
 
 const isLoggedIn = computed(() => {
