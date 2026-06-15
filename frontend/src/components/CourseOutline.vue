@@ -72,7 +72,7 @@
 										variant="subtle"
 										size="sm"
 									>
-										{{ __('Scheduled: {0} {1}').format(chapter.release_date, chapter.release_time || '') }}
+										{{ __('Scheduled: {0}').format(formatScheduledRelease(chapter.release_date, chapter.release_time)) }}
 									</Badge>
 								</div>
 								<div class="flex ml-auto space-x-4">
@@ -163,7 +163,7 @@
 														size="sm"
 														class="mr-2"
 													>
-														{{ __('Scheduled: {0} {1}').format(lesson.release_date, lesson.release_time || '') }}
+														{{ __('Scheduled: {0}').format(formatScheduledRelease(lesson.release_date, lesson.release_time)) }}
 													</Badge>
 													<Trash2
 														v-if="allowEdit"
@@ -193,7 +193,7 @@
 													size="sm"
 													class="mr-2"
 												>
-													{{ __('Scheduled: {0} {1}').format(lesson.release_date, lesson.release_time || '') }}
+													{{ __('Scheduled: {0}').format(formatScheduledRelease(lesson.release_date, lesson.release_time)) }}
 												</Badge>
 											</div>
 											</div>
@@ -279,6 +279,7 @@ import {
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import ChapterModal from '@/components/Modals/ChapterModal.vue'
+import dayjs from '@/utils/dayjs'
 
 const route = useRoute()
 const router = useRouter()
@@ -287,6 +288,14 @@ const showChapterModal = ref(false)
 const currentChapter = ref(null)
 const app = getCurrentInstance()
 const { $dialog } = app.appContext.config.globalProperties
+
+const formatScheduledRelease = (dateStr, timeStr) => {
+	if (!dateStr) return ''
+	const combined = timeStr ? `${dateStr} ${timeStr}` : dateStr
+	const parsed = dayjs(combined)
+	if (!parsed.isValid()) return `${dateStr} ${timeStr || ''}`.trim()
+	return parsed.format('MMMM DD, YYYY hh:mmA')
+}
 
 const props = defineProps({
 	courseName: {
