@@ -88,4 +88,28 @@ body {
 	min-height: 0 !important;
 	overflow: visible !important;
 }
+
+/* Fullscreen background & size overrides */
+:fullscreen,
+html:fullscreen,
+body:fullscreen {
+	background-color: #fafafa !important;
+	min-height: 100vh !important;
+	height: 100% !important;
+	overflow-y: auto !important;
+}
+
+html:fullscreen body,
+html:fullscreen #app,
+html:fullscreen #scrollContainer {
+	background-color: #fafafa !important;
+	min-height: 100vh !important;
+	height: 100% !important;
+	overflow: auto !important;
+}
+
+::backdrop {
+	background-color: #fafafa !important;
+}
 </style>
+

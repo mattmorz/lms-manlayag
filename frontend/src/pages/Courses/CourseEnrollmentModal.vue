@@ -102,3 +102,19 @@ const validateData = (): boolean => {
 	return true
 }
 </script>
+
+<style>
+[data-dialog='Enroll a Student'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Enroll a Student'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Enroll a Student'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
+}
+</style>
+
