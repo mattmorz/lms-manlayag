@@ -268,18 +268,12 @@
 							/>
 						</div>
 
-						<div class="mt-4 flex justify-end">
-							<Button
-								variant="ghost"
-								class="text-sm text-ink-gray-7 hover:text-ink-gray-9"
-								@click="toggleCodeHighlightTheme"
-							>
-								{{
-									codeHighlightTheme === 'light'
-										? __('Code Theme: Light')
-										: __('Code Theme: Dark')
-								}}
-							</Button>
+						<div v-if="hasCodeBox" class="mt-4 flex justify-end">
+							<Switch
+								size="sm"
+								:label="isDarkTheme ? __('Code Theme: Dark') : __('Code Theme: Light')"
+								v-model="isDarkTheme"
+							/>
 						</div>
 
 						<div
@@ -570,6 +564,7 @@ import {
 	Tooltip,
 	usePageMeta,
 	toast,
+	Switch,
 } from 'frappe-ui'
 import {
 	computed,
@@ -641,11 +636,40 @@ const codeHighlightThemeClass = computed(() =>
 		: 'highlight-theme-dark'
 )
 
+const isDarkTheme = computed({
+	get: () => codeHighlightTheme.value === 'dark',
+	set: (val) => {
+		codeHighlightTheme.value = val ? 'dark' : 'light'
+		localStorage.setItem(CODE_HIGHLIGHT_THEME_KEY, codeHighlightTheme.value)
+	}
+})
+
 const toggleCodeHighlightTheme = () => {
 	codeHighlightTheme.value =
 		codeHighlightTheme.value === 'light' ? 'dark' : 'light'
 	localStorage.setItem(CODE_HIGHLIGHT_THEME_KEY, codeHighlightTheme.value)
 }
+
+const hasCodeBox = computed(() => {
+	if (lesson.data?.content) {
+		try {
+			const content = JSON.parse(lesson.data.content)
+			if (content?.blocks?.some(block => block.type === 'codeBox')) {
+				return true
+			}
+		} catch (e) {}
+	}
+	if (lesson.data?.instructor_content && allowInstructorContent()) {
+		try {
+			const content = JSON.parse(lesson.data.instructor_content)
+			if (content?.blocks?.some(block => block.type === 'codeBox')) {
+				return true
+			}
+		} catch (e) {}
+	}
+	return false
+})
+
 let timerInterval
 
 
