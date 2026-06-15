@@ -320,7 +320,7 @@ def get_average_rating(course: str):
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_reviews(course: str):
 	reviews = frappe.get_all(
 		"LMS Course Review",
@@ -621,7 +621,7 @@ def get_lesson_count(course: str) -> int:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_chart_data(
 	chart_name: str,
 	timegrain: str = "Daily",
@@ -701,7 +701,7 @@ def get_chart_details(
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_course_completion_data():
 	all_membership = frappe.db.count("LMS Enrollment")
 	completed = frappe.db.count("LMS Enrollment", {"progress": ["like", "%100%"]})
@@ -798,7 +798,7 @@ def guest_access_allowed():
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_courses(filters: dict = None, start: int = 0) -> list:
 	"""Returns the list of courses."""
 
@@ -944,7 +944,7 @@ def get_course_fields():
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_course_details(course: str):
 	if not guest_access_allowed():
 		return {}
@@ -1288,7 +1288,7 @@ def get_lesson_lock_reason(course: str, chapter: int, lesson: int) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	if not guest_access_allowed():
 		return {}
@@ -1509,7 +1509,7 @@ def get_neighbour_lesson(course: str, chapter: int, lesson: int) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_batch_details(batch: str):
 	if not guest_access_allowed():
 		return {}
@@ -1640,7 +1640,7 @@ def get_question_details(question: str) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_batch_courses(batch: str) -> list:
 	if not guest_access_allowed():
 		return []
@@ -2552,7 +2552,7 @@ def validate_program_enrollment(program: str):
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_batches(filters: dict = None, start: int = 0, order_by: str = "start_date"):
 	if not guest_access_allowed():
 		return []
@@ -2716,7 +2716,7 @@ def get_palette(full_name: str) -> list:
 
 
 @frappe.whitelist(allow_guest=True)
-@rate_limit(limit=500, seconds=60 * 60)
+@rate_limit(limit=15000, seconds=60 * 60)
 def get_related_courses(course: str) -> list:
 	if not guest_access_allowed():
 		return []
