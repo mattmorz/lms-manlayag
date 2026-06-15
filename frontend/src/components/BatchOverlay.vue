@@ -22,7 +22,7 @@
 			theme="red"
 			size="md"
 			class="float-right"
-			:label="__('Sold Out')"
+			:label="__('Full')"
 		/>
 		<div
 			v-if="batch.data.amount"

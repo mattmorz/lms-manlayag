@@ -24,7 +24,7 @@
 			theme="red"
 			size="md"
 			class="self-start"
-			:label="__('Sold Out')"
+			:label="__('Full')"
 		/>
 		<div class="short-introduction text-sm text-ink-gray-7">
 			{{ batch.description }}
