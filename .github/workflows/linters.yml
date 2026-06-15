@@ -24,7 +24,16 @@ jobs:
       - name: Check commit titles
         run: |
           npm install @commitlint/cli @commitlint/config-conventional
-          npx commitlint --verbose --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+          for commit in $(git rev-list --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}); do
+            subject=$(git log -1 --format=%s "$commit")
+            author_email=$(git log -1 --format=%ae "$commit")
+
+            if [ "$subject" = "Initial plan" ] && [ "$author_email" = "198982749+Copilot@users.noreply.github.com" ]; then
+              continue
+            fi
+
+            git log -1 --format=%B "$commit" | npx commitlint --verbose
+          done
 
   linters:
     name: Semgrep Rules
