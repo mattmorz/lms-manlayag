@@ -650,6 +650,16 @@ const toggleCodeHighlightTheme = () => {
 	localStorage.setItem(CODE_HIGHLIGHT_THEME_KEY, codeHighlightTheme.value)
 }
 
+watch(codeHighlightTheme, (newTheme) => {
+	const highlightLink = document.querySelector('#highlightJSCSSElement')
+	if (highlightLink) {
+		highlightLink.setAttribute(
+			'href',
+			`https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.1/build/styles/atom-one-${newTheme}.min.css`
+		)
+	}
+}, { immediate: true })
+
 const hasCodeBox = computed(() => {
 	if (lesson.data?.content) {
 		try {
@@ -1906,6 +1916,25 @@ usePageMeta(() => {
 	background-color: #fafafa !important;
 	color: #383a42 !important;
 	border: 1px solid #e5e7eb;
+}
+
+.highlight-theme-dark .codeBoxTextArea,
+.highlight-theme-dark .codeBoxSelectInput,
+.highlight-theme-dark .codeBoxSelectPreview,
+.highlight-theme-dark .codeBoxSelectItem,
+.highlight-theme-dark .codeBoxSelectDropIcon {
+	background-color: #282c34 !important;
+	color: #abb2bf !important;
+}
+
+.highlight-theme-light .codeBoxTextArea,
+.highlight-theme-light .codeBoxSelectInput,
+.highlight-theme-light .codeBoxSelectPreview,
+.highlight-theme-light .codeBoxSelectItem,
+.highlight-theme-light .codeBoxSelectDropIcon {
+	background-color: #fafafa !important;
+	color: #383a42 !important;
+	border-color: #e5e7eb !important;
 }
 
 .tc-table {

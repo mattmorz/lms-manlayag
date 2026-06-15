@@ -194,9 +194,11 @@ export class CodeBox {
 	_handleThemeToggleClick(event) {
 		event.preventDefault();
 		this.data.theme = this.data.theme === 'light' ? 'dark' : 'light';
+		localStorage.setItem('lms-code-highlight-theme', this.data.theme);
 		this.themeToggleButton.textContent = this.data.theme === 'light' ? 'Light' : 'Dark';
 		this._applyControlThemeClass();
 		this._applyCodeAreaClass();
+		this._injectHighlightJSCSSElement();
 		delete this.codeArea.dataset.highlighted;
 		hljs.highlightElement(this.codeArea);
 	}
@@ -238,7 +240,8 @@ export class CodeBox {
 	}
 
 	_getThemeURLFromConfig() {
-		let themeURL = `https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.1/build/styles/atom-one-${this.config.useDefaultTheme}.min.css`;
+		const currentTheme = localStorage.getItem('lms-code-highlight-theme') || this.data.theme || this.config.useDefaultTheme;
+		let themeURL = `https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.1/build/styles/atom-one-${currentTheme}.min.css`;
 
 		if (this.config.themeName) themeURL = `https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.18.1/build/styles/${this.config.themeName}.min.css`;
 		if (this.config.themeURL) themeURL = this.config.themeURL;
