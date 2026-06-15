@@ -11,11 +11,8 @@
 					<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
 				</div>
 				<div>
-					<span class="font-bold text-red-600 dark:text-red-400 tracking-wider text-xs uppercase block sm:inline mr-2">
+					<span class="font-bold text-red-600 dark:text-red-400 tracking-wider text-xs uppercase block sm:inline">
 						{{ __('Proctor Mode Enabled') }}
-					</span>
-					<span class="text-[11px] text-ink-gray-6">
-						{{ __('Tabs, windows, and cheating keyboard shortcuts are strictly monitored.') }}
 					</span>
 				</div>
 			</div>
@@ -576,6 +573,36 @@ const proceedToNextLesson = () => {
 const isFullscreenActive = ref(false)
 const proctorWarnings = ref(0)
 
+const userId = computed(() => user.data?.name || 'guest')
+const warningsStorageKey = computed(() => `proctor_warnings_${userId.value}_${props.quizName}`)
+
+const loadSavedWarnings = () => {
+	if (isProctorEnabled.value) {
+		const saved = localStorage.getItem(warningsStorageKey.value)
+		if (saved !== null) {
+			proctorWarnings.value = parseInt(saved, 10)
+		} else {
+			proctorWarnings.value = 0
+		}
+	} else {
+		proctorWarnings.value = 0
+	}
+}
+
+onMounted(() => {
+	loadSavedWarnings()
+})
+
+watch(() => props.quizName, () => {
+	loadSavedWarnings()
+})
+
+watch(proctorWarnings, (newVal) => {
+	if (isProctorEnabled.value) {
+		localStorage.setItem(warningsStorageKey.value, newVal.toString())
+	}
+})
+
 const isProctorEnabled = computed(() => {
 	const proctorParam = new URLSearchParams(window.location.search).get('proctor')
 	if (proctorParam === '0') {
@@ -956,7 +983,17 @@ const startQuiz = () => {
 	localStorage.removeItem(quiz.data.title)
 	if (quiz.data.duration) startTimer()
 	if (isProctorEnabled.value) {
-		proctorWarnings.value = 0
+		const saved = localStorage.getItem(warningsStorageKey.value)
+		if (saved === null) {
+			proctorWarnings.value = 0
+		} else {
+			proctorWarnings.value = parseInt(saved, 10)
+		}
+		if (proctorWarnings.value >= maxProctorWarnings.value) {
+			toast.error(__('Quiz automatically submitted due to multiple proctor violations.'))
+			submitQuiz()
+			return
+		}
 		enterFullscreen()
 		setupProctorListeners()
 	}
@@ -1077,6 +1114,7 @@ const submitQuiz = () => {
 const createSubmission = () => {
 	if (isProctorEnabled.value) {
 		cleanupProctorListeners()
+		localStorage.removeItem(warningsStorageKey.value)
 		if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
 			if (document.exitFullscreen) {
 				document.exitFullscreen().catch(() => {})
@@ -1120,6 +1158,7 @@ const createSubmission = () => {
 const resetQuiz = () => {
 	if (isProctorEnabled.value) {
 		cleanupProctorListeners()
+		localStorage.removeItem(warningsStorageKey.value)
 		if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
 			if (document.exitFullscreen) {
 				document.exitFullscreen().catch(() => {})
