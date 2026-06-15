@@ -22,13 +22,18 @@
 						doctype="LMS Quiz"
 						class="flex-2"
 					/>
-					<FormControl
-						:label="__('Require Pass')"
-						v-model="quiz.enforce_pass"
-						type="checkbox"
-						class="mb-2"
-					/>
-					<Button @click="addQuiz()" variant="solid">
+					<div class="flex items-center gap-2 h-9 mb-0.5">
+						<input
+							id="enforce_pass"
+							type="checkbox"
+							v-model="quiz.enforce_pass"
+							class="rounded border-outline-gray-3 text-ink-gray-9 focus:ring-ink-gray-9 w-4 h-4 cursor-pointer"
+						/>
+						<label for="enforce_pass" class="text-xs text-ink-gray-7 select-none cursor-pointer whitespace-nowrap">
+							{{ __('Require Pass') }}
+						</label>
+					</div>
+					<Button @click="addQuiz()" variant="solid" class="mb-0.5">
 						<template #prefix>
 							<Plus class="w-4 h-4 stroke-1.5" />
 						</template>
@@ -241,3 +246,19 @@ const columns = computed(() => {
 	]
 })
 </script>
+
+<style>
+[data-dialog='Add quiz to this video'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Add quiz to this video'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Add quiz to this video'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
+}
+</style>
+
