@@ -35,13 +35,17 @@ export class Quiz {
 	render() {
 		this.wrapper = document.createElement('div')
 		if (Object.keys(this.data).length) {
+			const enable_proctoring = this.data.enable_proctoring !== undefined ? this.data.enable_proctoring : true
+			const max_proctor_warnings = this.data.max_proctor_warnings !== undefined ? this.data.max_proctor_warnings : 3
 			this.renderQuiz(
 				this.data.quiz,
 				this.data.grading_category,
 				this.data.due_date,
 				this.data.due_time,
 				this.data.include_in_grading,
-				this.data.checkpoint_quiz
+				this.data.checkpoint_quiz,
+				enable_proctoring,
+				max_proctor_warnings
 			)
 		} else {
 			this.renderQuizModal()
@@ -55,11 +59,19 @@ export class Quiz {
 		due_date,
 		due_time,
 		include_in_grading = true,
-		checkpoint_quiz = false
+		checkpoint_quiz = false,
+		enable_proctoring = true,
+		max_proctor_warnings = 3
 	) {
 		if (this.readOnly) {
-			const quizPath = getLmsRoute(`quiz/${quiz}?fromLesson=1${checkpoint_quiz ? '&checkpoint=1' : ''}${include_in_grading ? '&grading=1' : ''}`)
-			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]"></iframe>`
+			const quizPath = getLmsRoute(
+				`quiz/${quiz}?fromLesson=1` +
+				`${checkpoint_quiz ? '&checkpoint=1' : ''}` +
+				`${include_in_grading ? '&grading=1' : ''}` +
+				`${enable_proctoring ? '&proctor=1' : '&proctor=0'}` +
+				`&warnings=${max_proctor_warnings}`
+			)
+			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]" allow="fullscreen" allowfullscreen></iframe>`
 			if (checkpoint_quiz) {
 				this.wrapper.style.marginTop = '8px'
 				this.wrapper.style.marginBottom = '8px'
@@ -112,13 +124,17 @@ export class Quiz {
 					this.data.checkpoint_quiz = data.checkpoint_quiz
 					this.data.due_date = data.due_date
 					this.data.due_time = data.due_time
+					this.data.enable_proctoring = data.enable_proctoring
+					this.data.max_proctor_warnings = data.max_proctor_warnings
 					this.renderQuiz(
 						data.item,
 						data.grading_category,
 						data.due_date,
 						data.due_time,
 						data.include_in_grading,
-						data.checkpoint_quiz
+						data.checkpoint_quiz,
+						data.enable_proctoring,
+						data.max_proctor_warnings
 					)
 				},
 			})
@@ -137,6 +153,8 @@ export class Quiz {
 			checkpoint_quiz: this.data.checkpoint_quiz,
 			due_date: this.data.due_date,
 			due_time: this.data.due_time,
+			enable_proctoring: this.data.enable_proctoring,
+			max_proctor_warnings: this.data.max_proctor_warnings,
 		}
 	}
 }

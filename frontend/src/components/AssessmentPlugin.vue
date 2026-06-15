@@ -22,7 +22,7 @@
 	>
 		<template #body-content>
 			<div class="space-y-4">
-				<div v-if="courseDoc?.enable_grading_policy" class="space-y-4 pb-4 border-b border-outline-gray-modals">
+				<div v-if="props.creationMode !== 'lesson' && courseDoc?.enable_grading_policy" class="space-y-4 pb-4 border-b border-outline-gray-modals">
 					<div class="text-sm font-semibold text-ink-gray-9 mb-2">
 						{{ __('Grading & Deadline') }}
 					</div>
@@ -72,11 +72,27 @@
 							:onCreate="(value, close) => redirectToForm()"
 						/>
 						<FormControl
-							v-if="allowCheckpointQuiz"
+							v-if="allowCheckpointQuiz && props.creationMode !== 'lesson'"
 							type="checkbox"
 							:label="__('Checkpoint quiz')"
 							v-model="checkpoint_quiz"
 							class="mt-3"
+						/>
+						<FormControl
+							v-if="!checkpoint_quiz && props.creationMode !== 'lesson'"
+							type="checkbox"
+							:label="__('Enable proctoring')"
+							v-model="enable_proctoring"
+							class="mt-3"
+						/>
+						<FormControl
+							v-if="!checkpoint_quiz && enable_proctoring && props.creationMode !== 'lesson'"
+							type="number"
+							:label="__('Max proctor warnings')"
+							v-model="max_proctor_warnings"
+							class="mt-3"
+							min="1"
+							max="10"
 						/>
 					</div>
 					<div v-else-if="type == 'assignment'" class="space-y-4">
@@ -112,7 +128,7 @@
 </template>
 <script setup>
 import { Dialog, FormControl, createResource, toast } from 'frappe-ui'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Link from '@/components/Controls/Link.vue'
 import { getLmsRoute } from '@/utils/basePath'
@@ -154,7 +170,22 @@ const props = defineProps({
 })
 
 const include_in_grading = ref(props.creationMode === 'lesson' ? false : true)
-const checkpoint_quiz = ref(props.creationMode === 'lesson' && props.allowCheckpointQuiz)
+const checkpoint_quiz = ref(props.creationMode === 'lesson' ? true : false)
+const enable_proctoring = ref(props.creationMode === 'lesson' ? false : !checkpoint_quiz.value)
+const max_proctor_warnings = ref(3)
+
+watch(checkpoint_quiz, (newVal) => {
+	if (props.creationMode === 'lesson') {
+		checkpoint_quiz.value = true
+		enable_proctoring.value = false
+		return
+	}
+	if (newVal) {
+		enable_proctoring.value = false
+	} else {
+		enable_proctoring.value = true
+	}
+})
 
 const courseName = computed(() => {
 	return props.courseName || route?.params?.courseName || ''
@@ -260,6 +291,8 @@ const addAssessment = () => {
 		checkpoint_quiz: props.type == 'quiz' ? checkpoint_quiz.value : false,
 		due_date: due_date.value,
 		due_time: due_time.value,
+		enable_proctoring: props.type == 'quiz' ? enable_proctoring.value : false,
+		max_proctor_warnings: props.type == 'quiz' ? max_proctor_warnings.value : 3,
 	})
 	show.value = false
 }
@@ -273,9 +306,20 @@ const redirectToForm = () => {
 }
 </script>
 
-<style scoped>
-:deep([data-dialog='Add a quiz to your lesson'] .dialog-content),
-:deep([data-dialog='Add an assignment to your lesson'] .dialog-content) {
-	overflow: visible;
+<style>
+[data-dialog='Add a quiz to your lesson'] .dialog-content,
+[data-dialog='Add an assignment to your lesson'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Add a quiz to your lesson'] .dialog-content > :first-child,
+[data-dialog='Add an assignment to your lesson'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Add a quiz to your lesson'] .dialog-content > :last-child,
+[data-dialog='Add an assignment to your lesson'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
 }
 </style>

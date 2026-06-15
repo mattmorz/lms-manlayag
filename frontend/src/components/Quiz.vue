@@ -1,5 +1,77 @@
 <template>
-	<div v-if="quiz.data">
+	<div v-if="quiz.data" :class="[isFullscreenActive ? 'max-w-3xl mx-auto px-6 py-10 bg-surface-gray-1 border rounded-lg shadow-sm mt-10' : '']">
+		<!-- PROCTOR MODE BANNER -->
+		<div
+			v-if="isProctorEnabled"
+			class="bg-surface-gray-2/80 backdrop-blur-md border border-red-500/30 rounded-lg p-3.5 mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shadow-sm"
+		>
+			<div class="flex items-center gap-2.5">
+				<div class="flex h-2.5 w-2.5 relative">
+					<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+					<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+				</div>
+				<div>
+					<span class="font-bold text-red-600 dark:text-red-400 tracking-wider text-xs uppercase block sm:inline mr-2">
+						{{ __('Proctor Mode Enabled') }}
+					</span>
+					<span class="text-[11px] text-ink-gray-6">
+						{{ __('Tabs, windows, and cheating keyboard shortcuts are strictly monitored.') }}
+					</span>
+				</div>
+			</div>
+			<div v-if="activeQuestion > 0 && !quizSubmission.data" class="flex items-center gap-1.5 self-end sm:self-auto">
+				<Badge
+					variant="subtle"
+					theme="red"
+					size="sm"
+					:label="__('{0} of {1} Warnings Used').format(proctorWarnings, maxProctorWarnings)"
+				/>
+			</div>
+		</div>
+
+		<!-- FULLSCREEN RE-ENTRY OVERLAY -->
+		<div
+			v-if="activeQuestion > 0 && !quizSubmission.data && isProctorEnabled && !isFullscreenActive"
+			class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-6"
+		>
+			<div class="max-w-md w-full bg-surface-gray-1 border border-outline-gray-3 rounded-2xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
+				<!-- Top decorative threat/secure pattern -->
+				<div class="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-red-500 via-amber-500 to-red-500"></div>
+				
+				<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 dark:bg-red-950/30 border-2 border-red-500/20 shadow-inner">
+					<Lock class="h-10 w-10 text-red-600 dark:text-red-500 animate-bounce" />
+				</div>
+				<div class="space-y-3">
+					<h3 class="text-2xl font-black text-ink-gray-9 tracking-tight">
+						{{ __('Secure Session Paused') }}
+					</h3>
+					<p class="text-sm text-ink-gray-6 leading-relaxed">
+						{{ __('To protect the integrity of this quiz, you must remain in Fullscreen mode. Exiting fullscreen or navigating away counts as a violation.') }}
+					</p>
+				</div>
+				
+				<div class="bg-surface-gray-2/60 border border-outline-gray-2 rounded-xl p-4 text-sm flex items-center justify-between shadow-sm">
+					<span class="text-ink-gray-7 font-medium">{{ __('Violation Count') }}:</span>
+					<div class="flex items-center gap-1.5">
+						<span class="font-bold text-red-600 dark:text-red-400">
+							{{ proctorWarnings }}
+						</span>
+						<span class="text-ink-gray-4">/</span>
+						<span class="text-ink-gray-5">{{ maxProctorWarnings }}</span>
+						<span class="text-xs text-ink-gray-6">({{ __('max') }})</span>
+					</div>
+				</div>
+
+				<Button
+					variant="solid"
+					class="w-full flex justify-center py-3 font-bold text-base shadow-md hover:shadow-lg transition-all animate-pulse"
+					@click="enterFullscreen"
+				>
+					{{ __('Return to Fullscreen') }}
+				</Button>
+			</div>
+		</div>
+
 		<div
 			v-if="!(isPassed && isCheckpointQuiz)"
 			class="bg-surface-blue-2 space-y-2 py-2 px-3 mb-4 rounded-md text-sm text-ink-blue-2 leading-5"
@@ -164,6 +236,7 @@
 				<div
 					v-if="qtidx == activeQuestion - 1 && questionDetails.data"
 					class="border rounded-md p-5"
+					:class="{ 'proctor-no-select': isIncludedInGrading }"
 				>
 					<div class="flex justify-between">
 						<div class="text-sm text-ink-gray-5">
@@ -378,6 +451,45 @@
 			>
 			</ListView>
 		</div>
+
+		<!-- PROCTOR WARNING DIALOG -->
+		<Dialog
+			v-model="showProctorWarningModal"
+			:options="{
+				title: __('Proctor Warning'),
+				size: 'sm',
+				actions: [
+					{
+						label: __('I Understand'),
+						variant: 'solid',
+						onClick: (close) => {
+							close()
+						},
+					},
+				],
+			}"
+		>
+			<template #body-content>
+				<div class="space-y-4">
+					<div class="text-sm text-ink-gray-7">
+						{{ __('A proctoring violation has been detected:') }}
+						<div class="mt-2 p-3 bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 font-semibold rounded-md flex items-center gap-2">
+							<span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+							{{ lastWarningReason }}
+						</div>
+					</div>
+					<div class="text-sm text-ink-gray-7 leading-relaxed">
+						{{ __('Please remain in fullscreen and focus on the quiz. If you reach {0} warnings, your quiz will be automatically submitted.').format(maxProctorWarnings) }}
+					</div>
+					<div class="bg-surface-gray-2 border border-outline-gray-2 rounded-lg p-3 text-sm flex items-center justify-between">
+						<span class="text-ink-gray-7">{{ __('Warnings Recorded') }}:</span>
+						<span class="font-bold text-red-600">
+							{{ proctorWarnings }} / {{ maxProctorWarnings }}
+						</span>
+					</div>
+				</div>
+			</template>
+		</Dialog>
 	</div>
 </template>
 <script setup>
@@ -390,9 +502,10 @@ import {
 	TextEditor,
 	FormControl,
 	toast,
+	Dialog,
 } from 'frappe-ui'
-import { ref, watch, reactive, inject, computed, onMounted } from 'vue'
-import { CheckCircle, XCircle, MinusCircle } from 'lucide-vue-next'
+import { ref, watch, reactive, inject, computed, onMounted, onBeforeUnmount } from 'vue'
+import { CheckCircle, XCircle, MinusCircle, Lock } from 'lucide-vue-next'
 import { timeAgo } from '@/utils'
 import { useRouter } from 'vue-router'
 import ProgressBar from '@/components/ProgressBar.vue'
@@ -440,6 +553,169 @@ const proceedToNextLesson = () => {
 		window.parent.dispatchEvent(new Event('lms-lesson-next-trigger'))
 	}
 }
+
+const isFullscreenActive = ref(false)
+const proctorWarnings = ref(0)
+
+const isProctorEnabled = computed(() => {
+	const proctorParam = new URLSearchParams(window.location.search).get('proctor')
+	if (proctorParam === '0') {
+		return false
+	}
+	return isIncludedInGrading.value
+})
+
+const maxProctorWarnings = computed(() => {
+	const warningsParam = new URLSearchParams(window.location.search).get('warnings')
+	return warningsParam ? parseInt(warningsParam, 10) : 3
+})
+
+const showProctorWarningModal = ref(false)
+const lastWarningReason = ref('')
+
+const enterFullscreen = () => {
+	const elem = document.documentElement
+	if (elem.requestFullscreen) {
+		elem.requestFullscreen()
+	} else if (elem.webkitRequestFullscreen) {
+		elem.webkitRequestFullscreen()
+	} else if (elem.mozRequestFullScreen) {
+		elem.mozRequestFullScreen()
+	} else if (elem.msRequestFullscreen) {
+		elem.msRequestFullscreen()
+	}
+}
+
+const handleFullscreenChange = () => {
+	const isCurrentlyFullscreen = !!(
+		document.fullscreenElement ||
+		document.webkitFullscreenElement ||
+		document.mozFullScreenElement ||
+		document.msFullscreenElement
+	)
+	isFullscreenActive.value = isCurrentlyFullscreen
+	
+	if (activeQuestion.value > 0 && !quizSubmission.data && isProctorEnabled.value && !isCurrentlyFullscreen) {
+		triggerProctorViolation(__('Exited Fullscreen Mode'))
+	}
+}
+
+const handleVisibilityChange = () => {
+	if (document.hidden && activeQuestion.value > 0 && !quizSubmission.data && isProctorEnabled.value) {
+		triggerProctorViolation(__('Switched Tab/Minimized Window'))
+	}
+}
+
+const handleWindowBlur = () => {
+	if (activeQuestion.value > 0 && !quizSubmission.data && isProctorEnabled.value) {
+		triggerProctorViolation(__('Lost Window Focus'))
+	}
+}
+
+const preventCheatInputs = (e) => {
+	if (activeQuestion.value > 0 && !quizSubmission.data && isProctorEnabled.value) {
+		if (e.type === 'copy' || e.type === 'cut' || e.type === 'paste' || e.type === 'contextmenu') {
+			e.preventDefault()
+			toast.warning(__('Copy/cut/paste and right-click are disabled in Proctor Mode.'))
+			return false
+		}
+		if (e.type === 'keydown') {
+			const isCtrl = e.ctrlKey || e.metaKey
+			const isShift = e.shiftKey
+			
+			if (
+				e.key === 'F12' ||
+				(isCtrl && isShift && (e.key === 'I' || e.key === 'C' || e.key === 'J')) ||
+				(isCtrl && e.key === 'u') ||
+				(isCtrl && e.key === 'c') ||
+				(isCtrl && e.key === 'v')
+			) {
+				e.preventDefault()
+				toast.warning(__('This shortcut is disabled in Proctor Mode.'))
+				return false
+			}
+		}
+	}
+}
+
+let lastViolationTime = 0
+
+const triggerProctorViolation = (reason) => {
+	const now = Date.now()
+	if (now - lastViolationTime < 1000) {
+		return
+	}
+	lastViolationTime = now
+
+	proctorWarnings.value++
+	lastWarningReason.value = reason
+	
+	if (proctorWarnings.value >= maxProctorWarnings) {
+		cleanupProctorListeners()
+		showProctorWarningModal.value = false
+		toast.error(__('Quiz automatically submitted due to multiple proctor violations.'))
+		submitQuiz()
+		if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+			if (document.exitFullscreen) {
+				document.exitFullscreen().catch(() => {})
+			} else if (document.webkitExitFullscreen) {
+				document.webkitExitFullscreen()
+			} else if (document.mozCancelFullScreen) {
+				document.mozCancelFullScreen()
+			} else if (document.msExitFullscreen) {
+				document.msExitFullscreen()
+			}
+		}
+	} else {
+		showProctorWarningModal.value = true
+	}
+}
+
+let proctorListenersAttached = false
+
+const setupProctorListeners = () => {
+	if (!isProctorEnabled.value || proctorListenersAttached) return
+	
+	document.addEventListener('fullscreenchange', handleFullscreenChange)
+	document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+	document.addEventListener('mozfullscreenchange', handleFullscreenChange)
+	document.addEventListener('MSFullscreenChange', handleFullscreenChange)
+	
+	document.addEventListener('visibilitychange', handleVisibilityChange)
+	window.addEventListener('blur', handleWindowBlur)
+	
+	document.addEventListener('copy', preventCheatInputs)
+	document.addEventListener('cut', preventCheatInputs)
+	document.addEventListener('paste', preventCheatInputs)
+	document.addEventListener('contextmenu', preventCheatInputs)
+	document.addEventListener('keydown', preventCheatInputs)
+	
+	proctorListenersAttached = true
+}
+
+const cleanupProctorListeners = () => {
+	if (!proctorListenersAttached) return
+	
+	document.removeEventListener('fullscreenchange', handleFullscreenChange)
+	document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+	document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
+	document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
+	
+	document.removeEventListener('visibilitychange', handleVisibilityChange)
+	window.removeEventListener('blur', handleWindowBlur)
+	
+	document.removeEventListener('copy', preventCheatInputs)
+	document.removeEventListener('cut', preventCheatInputs)
+	document.removeEventListener('paste', preventCheatInputs)
+	document.removeEventListener('contextmenu', preventCheatInputs)
+	document.removeEventListener('keydown', preventCheatInputs)
+	
+	proctorListenersAttached = false
+}
+
+onBeforeUnmount(() => {
+	cleanupProctorListeners()
+})
 
 onMounted(() => {
 	if (window.frameElement) {
@@ -660,6 +936,11 @@ const startQuiz = () => {
 	activeQuestion.value = 1
 	localStorage.removeItem(quiz.data.title)
 	if (quiz.data.duration) startTimer()
+	if (isProctorEnabled.value) {
+		proctorWarnings.value = 0
+		enterFullscreen()
+		setupProctorListeners()
+	}
 }
 
 const markAnswer = (index) => {
@@ -775,6 +1056,20 @@ const submitQuiz = () => {
 }
 
 const createSubmission = () => {
+	if (isProctorEnabled.value) {
+		cleanupProctorListeners()
+		if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+			if (document.exitFullscreen) {
+				document.exitFullscreen().catch(() => {})
+			} else if (document.webkitExitFullscreen) {
+				document.webkitExitFullscreen()
+			} else if (document.mozCancelFullScreen) {
+				document.mozCancelFullScreen()
+			} else if (document.msExitFullscreen) {
+				document.msExitFullscreen()
+			}
+		}
+	}
 	quizSubmission.submit(
 		{},
 		{
@@ -804,6 +1099,20 @@ const createSubmission = () => {
 }
 
 const resetQuiz = () => {
+	if (isProctorEnabled.value) {
+		cleanupProctorListeners()
+		if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
+			if (document.exitFullscreen) {
+				document.exitFullscreen().catch(() => {})
+			} else if (document.webkitExitFullscreen) {
+				document.webkitExitFullscreen()
+			} else if (document.mozCancelFullScreen) {
+				document.mozCancelFullScreen()
+			} else if (document.msExitFullscreen) {
+				document.msExitFullscreen()
+			}
+		}
+	}
 	activeQuestion.value = 0
 	selectedOptions.splice(0, selectedOptions.length, ...[0, 0, 0, 0])
 	showAnswers.length = 0
@@ -866,5 +1175,11 @@ const getSubmissionColumns = () => {
 <style>
 p {
 	line-height: 1.5rem;
+}
+.proctor-no-select {
+	user-select: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
 }
 </style>
