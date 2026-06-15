@@ -1378,11 +1378,18 @@ const cleanYouTubeUrl = (url) => {
 watch(
 	() => lesson.data,
 	async (data) => {
+		if (data) {
+			window.currentLessonNext = data.next
+			window.isAssessmentMode = route.query.mode === 'assessment'
+		} else {
+			window.currentLessonNext = null
+			window.isAssessmentMode = false
+		}
 		setupLesson(data)
 		startTimer()
 		getPlyrSource()
 		updateNotes()
-		if (data.icon == 'icon-youtube') clearInterval(timerInterval)
+		if (data && data.icon == 'icon-youtube') clearInterval(timerInterval)
 	}
 )
 
@@ -1497,9 +1504,21 @@ const startTimer = () => {
 		}
 	}, 1000)
 }
+const handleNextTrigger = () => {
+	if (canProceedToNext() && lesson.data?.next) {
+		switchLesson('next')
+	}
+}
+
+onMounted(() => {
+	window.addEventListener('lms-lesson-next-trigger', handleNextTrigger)
+})
 
 onBeforeUnmount(() => {
 	clearInterval(timerInterval)
+	window.removeEventListener('lms-lesson-next-trigger', handleNextTrigger)
+	window.currentLessonNext = null
+	window.isAssessmentMode = false
 })
 
 const checkIfDiscussionsAllowed = () => {

@@ -15,7 +15,7 @@
 <script setup>
 import Quiz from '@/components/Quiz.vue'
 import { createResource, Breadcrumbs, usePageMeta } from 'frappe-ui'
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '../stores/session'
 
@@ -27,11 +27,18 @@ const fromLesson = ref(false)
 onMounted(() => {
 	if (new URLSearchParams(window.location.search).get('fromLesson')) {
 		fromLesson.value = true
+		document.documentElement.classList.add('from-lesson-iframe')
+		document.body.classList.add('from-lesson-iframe')
 	}
 
 	if (!user.data && !fromLesson.value) {
 		router.push({ name: 'Courses' })
 	}
+})
+
+onUnmounted(() => {
+	document.documentElement.classList.remove('from-lesson-iframe')
+	document.body.classList.remove('from-lesson-iframe')
 })
 
 const props = defineProps({
@@ -69,5 +76,16 @@ usePageMeta(() => {
 body {
 	margin: 0 !important;
 	padding: 0 !important;
+}
+
+.from-lesson-iframe,
+.from-lesson-iframe body,
+.from-lesson-iframe #app,
+.from-lesson-iframe .h-screen,
+.from-lesson-iframe .h-full,
+.from-lesson-iframe #scrollContainer {
+	height: auto !important;
+	min-height: 0 !important;
+	overflow: visible !important;
 }
 </style>

@@ -77,12 +77,22 @@
 				<div class="font-semibold text-lg text-ink-gray-9">
 					{{ quiz.data.title }}
 				</div>
-				<div class="flex items-center gap-2">
+				<div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
 					<Badge theme="green" variant="subtle" :label="__('Passed')">
 						<template #prefix>
 							<CheckCircle class="w-4 h-4 text-ink-green-2 mr-1" />
 						</template>
 					</Badge>
+					<Button
+						v-if="hasNextLesson"
+						variant="solid"
+						class="text-xs"
+						@click="proceedToNextLesson"
+					>
+						<span>
+							{{ nextLessonLabel }}
+						</span>
+					</Button>
 					<Button
 						variant="ghost"
 						class="text-ink-gray-7 hover:text-ink-gray-9 text-xs"
@@ -330,7 +340,7 @@
 					)
 				}}
 			</div>
-			<div class="space-x-2">
+			<div class="space-x-2 flex items-center justify-center flex-wrap">
 				<Button
 					@click="resetQuiz()"
 					class="mt-2"
@@ -343,7 +353,17 @@
 						{{ __('Try Again') }}
 					</span>
 				</Button>
-				<Button v-if="inVideo && (!enforcePass || isPassed)" @click="props.backToVideo()">
+				<Button
+					v-if="isPassed && hasNextLesson"
+					variant="solid"
+					class="mt-2"
+					@click="proceedToNextLesson"
+				>
+					<span>
+						{{ nextLessonLabel }}
+					</span>
+				</Button>
+				<Button v-if="inVideo && (!enforcePass || isPassed)" class="mt-2" @click="props.backToVideo()">
 					{{ __('Resume Video') }}
 				</Button>
 			</div>
@@ -409,6 +429,22 @@ const isLoggedIn = computed(() => {
 
 const redirectToLogin = () => {
 	window.top.location.href = '/login'
+}
+
+const hasNextLesson = computed(() => {
+	return window.parent && !!window.parent.currentLessonNext
+})
+
+const nextLessonLabel = computed(() => {
+	return window.parent && window.parent.isAssessmentMode
+		? __('Proceed to Next Activity')
+		: __('Proceed to Next Lesson')
+})
+
+const proceedToNextLesson = () => {
+	if (window.parent && window.parent.dispatchEvent) {
+		window.parent.dispatchEvent(new Event('lms-lesson-next-trigger'))
+	}
 }
 
 onMounted(() => {
