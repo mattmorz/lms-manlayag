@@ -8,6 +8,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
     strategy:
       fail-fast: false
 
@@ -15,12 +18,12 @@ jobs:
       - uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{owner}/{repo}/pulls
-          owner: frappe
-          repo: lms
+          owner: mattmorz
+          repo: lms-manlayag
           title: |-
-            "chore: merge 'main-hotfix' into 'main'"
+            "chore: merge 'main-hotfix' into 'manlayag-v2.45'"
           body: "Automated weekly release"
-          base: main
+          base: manlayag-v2.45
           head: main-hotfix
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
