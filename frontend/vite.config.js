@@ -12,13 +12,9 @@ export default defineConfig(async ({ mode }) => {
 	const resolveAlias = {
 		'@': path.resolve(__dirname, 'src'),
 	}
-	const realConfigPath = path.resolve(
-		__dirname,
-		'../../../../sites/common_site_config.json'
-	)
+	const realConfigPath = path.resolve(__dirname, '../../../../sites/common_site_config.json')
 	if (!fs.existsSync(realConfigPath)) {
-		resolveAlias['../../../../sites/common_site_config.json'] =
-			path.resolve(__dirname, 'src/mock_common_site_config.json')
+		resolveAlias['../../../../sites/common_site_config.json'] = path.resolve(__dirname, 'src/mock_common_site_config.json')
 	}
 
 	const config = {

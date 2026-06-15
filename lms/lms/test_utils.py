@@ -8,8 +8,8 @@ from lms.lms.doctype.lms_certificate.lms_certificate import is_certified
 from lms.lms.test_helpers import BaseTestUtils
 from lms.lms.utils import (
 	get_average_rating,
-	get_batch_details,
 	get_batches,
+	get_batch_details,
 	get_chapters,
 	get_course_details,
 	get_course_outline,
@@ -85,15 +85,13 @@ class TestLMSUtils(BaseTestUtils):
 			self.assertTrue(first_chapter.lessons[1].locked)
 
 		# Now mark the first lesson as complete
-		progress_doc = frappe.get_doc(
-			{
-				"doctype": "LMS Course Progress",
-				"course": self.course.name,
-				"member": self.student1.email,
-				"lesson": first_chapter.lessons[0].name,
-				"status": "Complete",
-			}
-		)
+		progress_doc = frappe.get_doc({
+			"doctype": "LMS Course Progress",
+			"course": self.course.name,
+			"member": self.student1.email,
+			"lesson": first_chapter.lessons[0].name,
+			"status": "Complete"
+		})
 		progress_doc.insert()
 
 		# Get course outline again
@@ -117,9 +115,7 @@ class TestLMSUtils(BaseTestUtils):
 
 		# Get active chapter and lesson reference names to edit
 		chapter_ref = self.course.chapters[0].chapter
-		lessons = frappe.get_all(
-			"Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx"
-		)
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx")
 		self.assertTrue(len(lessons) > 0)
 		lesson_name = lessons[0].lesson
 
@@ -132,7 +128,7 @@ class TestLMSUtils(BaseTestUtils):
 		self.assertNotIn(chapter_ref, chapter_names)
 
 		# But for instructor, it should still be visible
-		frappe.session.user = "frappe@example.com"  # instructor
+		frappe.session.user = "frappe@example.com" # instructor
 		outline = get_course_outline(self.course.name)
 		chapter_names = [ch.name for ch in outline]
 		self.assertIn(chapter_ref, chapter_names)
@@ -164,9 +160,7 @@ class TestLMSUtils(BaseTestUtils):
 	def test_chapter_and_lesson_rolling_release(self):
 		# Get active chapter and lesson reference names
 		chapter_ref = self.course.chapters[0].chapter
-		lessons = frappe.get_all(
-			"Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx"
-		)
+		lessons = frappe.get_all("Lesson Reference", {"parent": chapter_ref}, ["lesson", "idx"], order_by="idx")
 		self.assertTrue(len(lessons) > 0)
 		lesson_name = lessons[0].lesson
 
@@ -175,7 +169,6 @@ class TestLMSUtils(BaseTestUtils):
 
 		# 1. Test future release date locks chapter
 		from frappe.utils import add_days, now_datetime
-
 		future_date = add_days(now_datetime(), 2)
 		frappe.db.set_value("Course Chapter", chapter_ref, "release_date", future_date)
 		frappe.db.set_value("Course Chapter", chapter_ref, "release_time", "12:00:00")

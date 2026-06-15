@@ -48,16 +48,14 @@ class CourseLesson(Document):
 				due_date = data.get("due_date")
 				due_time = data.get("due_time")
 				include_in_grading = data.get("include_in_grading", 1)
-				lesson_assessments.append(
-					{
-						"id": item_id,
-						"type": item_type,
-						"category": cat,
-						"due_date": due_date,
-						"due_time": due_time,
-						"include_in_grading": include_in_grading,
-					}
-				)
+				lesson_assessments.append({
+					"id": item_id,
+					"type": item_type,
+					"category": cat,
+					"due_date": due_date,
+					"due_time": due_time,
+					"include_in_grading": include_in_grading,
+				})
 
 		# 1. Check if all graded quizzes/assignments have a category selected
 		for item in lesson_assessments:
@@ -66,9 +64,9 @@ class CourseLesson(Document):
 
 			if not item["category"]:
 				frappe.throw(
-					_(
-						"{0} '{1}' is missing a Grading Category, which is required by the course grading policy."
-					).format(item["type"], item["id"])
+					_("{0} '{1}' is missing a Grading Category, which is required by the course grading policy.").format(
+						item["type"], item["id"]
+					)
 				)
 
 			# 2. Check if the category exists in the course
@@ -89,7 +87,7 @@ class CourseLesson(Document):
 		other_lessons = frappe.get_all(
 			"Course Lesson",
 			filters={"course": course, "name": ["!=", self.name]},
-			fields=["content", "exclude_from_course"],
+			fields=["content", "exclude_from_course"]
 		)
 
 		# Aggregate counts from other lessons
@@ -149,7 +147,9 @@ class CourseLesson(Document):
 				q_id = block.get("data", {}).get("quiz")
 				if q_id:
 					if q_id in current_quizzes:
-						frappe.throw(_("Quiz '{0}' is added multiple times in this lesson.").format(q_id))
+						frappe.throw(
+							_("Quiz '{0}' is added multiple times in this lesson.").format(q_id)
+						)
 					current_quizzes.add(q_id)
 
 		if not current_quizzes:
@@ -157,7 +157,9 @@ class CourseLesson(Document):
 
 		# Find all other lessons in the same course
 		other_lessons = frappe.get_all(
-			"Course Lesson", filters={"course": course, "name": ["!=", self.name]}, fields=["name", "content"]
+			"Course Lesson",
+			filters={"course": course, "name": ["!=", self.name]},
+			fields=["name", "content"]
 		)
 
 		for other in other_lessons:
@@ -247,13 +249,7 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	if scorm_details:
 		scorm_details = frappe._dict(**scorm_details)
 
-	if (
-		not lesson_already_completed
-		and quiz_completed
-		and assignment_completed
-		and video_completed
-		and not scorm_details
-	):
+	if not lesson_already_completed and quiz_completed and assignment_completed and video_completed and not scorm_details:
 		if progress_already_exists:
 			frappe.db.set_value("LMS Course Progress", progress_already_exists, "status", "Complete")
 		else:

@@ -64,18 +64,24 @@ class TestLMSAPI(BaseTestUtils):
 
 	def test_video_progress_90_percent(self):
 		import json
-
 		# Create a lesson with a video block
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Video Lesson"
 		lesson.course = self.course.name
-		lesson.content = json.dumps(
-			{"blocks": [{"type": "video", "data": {"url": "https://www.youtube.com/watch?v=mock"}}]}
-		)
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "video",
+					"data": {
+						"url": "https://www.youtube.com/watch?v=mock"
+					}
+				}
+			]
+		})
 		lesson.insert()
 
-		from lms.lms.api import track_video_watch_duration
 		from lms.lms.doctype.course_lesson.course_lesson import get_video_progress
+		from lms.lms.api import track_video_watch_duration
 
 		# Login as student1
 		frappe.session.user = self.student1.email
@@ -86,7 +92,7 @@ class TestLMSAPI(BaseTestUtils):
 		# Now track watch duration below 90% (e.g. 50s watch time, 100s duration)
 		track_video_watch_duration(
 			lesson.name,
-			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 50, "duration": 100}],
+			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 50, "duration": 100}]
 		)
 		# get_video_progress should still be False
 		self.assertFalse(get_video_progress(lesson.name))
@@ -94,7 +100,7 @@ class TestLMSAPI(BaseTestUtils):
 		# Now track watch duration >= 90% (e.g. 95s watch time, 100s duration)
 		track_video_watch_duration(
 			lesson.name,
-			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 95, "duration": 100}],
+			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 95, "duration": 100}]
 		)
 		# get_video_progress should now be True!
 		self.assertTrue(get_video_progress(lesson.name))
@@ -105,29 +111,28 @@ class TestLMSAPI(BaseTestUtils):
 
 	def test_in_video_quiz_verification(self):
 		import json
-
 		# Create a lesson with an embed block containing a quiz
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Embed Video Quiz Lesson"
 		lesson.course = self.course.name
-		lesson.content = json.dumps(
-			{
-				"blocks": [
-					{
-						"type": "embed",
-						"data": {
-							"service": "youtube",
-							"source": "https://www.youtube.com/watch?v=mock",
-							"embed": "https://www.youtube.com/embed/mock",
-							"quizzes": [{"quiz": self.quiz.name, "time": 10}],
-						},
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "embed",
+					"data": {
+						"service": "youtube",
+						"source": "https://www.youtube.com/watch?v=mock",
+						"embed": "https://www.youtube.com/embed/mock",
+						"quizzes": [
+							{"quiz": self.quiz.name, "time": 10}
+						]
 					}
-				]
-			}
-		)
-
+				}
+			]
+		})
+		
 		lesson.insert()
-
+		
 		from lms.lms.doctype.course_lesson.course_lesson import get_quiz_progress
 
 		# Login as student1
@@ -143,21 +148,21 @@ class TestLMSAPI(BaseTestUtils):
 		unpassed_quiz.insert()
 
 		# Update the lesson to contain this unpassed quiz
-		lesson.content = json.dumps(
-			{
-				"blocks": [
-					{
-						"type": "embed",
-						"data": {
-							"service": "youtube",
-							"source": "https://www.youtube.com/watch?v=mock",
-							"embed": "https://www.youtube.com/embed/mock",
-							"quizzes": [{"quiz": unpassed_quiz.name, "time": 10}],
-						},
+		lesson.content = json.dumps({
+			"blocks": [
+				{
+					"type": "embed",
+					"data": {
+						"service": "youtube",
+						"source": "https://www.youtube.com/watch?v=mock",
+						"embed": "https://www.youtube.com/embed/mock",
+						"quizzes": [
+							{"quiz": unpassed_quiz.name, "time": 10}
+						]
 					}
-				]
-			}
-		)
+				}
+			]
+		})
 		lesson.save()
 
 		# get_quiz_progress should now be False!
@@ -170,7 +175,6 @@ class TestLMSAPI(BaseTestUtils):
 
 	def test_upload_video_transcript(self):
 		import json
-
 		# Create a mock lesson
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Transcript Lesson"
@@ -191,9 +195,8 @@ Hello World!
 This is a test.
 """
 		from lms.lms.api import upload_video_transcript
-
 		res = upload_video_transcript(lesson.name, "mockytid", srt_content, "subtitles.srt")
-
+		
 		# Verify parsed result
 		self.assertEqual(len(res), 2)
 		self.assertEqual(res[0]["text"], "Hello World!")
@@ -223,7 +226,9 @@ This is vtt test.
 		self.assertEqual(res2[0]["text"], "Hello VTT!")
 
 		# 3. Test JSON parsing
-		json_content = json.dumps([{"text": "Hello JSON!", "start": 1.0, "duration": 3.5}])
+		json_content = json.dumps([
+			{"text": "Hello JSON!", "start": 1.0, "duration": 3.5}
+		])
 		res3 = upload_video_transcript(lesson.name, "mockytid", json_content, "subtitles.json")
 		self.assertEqual(len(res3), 1)
 		self.assertEqual(res3[0]["text"], "Hello JSON!")

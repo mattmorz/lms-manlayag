@@ -2,10 +2,8 @@
 # See license.txt
 
 import unittest
-
 import frappe
-
-from lms.lms.api import export_quiz, import_quiz
+from lms.lms.api import import_quiz, export_quiz
 
 
 class TestQuizImportExport(unittest.TestCase):
@@ -16,32 +14,34 @@ class TestQuizImportExport(unittest.TestCase):
 			quizzes = frappe.get_all("LMS Quiz", {"title": title}, pluck="name")
 			for q_name in quizzes:
 				frappe.delete_doc("LMS Quiz", q_name, force=True)
-
+		
 		# Also delete test questions
-		for pattern in [
-			"%Import Export Test Quiz%",
-			"%is abbreviation%",
-			"%Paris?%",
-			"%Two plus two%",
-			"%2 + 2%",
-		]:
+		for pattern in ["%Import Export Test Quiz%", "%is abbreviation%", "%Paris?%", "%Two plus two%", "%2 + 2%"]:
 			questions = frappe.get_all("LMS Question", {"question": ["like", pattern]}, pluck="name")
 			for qst_name in questions:
 				frappe.delete_doc("LMS Question", qst_name, force=True)
 		frappe.db.commit()
 
 		# Create a test quiz
-		cls.quiz = frappe.get_doc(
-			{"doctype": "LMS Quiz", "title": "Import Export Test Quiz", "passing_percentage": 50}
-		).insert(ignore_permissions=True)
+		cls.quiz = frappe.get_doc({
+			"doctype": "LMS Quiz",
+			"title": "Import Export Test Quiz",
+			"passing_percentage": 50
+		}).insert(ignore_permissions=True)
 
 	def test_import_export_aiken(self):
 		# Clean up any existing questions in self.quiz
 		self.quiz.questions = []
 		self.quiz.save(ignore_permissions=True)
 
-		aiken_content = "What is 2 + 2?\n" "A. 3\n" "B. 4\n" "C. 5\n" "ANSWER: B\n"
-
+		aiken_content = (
+			"What is 2 + 2?\n"
+			"A. 3\n"
+			"B. 4\n"
+			"C. 5\n"
+			"ANSWER: B\n"
+		)
+		
 		# Set mock instructor session
 		frappe.session.user = "Administrator"
 
@@ -72,7 +72,12 @@ class TestQuizImportExport(unittest.TestCase):
 		self.quiz.save(ignore_permissions=True)
 
 		# Test lowercase prefixes and lowercase answer letter
-		lowercase_aiken = "What is c?\n" "a. programming language\n" "b. letter\n" "ANSWER: a\n"
+		lowercase_aiken = (
+			"What is c?\n"
+			"a. programming language\n"
+			"b. letter\n"
+			"ANSWER: a\n"
+		)
 		import_quiz(self.quiz.name, lowercase_aiken, "AIKEN")
 		self.quiz.reload()
 		self.assertEqual(len(self.quiz.questions), 1)
@@ -83,14 +88,20 @@ class TestQuizImportExport(unittest.TestCase):
 		self.assertEqual(q_doc_lc.is_correct_2, 0)
 
 		# Test validation throws if fewer than 2 options
-		invalid_aiken = "What is d?\n" "a. single option\n" "ANSWER: a\n"
+		invalid_aiken = (
+			"What is d?\n"
+			"a. single option\n"
+			"ANSWER: a\n"
+		)
 		self.assertRaises(frappe.ValidationError, import_quiz, self.quiz.name, invalid_aiken, "AIKEN")
 
 	def test_import_export_gift(self):
 		# Create a clean quiz
-		gift_quiz = frappe.get_doc(
-			{"doctype": "LMS Quiz", "title": "GIFT Test Quiz", "passing_percentage": 50}
-		).insert(ignore_permissions=True)
+		gift_quiz = frappe.get_doc({
+			"doctype": "LMS Quiz",
+			"title": "GIFT Test Quiz",
+			"passing_percentage": 50
+		}).insert(ignore_permissions=True)
 
 		try:
 			gift_content = (
@@ -127,7 +138,6 @@ class TestQuizImportExport(unittest.TestCase):
 
 			# Test partial export
 			import json
-
 			# Select only the first question
 			selected_ref = [gift_quiz.questions[0].name]
 			partial_gift = export_quiz(gift_quiz.name, "GIFT", questions=json.dumps(selected_ref))
@@ -143,15 +153,9 @@ class TestQuizImportExport(unittest.TestCase):
 	def tearDownClass(cls) -> None:
 		if frappe.db.exists("LMS Quiz", cls.quiz.name):
 			frappe.delete_doc("LMS Quiz", cls.quiz.name, force=True)
-
+		
 		# Deletes questions matching our pattern
-		for pattern in [
-			"%Import Export Test Quiz%",
-			"%is abbreviation%",
-			"%Paris?%",
-			"%Two plus two%",
-			"%2 + 2%",
-		]:
+		for pattern in ["%Import Export Test Quiz%", "%is abbreviation%", "%Paris?%", "%Two plus two%", "%2 + 2%"]:
 			questions = frappe.get_all("LMS Question", {"question": ["like", pattern]}, pluck="name")
 			for qst_name in questions:
 				frappe.delete_doc("LMS Question", qst_name, force=True)
