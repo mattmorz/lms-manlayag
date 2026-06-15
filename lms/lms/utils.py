@@ -129,6 +129,7 @@ def check_release_status(release_date, release_time) -> bool:
 		return True
 
 	from frappe.utils import now_datetime
+
 	return now_datetime() >= release_dt
 
 
@@ -161,15 +162,17 @@ def get_lessons(course: str, chapter: str = None, get_details: bool = True, prog
 	lesson_count = 0
 	if chapter:
 		chapter_name = chapter if isinstance(chapter, str) else chapter.get("name")
-		chapter_dict = chapter if isinstance(chapter, dict) else frappe.db.get_value("Course Chapter", chapter_name, ["name", "course", "idx"], as_dict=True)
+		chapter_dict = (
+			chapter
+			if isinstance(chapter, dict)
+			else frappe.db.get_value("Course Chapter", chapter_name, ["name", "course", "idx"], as_dict=True)
+		)
 		if get_details:
 			return get_lesson_details(chapter_dict, progress=progress)
 		else:
 			if not can_modify_course(course):
 				# Count only non-excluded lessons in this chapter
-				lessons_in_chapter = frappe.get_all(
-					"Lesson Reference", {"parent": chapter_name}, ["lesson"]
-				)
+				lessons_in_chapter = frappe.get_all("Lesson Reference", {"parent": chapter_name}, ["lesson"])
 				count = 0
 				for l in lessons_in_chapter:
 					if not frappe.db.get_value("Course Lesson", l.lesson, "exclude_from_course"):
@@ -242,10 +245,7 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 		lesson_details.locked = False
 
 		if progress:
-			lesson_details.is_complete = get_progress(
-				lesson_details.course,
-				lesson_details.name
-			)
+			lesson_details.is_complete = get_progress(lesson_details.course, lesson_details.name)
 
 		lessons.append(lesson_details)
 	return lessons
@@ -1036,7 +1036,7 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 				"scorm_package",
 				"exclude_from_course",
 				"release_date",
-				"release_time"
+				"release_time",
 			],
 			as_dict=True,
 		)
@@ -1074,16 +1074,20 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 				frappe.db.get_all(
 					"LMS Course Progress",
 					filters={"course": course, "member": frappe.session.user, "status": "Complete"},
-					pluck="lesson"
+					pluck="lesson",
 				)
 			)
 
 		previous_lesson_accessible = True
 
 		for chapter_idx, chapter in enumerate(outline):
-			is_chapter_released = check_release_status(chapter.get("release_date"), chapter.get("release_time"))
+			is_chapter_released = check_release_status(
+				chapter.get("release_date"), chapter.get("release_time")
+			)
 			for lesson_idx, lesson in enumerate(chapter.lessons):
-				is_lesson_released = check_release_status(lesson.get("release_date"), lesson.get("release_time"))
+				is_lesson_released = check_release_status(
+					lesson.get("release_date"), lesson.get("release_time")
+				)
 
 				if not is_chapter_released or not is_lesson_released:
 					lesson.locked = True
@@ -1298,7 +1302,14 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
 		lesson_name,
-		["include_in_preview", "title", "is_scorm_package", "exclude_from_course", "release_date", "release_time"],
+		[
+			"include_in_preview",
+			"title",
+			"is_scorm_package",
+			"exclude_from_course",
+			"release_date",
+			"release_time",
+		],
 		as_dict=1,
 	)
 
@@ -1317,7 +1328,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			"Course Chapter", chapter_name, ["release_date", "release_time"]
 		)
 		if not check_release_status(chapter_release_date, chapter_release_time):
-			course_info = frappe.db.get_value("LMS Course", course, ["title", "disable_self_learning"], as_dict=1)
+			course_info = frappe.db.get_value(
+				"LMS Course", course, ["title", "disable_self_learning"], as_dict=1
+			)
 			neighbours = get_neighbour_lesson(course, chapter, lesson)
 			return {
 				"name": lesson_name,
@@ -1332,7 +1345,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			}
 
 		if not check_release_status(lesson_details.get("release_date"), lesson_details.get("release_time")):
-			course_info = frappe.db.get_value("LMS Course", course, ["title", "disable_self_learning"], as_dict=1)
+			course_info = frappe.db.get_value(
+				"LMS Course", course, ["title", "disable_self_learning"], as_dict=1
+			)
 			neighbours = get_neighbour_lesson(course, chapter, lesson)
 			return {
 				"name": lesson_name,
@@ -1354,11 +1369,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 
 	membership = get_membership(course)
 
-	if (
-		membership
-		and frappe.session.user != "Guest"
-		and not can_modify_course(course)
-	):
+	if membership and frappe.session.user != "Guest" and not can_modify_course(course):
 		lock_info = get_lesson_lock_reason(course, chapter, lesson)
 		if lock_info.get("locked"):
 			course_info = frappe.db.get_value(
@@ -1391,7 +1402,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 				"message": message,
 				"title": lesson_details.title,
 				"course_title": course_info.title,
-				"enable_sequential_lessons": 1 if course_info.get("enable_sequential_lessons") is None else course_info.enable_sequential_lessons,
+				"enable_sequential_lessons": 1
+				if course_info.get("enable_sequential_lessons") is None
+				else course_info.enable_sequential_lessons,
 				"chapter_title": frappe.db.get_value(
 					"Course Chapter",
 					chapter_name,
@@ -1437,7 +1450,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 			"instructor_content",
 			"exclude_from_course",
 			"release_date",
-			"release_time"
+			"release_time",
 		],
 		as_dict=True,
 	)
@@ -1459,7 +1472,9 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	lesson_details.icon = get_lesson_icon(lesson_details.body, lesson_details.content)
 	lesson_details.instructors = get_instructors("LMS Course", course)
 	lesson_details.course_title = course_info.title
-	lesson_details.enable_sequential_lessons = 1 if course_info.get("enable_sequential_lessons") is None else course_info.enable_sequential_lessons
+	lesson_details.enable_sequential_lessons = (
+		1 if course_info.get("enable_sequential_lessons") is None else course_info.enable_sequential_lessons
+	)
 	lesson_details.paid_certificate = course_info.paid_certificate
 	lesson_details.disable_self_learning = course_info.disable_self_learning
 	lesson_details.videos = get_video_details(lesson_name)
@@ -1953,6 +1968,7 @@ def calculate_course_progress(batch_courses: list, details: dict):
 		course_doc = frappe.get_doc("LMS Course", course.course)
 		if getattr(course_doc, "enable_grading_policy", False):
 			from lms.lms.api import get_student_grades
+
 			details.course_grades[course.title] = get_student_grades(course.course, details.email)
 
 	details.average_course_progress = (
@@ -2608,9 +2624,7 @@ def get_batches(filters: dict = None, start: int = 0, order_by: str = "start_dat
 
 def should_include_delayed_enrollment_batches(filters: dict) -> bool:
 	return bool(
-		has_student_role()
-		and filters.get("published") == 1
-		and has_upcoming_start_date_filter(filters)
+		has_student_role() and filters.get("published") == 1 and has_upcoming_start_date_filter(filters)
 	)
 
 

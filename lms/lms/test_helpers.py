@@ -1,4 +1,5 @@
 import frappe
+
 try:
 	from frappe.tests import UnitTestCase
 except ImportError:

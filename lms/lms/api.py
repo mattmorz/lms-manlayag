@@ -920,25 +920,30 @@ def give_discussions_permission():
 				).save()
 
 
-
-
-
 @frappe.whitelist()
 def upsert_chapter(
-	title: str, course: str, is_scorm_package: bool = False, scorm_package: dict = None, name: str = None,
-	exclude_from_course: bool = False, release_date: str = None, release_time: str = None
+	title: str,
+	course: str,
+	is_scorm_package: bool = False,
+	scorm_package: dict = None,
+	name: str = None,
+	exclude_from_course: bool = False,
+	release_date: str = None,
+	release_time: str = None,
 ):
 	if not can_modify_course(course):
 		frappe.throw(_("You do not have permission to modify this chapter."), frappe.PermissionError)
 
-	values = frappe._dict({
-		"title": title,
-		"course": course,
-		"is_scorm_package": is_scorm_package,
-		"exclude_from_course": exclude_from_course,
-		"release_date": release_date,
-		"release_time": release_time
-	})
+	values = frappe._dict(
+		{
+			"title": title,
+			"course": course,
+			"is_scorm_package": is_scorm_package,
+			"exclude_from_course": exclude_from_course,
+			"release_date": release_date,
+			"release_time": release_time,
+		}
+	)
 
 	if is_scorm_package:
 		scorm_package = frappe._dict(scorm_package)
@@ -1422,8 +1427,6 @@ def add_an_evaluator(email: str):
 	return evaluator
 
 
-
-
 @frappe.whitelist()
 def get_meta_info(type: str, route: str):
 	if frappe.db.exists("Website Meta Tag", {"parent": f"{type}/{route}"}):
@@ -1601,19 +1604,13 @@ def track_video_watch_duration(lesson: str, videos: list):
 			"LMS Video Watch Duration", filters, ["name", "watch_time"], as_dict=True
 		)
 
-		update_values = {
-			"watch_time": video.get("watch_time")
-		}
+		update_values = {"watch_time": video.get("watch_time")}
 		if video.get("duration") and has_duration_field:
 			update_values["duration"] = video.get("duration")
 
 		if existing_record:
 			if flt(existing_record.watch_time) < flt(video.get("watch_time")):
-				frappe.db.set_value(
-					"LMS Video Watch Duration",
-					filters,
-					update_values
-				)
+				frappe.db.set_value("LMS Video Watch Duration", filters, update_values)
 		else:
 			track_new_watch_time(lesson, video, has_duration_field)
 
@@ -2200,11 +2197,11 @@ def get_lesson_completion_stats(course: str, batch: str = None):
 					filters={"course": course},
 					pluck="member",
 				)
-			
+
 			if course_students:
-				join_cond &= (CourseProgress.member.isin(course_students))
+				join_cond &= CourseProgress.member.isin(course_students)
 			else:
-				join_cond &= (CourseProgress.member == "")
+				join_cond &= CourseProgress.member == ""
 		else:
 			enrolled_students = frappe.get_all(
 				"LMS Batch Enrollment",
@@ -2218,11 +2215,11 @@ def get_lesson_completion_stats(course: str, batch: str = None):
 					pluck="member",
 				)
 				if course_enrolled_batch_students:
-					join_cond &= (CourseProgress.member.isin(course_enrolled_batch_students))
+					join_cond &= CourseProgress.member.isin(course_enrolled_batch_students)
 				else:
-					join_cond &= (CourseProgress.member == "")
+					join_cond &= CourseProgress.member == ""
 			else:
-				join_cond &= (CourseProgress.member == "")
+				join_cond &= CourseProgress.member == ""
 	else:
 		course_students = frappe.get_all(
 			"LMS Enrollment",
@@ -2230,9 +2227,9 @@ def get_lesson_completion_stats(course: str, batch: str = None):
 			pluck="member",
 		)
 		if course_students:
-			join_cond &= (CourseProgress.member.isin(course_students))
+			join_cond &= CourseProgress.member.isin(course_students)
 		else:
-			join_cond &= (CourseProgress.member == "")
+			join_cond &= CourseProgress.member == ""
 
 	rows = (
 		frappe.qb.from_(LessonReference)
@@ -2385,12 +2382,16 @@ def ensure_video_transcript_field():
 	if not frappe.db.exists("Custom Field", {"dt": "Course Lesson", "fieldname": "video_transcript"}):
 		try:
 			from frappe.custom.doctype.custom_field.custom_field import create_custom_field
-			create_custom_field("Course Lesson", {
-				"fieldname": "video_transcript",
-				"label": "Video Transcript",
-				"fieldtype": "Long Text",
-				"read_only": 1
-			})
+
+			create_custom_field(
+				"Course Lesson",
+				{
+					"fieldname": "video_transcript",
+					"label": "Video Transcript",
+					"fieldtype": "Long Text",
+					"read_only": 1,
+				},
+			)
 			frappe.db.commit()
 		except Exception:
 			try:
@@ -2411,6 +2412,7 @@ def get_video_transcript(video_id: str, service: str):
 	"""Get transcript for a YouTube or Vimeo video, auto-generating/scraping it and caching/persisting the result."""
 	import json
 	import re
+
 	if not video_id:
 		return []
 
@@ -2437,7 +2439,7 @@ def get_video_transcript(video_id: str, service: str):
 			limit 1
 			""",
 			(like_str, like_str, like_str, like_str),
-			as_dict=True
+			as_dict=True,
 		)
 		if results:
 			lesson_name = results[0].name
@@ -2458,18 +2460,25 @@ def get_video_transcript(video_id: str, service: str):
 					primary_video_id = video_id
 					if youtube_url:
 						if "vimeo" in youtube_url:
-							vm_match = re.search(r'(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)', youtube_url)
+							vm_match = re.search(
+								r"(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)", youtube_url
+							)
 							if vm_match:
 								primary_video_id = vm_match.group(1)
 						else:
-							yt_match = re.search(r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})', youtube_url)
+							yt_match = re.search(
+								r"(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})",
+								youtube_url,
+							)
 							if yt_match:
 								primary_video_id = yt_match.group(1)
 					transcripts_dict = {primary_video_id: data}
 
 				# If our specific video ID is in the dictionary, cache and return it
 				if video_id in transcripts_dict:
-					frappe.cache().set_value(cache_key, json.dumps(transcripts_dict[video_id]), expires_in_sec=86400 * 7)
+					frappe.cache().set_value(
+						cache_key, json.dumps(transcripts_dict[video_id]), expires_in_sec=86400 * 7
+					)
 					return transcripts_dict[video_id]
 		except Exception as db_err:
 			frappe.log_error(f"Error reading video_transcript from DB: {str(db_err)}")
@@ -2489,7 +2498,9 @@ def get_video_transcript(video_id: str, service: str):
 		if lesson_name:
 			try:
 				transcripts_dict[video_id] = transcript
-				frappe.db.set_value("Course Lesson", lesson_name, "video_transcript", json.dumps(transcripts_dict))
+				frappe.db.set_value(
+					"Course Lesson", lesson_name, "video_transcript", json.dumps(transcripts_dict)
+				)
 				frappe.db.commit()
 			except Exception as save_err:
 				frappe.log_error(f"Failed to persist transcript to DB: {str(save_err)}")
@@ -2499,11 +2510,11 @@ def get_video_transcript(video_id: str, service: str):
 
 
 def fetch_youtube_transcript(video_id):
-	import requests
-	import re
 	import json
-	import xml.etree.ElementTree as ET
+	import re
 	from html import unescape
+
+	import requests
 
 	try:
 		# First attempt: check if youtube_transcript_api is installed and use it
@@ -2513,16 +2524,16 @@ def fetch_youtube_transcript(video_id):
 			except ImportError:
 				import subprocess
 				import sys
+
 				# Try installing it on the fly
 				subprocess.check_call([sys.executable, "-m", "pip", "install", "youtube-transcript-api"])
 				from youtube_transcript_api import YouTubeTranscriptApi
 
 			transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-			return [{
-				"text": unescape(t["text"]),
-				"start": t["start"],
-				"duration": t["duration"]
-			} for t in transcript_list]
+			return [
+				{"text": unescape(t["text"]), "start": t["start"], "duration": t["duration"]}
+				for t in transcript_list
+			]
 		except Exception as e:
 			frappe.log_error(f"YouTubeTranscriptApi attempt failed for {video_id}: {str(e)}")
 
@@ -2531,37 +2542,37 @@ def fetch_youtube_transcript(video_id):
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 		}
 		r = requests.get(f"https://www.youtube.com/watch?v={video_id}", headers=headers, timeout=10)
-		match = re.search(r'ytInitialPlayerResponse\s*=\s*({.+?});', r.text)
+		match = re.search(r"ytInitialPlayerResponse\s*=\s*({.+?});", r.text)
 		if not match:
-			match = re.search(r'ytInitialPlayerResponse\s*=\s*({.+?})\s*</script>', r.text)
-		
+			match = re.search(r"ytInitialPlayerResponse\s*=\s*({.+?})\s*</script>", r.text)
+
 		if match:
 			player_response = json.loads(match.group(1))
-			captions = player_response.get('captions', {}).get('playerCaptionsTracklistRenderer', {}).get('captionTracks', [])
+			captions = (
+				player_response.get("captions", {})
+				.get("playerCaptionsTracklistRenderer", {})
+				.get("captionTracks", [])
+			)
 			if captions:
 				# Find English track if possible, otherwise use the first available
 				track_url = None
 				for track in captions:
-					if 'en' in track.get('languageCode', ''):
-						track_url = track.get('baseUrl')
+					if "en" in track.get("languageCode", ""):
+						track_url = track.get("baseUrl")
 						break
 				if not track_url:
-					track_url = captions[0].get('baseUrl')
+					track_url = captions[0].get("baseUrl")
 
 				if track_url:
 					xml_r = requests.get(track_url, headers=headers, timeout=10)
 					root = ET.fromstring(xml_r.text)
 					transcript = []
-					for text_el in root.findall('text'):
-						start = float(text_el.attrib.get('start', 0))
-						duration = float(text_el.attrib.get('dur', 0))
+					for text_el in root.findall("text"):
+						start = float(text_el.attrib.get("start", 0))
+						duration = float(text_el.attrib.get("dur", 0))
 						text = unescape("".join(text_el.itertext()))
 						text = " ".join(text.split())
-						transcript.append({
-							'text': text,
-							'start': start,
-							'duration': duration
-						})
+						transcript.append({"text": text, "start": start, "duration": duration})
 					return transcript
 	except Exception as e:
 		frappe.log_error(f"Error fetching YouTube transcript: {str(e)}")
@@ -2569,9 +2580,10 @@ def fetch_youtube_transcript(video_id):
 
 
 def fetch_vimeo_transcript(video_id):
-	import requests
-	import re
 	import json
+	import re
+
+	import requests
 
 	try:
 		headers = {
@@ -2591,7 +2603,11 @@ def fetch_vimeo_transcript(video_id):
 					track_url = text_tracks[0].get("url")
 
 				if track_url:
-					vtt_r = requests.get(f"https://player.vimeo.com{track_url}" if track_url.startswith("/") else track_url, headers=headers, timeout=10)
+					vtt_r = requests.get(
+						f"https://player.vimeo.com{track_url}" if track_url.startswith("/") else track_url,
+						headers=headers,
+						timeout=10,
+					)
 					if vtt_r.status_code == 200:
 						return parse_vtt(vtt_r.text)
 	except Exception as e:
@@ -2601,16 +2617,17 @@ def fetch_vimeo_transcript(video_id):
 
 def parse_vtt(vtt_text):
 	import re
-	lines = vtt_text.split('\n')
+
+	lines = vtt_text.split("\n")
 	transcript = []
 	current_time = None
 	current_text = []
 
 	def parse_time(time_str):
-		parts = time_str.split(':')
-		seconds_parts = parts[-1].split('.')
+		parts = time_str.split(":")
+		seconds_parts = parts[-1].split(".")
 		seconds = float(seconds_parts[0])
-		milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+		milliseconds = float("0." + seconds_parts[1]) if len(seconds_parts) > 1 else 0
 		minutes = float(parts[-2]) if len(parts) > 1 else 0
 		hours = float(parts[-3]) if len(parts) > 2 else 0
 		return hours * 3600 + minutes * 60 + seconds + milliseconds
@@ -2619,50 +2636,49 @@ def parse_vtt(vtt_text):
 		line = line.strip()
 		if not line:
 			if current_time and current_text:
-				transcript.append({
-					'text': " ".join(current_text),
-					'start': current_time[0],
-					'duration': current_time[1]
-				})
+				transcript.append(
+					{"text": " ".join(current_text), "start": current_time[0], "duration": current_time[1]}
+				)
 				current_time = None
 				current_text = []
 			continue
-		
+
 		if line.startswith("WEBVTT") or line.startswith("STYLE") or line.startswith("NOTE"):
 			continue
 
-		if '-->' in line:
-			match = re.search(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)', line)
+		if "-->" in line:
+			match = re.search(
+				r"(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)", line
+			)
 			if match:
 				start = parse_time(match.group(1))
 				end = parse_time(match.group(2))
 				current_time = (start, end - start)
 		elif not line.isdigit() and current_time:
-			line_cleaned = re.sub(r'<[^>]*>', '', line)
+			line_cleaned = re.sub(r"<[^>]*>", "", line)
 			if line_cleaned:
 				current_text.append(line_cleaned)
 
 	if current_time and current_text:
-		transcript.append({
-			'text': " ".join(current_text),
-			'start': current_time[0],
-			'duration': current_time[1]
-		})
+		transcript.append(
+			{"text": " ".join(current_text), "start": current_time[0], "duration": current_time[1]}
+		)
 
 	return transcript
 
 
 def parse_srt(srt_text):
 	import re
-	blocks = srt_text.replace('\r\n', '\n').split('\n\n')
+
+	blocks = srt_text.replace("\r\n", "\n").split("\n\n")
 	transcript = []
-	
+
 	def parse_time(time_str):
-		time_str = time_str.replace(',', '.')
-		parts = time_str.split(':')
-		seconds_parts = parts[-1].split('.')
+		time_str = time_str.replace(",", ".")
+		parts = time_str.split(":")
+		seconds_parts = parts[-1].split(".")
 		seconds = float(seconds_parts[0])
-		milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+		milliseconds = float("0." + seconds_parts[1]) if len(seconds_parts) > 1 else 0
 		minutes = float(parts[-2]) if len(parts) > 1 else 0
 		hours = float(parts[-3]) if len(parts) > 2 else 0
 		return hours * 3600 + minutes * 60 + seconds + milliseconds
@@ -2671,51 +2687,62 @@ def parse_srt(srt_text):
 		block = block.strip()
 		if not block:
 			continue
-		lines = block.split('\n')
+		lines = block.split("\n")
 		if len(lines) < 2:
 			continue
-		
+
 		time_line_idx = -1
 		for i, line in enumerate(lines):
-			if '-->' in line:
+			if "-->" in line:
 				time_line_idx = i
 				break
-		
+
 		if time_line_idx == -1:
 			continue
-			
+
 		time_line = lines[time_line_idx]
-		text_lines = lines[time_line_idx + 1:]
-		
-		match = re.search(r'(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)\s*-->\s*(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)', time_line)
+		text_lines = lines[time_line_idx + 1 :]
+
+		match = re.search(
+			r"(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)\s*-->\s*(\d+:\d+:\d+[\.,]\d+|\d+:\d+[\.,]\d+)", time_line
+		)
 		if match:
 			try:
 				start = parse_time(match.group(1))
 				end = parse_time(match.group(2))
-				text = " ".join([re.sub(r'<[^>]*>', '', l.strip()) for l in text_lines if l.strip()])
+				text = " ".join([re.sub(r"<[^>]*>", "", l.strip()) for l in text_lines if l.strip()])
 				if text:
-					transcript.append({
-						'text': text,
-						'start': start,
-						'duration': max(0.0, end - start)
-					})
+					transcript.append({"text": text, "start": start, "duration": max(0.0, end - start)})
 			except Exception:
 				pass
 	return transcript
 
 
 @frappe.whitelist()
-def upload_video_transcript(video_id: str, file_content: str, file_name: str, lesson_name: str = None, course_name: str = None, chapter_number: str = None, lesson_number: str = None):
-	from lms.lms.utils import can_modify_course
+def upload_video_transcript(
+	video_id: str,
+	file_content: str,
+	file_name: str,
+	lesson_name: str = None,
+	course_name: str = None,
+	chapter_number: str = None,
+	lesson_number: str = None,
+):
 	import json
+
+	from lms.lms.utils import can_modify_course
 
 	if not lesson_name and course_name and chapter_number and lesson_number:
 		try:
 			ch_idx = int(chapter_number)
 			ls_idx = int(lesson_number)
-			chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course_name, "idx": ch_idx}, "chapter")
+			chapter_name = frappe.db.get_value(
+				"Chapter Reference", {"parent": course_name, "idx": ch_idx}, "chapter"
+			)
 			if chapter_name:
-				lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter_name, "idx": ls_idx}, "lesson")
+				lesson_name = frappe.db.get_value(
+					"Lesson Reference", {"parent": chapter_name, "idx": ls_idx}, "lesson"
+				)
 		except (ValueError, TypeError):
 			pass
 
@@ -2728,7 +2755,7 @@ def upload_video_transcript(video_id: str, file_content: str, file_name: str, le
 			limit 1
 			""",
 			(like_str, like_str, like_str, like_str),
-			as_dict=True
+			as_dict=True,
 		)
 		if results:
 			lesson_name = results[0].name
@@ -2744,7 +2771,7 @@ def upload_video_transcript(video_id: str, file_content: str, file_name: str, le
 		frappe.throw(_("Video ID is required to upload a transcript."))
 
 	file_name_lower = file_name.lower()
-	if file_name_lower.endswith('.json'):
+	if file_name_lower.endswith(".json"):
 		try:
 			transcript = json.loads(file_content)
 			if not isinstance(transcript, list):
@@ -2756,9 +2783,9 @@ def upload_video_transcript(video_id: str, file_content: str, file_name: str, le
 					item["duration"] = 0
 		except Exception as e:
 			frappe.throw(_("Failed to parse JSON file: {0}").format(str(e)))
-	elif file_name_lower.endswith('.srt'):
+	elif file_name_lower.endswith(".srt"):
 		transcript = parse_srt(file_content)
-	elif file_name_lower.endswith('.vtt'):
+	elif file_name_lower.endswith(".vtt"):
 		transcript = parse_vtt(file_content)
 	else:
 		frappe.throw(_("Unsupported file format. Please upload a .vtt, .srt, or .json file."))
@@ -2779,12 +2806,17 @@ def upload_video_transcript(video_id: str, file_content: str, file_name: str, le
 				primary_video_id = video_id
 				if youtube_url:
 					import re
+
 					if "vimeo" in youtube_url:
-						vm_match = re.search(r'(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)', youtube_url)
+						vm_match = re.search(
+							r"(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)", youtube_url
+						)
 						if vm_match:
 							primary_video_id = vm_match.group(1)
 					else:
-						yt_match = re.search(r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})', youtube_url)
+						yt_match = re.search(
+							r"(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=))([\w-]{11})", youtube_url
+						)
 						if yt_match:
 							primary_video_id = yt_match.group(1)
 				transcripts_dict = {primary_video_id: data}
@@ -2813,34 +2845,74 @@ def export_course(course_name: str):
 	course_dict = course_doc.as_dict()
 
 	exclude_fields = [
-		"name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", 
-		"status", "rating", "enrollments", "lessons", "notification_sent",
-		"instructors", "chapters", "related_courses"
+		"name",
+		"owner",
+		"creation",
+		"modified",
+		"modified_by",
+		"docstatus",
+		"idx",
+		"status",
+		"rating",
+		"enrollments",
+		"lessons",
+		"notification_sent",
+		"instructors",
+		"chapters",
+		"related_courses",
 	]
 	cleaned_course = {k: v for k, v in course_dict.items() if k not in exclude_fields}
 
 	if "grading_categories" in cleaned_course:
 		cleaned_cats = []
 		for cat in cleaned_course["grading_categories"]:
-			cleaned_cat = {k: v for k, v in cat.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_cat = {
+				k: v
+				for k, v in cat.items()
+				if k
+				not in [
+					"name",
+					"owner",
+					"creation",
+					"modified",
+					"modified_by",
+					"parent",
+					"parenttype",
+					"parentfield",
+				]
+			}
 			cleaned_cats.append(cleaned_cat)
 		cleaned_course["grading_categories"] = cleaned_cats
 
 	if "grading_scale" in cleaned_course:
 		cleaned_scales = []
 		for scale in cleaned_course["grading_scale"]:
-			cleaned_scale = {k: v for k, v in scale.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_scale = {
+				k: v
+				for k, v in scale.items()
+				if k
+				not in [
+					"name",
+					"owner",
+					"creation",
+					"modified",
+					"modified_by",
+					"parent",
+					"parenttype",
+					"parentfield",
+				]
+			}
 			cleaned_scales.append(cleaned_scale)
 		cleaned_course["grading_scale"] = cleaned_scales
 
 	chapters = []
 	chapter_refs = frappe.get_all(
-		"Chapter Reference", 
-		filters={"parent": course_name, "parenttype": "LMS Course"}, 
+		"Chapter Reference",
+		filters={"parent": course_name, "parenttype": "LMS Course"},
 		fields=["chapter", "idx"],
-		order_by="idx"
+		order_by="idx",
 	)
-	
+
 	quiz_names = set()
 	assignment_names = set()
 
@@ -2857,16 +2929,16 @@ def export_course(course_name: str):
 			"scorm_package_path": chapter_dict.get("scorm_package_path"),
 			"manifest_file": chapter_dict.get("manifest_file"),
 			"launch_file": chapter_dict.get("launch_file"),
-			"lessons": []
+			"lessons": [],
 		}
-		
+
 		lesson_refs = frappe.get_all(
 			"Lesson Reference",
 			filters={"parent": ref.chapter, "parenttype": "Course Chapter"},
 			fields=["lesson", "idx"],
-			order_by="idx"
+			order_by="idx",
 		)
-		
+
 		for l_ref in lesson_refs:
 			if not frappe.db.exists("Course Lesson", l_ref.lesson):
 				continue
@@ -2884,13 +2956,13 @@ def export_course(course_name: str):
 				"quiz_id": lesson_dict.get("quiz_id"),
 				"require_quiz_pass": lesson_dict.get("require_quiz_pass"),
 				"question": lesson_dict.get("question"),
-				"file_type": lesson_dict.get("file_type")
+				"file_type": lesson_dict.get("file_type"),
 			}
-			
+
 			if lesson_dict.get("quiz_id"):
 				for q_id in [q.strip() for q in lesson_dict.get("quiz_id").split(",") if q.strip()]:
 					quiz_names.add(q_id)
-					
+
 			for content_field in ["content", "instructor_content"]:
 				if lesson_dict.get(content_field):
 					try:
@@ -2906,16 +2978,12 @@ def export_course(course_name: str):
 									assignment_names.add(a_id)
 					except Exception:
 						pass
-					
+
 			cleaned_chapter["lessons"].append(cleaned_lesson)
-			
+
 		chapters.append(cleaned_chapter)
 
-	course_assignments = frappe.get_all(
-		"LMS Assignment",
-		filters={"course": course_name},
-		fields=["name"]
-	)
+	course_assignments = frappe.get_all("LMS Assignment", filters={"course": course_name}, fields=["name"])
 	for ass in course_assignments:
 		assignment_names.add(ass.name)
 
@@ -2925,29 +2993,28 @@ def export_course(course_name: str):
 		if frappe.db.exists("LMS Quiz", q_name):
 			q_doc = frappe.get_doc("LMS Quiz", q_name)
 			q_dict = q_doc.as_dict()
-			
+
 			cleaned_q_questions = []
 			for qq in q_doc.questions:
-				cleaned_q_questions.append({
-					"question": qq.question,
-					"marks": qq.marks
-				})
+				cleaned_q_questions.append({"question": qq.question, "marks": qq.marks})
 				questions_to_export.add(qq.question)
-				
-			quizzes.append({
-				"name": q_doc.name,
-				"title": q_dict.get("title"),
-				"max_attempts": q_dict.get("max_attempts"),
-				"show_answers": q_dict.get("show_answers"),
-				"show_submission_history": q_dict.get("show_submission_history"),
-				"passing_percentage": q_dict.get("passing_percentage"),
-				"shuffle_questions": q_dict.get("shuffle_questions"),
-				"limit_questions_to": q_dict.get("limit_questions_to"),
-				"enable_negative_marking": q_dict.get("enable_negative_marking"),
-				"marks_to_cut": q_dict.get("marks_to_cut"),
-				"duration": q_dict.get("duration"),
-				"questions": cleaned_q_questions
-			})
+
+			quizzes.append(
+				{
+					"name": q_doc.name,
+					"title": q_dict.get("title"),
+					"max_attempts": q_dict.get("max_attempts"),
+					"show_answers": q_dict.get("show_answers"),
+					"show_submission_history": q_dict.get("show_submission_history"),
+					"passing_percentage": q_dict.get("passing_percentage"),
+					"shuffle_questions": q_dict.get("shuffle_questions"),
+					"limit_questions_to": q_dict.get("limit_questions_to"),
+					"enable_negative_marking": q_dict.get("enable_negative_marking"),
+					"marks_to_cut": q_dict.get("marks_to_cut"),
+					"duration": q_dict.get("duration"),
+					"questions": cleaned_q_questions,
+				}
+			)
 
 	questions = []
 	for qst_name in questions_to_export:
@@ -2964,7 +3031,16 @@ def export_course(course_name: str):
 		if frappe.db.exists("LMS Assignment", ass_name):
 			ass_doc = frappe.get_doc("LMS Assignment", ass_name)
 			ass_dict = ass_doc.as_dict()
-			exclude_ass_fields = ["name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", "course"]
+			exclude_ass_fields = [
+				"name",
+				"owner",
+				"creation",
+				"modified",
+				"modified_by",
+				"docstatus",
+				"idx",
+				"course",
+			]
 			cleaned_ass = {k: v for k, v in ass_dict.items() if k not in exclude_ass_fields}
 			cleaned_ass["name"] = ass_doc.name
 			assignments.append(cleaned_ass)
@@ -2974,7 +3050,7 @@ def export_course(course_name: str):
 		"chapters": chapters,
 		"quizzes": quizzes,
 		"questions": questions,
-		"assignments": assignments
+		"assignments": assignments,
 	}
 
 
@@ -2990,20 +3066,17 @@ def import_course(course_data):
 		old_name = qst.get("name")
 		cleaned_qst = qst.copy()
 		cleaned_qst.pop("name", None)
-		
-		new_qst_doc = frappe.get_doc({
-			"doctype": "LMS Question",
-			**cleaned_qst
-		})
+
+		new_qst_doc = frappe.get_doc({"doctype": "LMS Question", **cleaned_qst})
 		new_qst_doc.insert(ignore_permissions=True)
 		question_name_map[old_name] = new_qst_doc.name
-		
+
 	quiz_name_map = {}
 	for quiz in data.get("quizzes", []):
 		old_name = quiz.get("name")
 		cleaned_quiz = quiz.copy()
 		cleaned_quiz.pop("name", None)
-		
+
 		original_title = cleaned_quiz.get("title")
 		title = original_title
 		suffix = 1
@@ -3011,21 +3084,15 @@ def import_course(course_data):
 			suffix += 1
 			title = f"{original_title} ({suffix})"
 		cleaned_quiz["title"] = title
-		
+
 		new_questions = []
 		for qq in cleaned_quiz.get("questions", []):
 			old_q_ref = qq.get("question")
 			new_q_ref = question_name_map.get(old_q_ref, old_q_ref)
-			new_questions.append({
-				"question": new_q_ref,
-				"marks": qq.get("marks", 1)
-			})
+			new_questions.append({"question": new_q_ref, "marks": qq.get("marks", 1)})
 		cleaned_quiz["questions"] = new_questions
-		
-		new_quiz_doc = frappe.get_doc({
-			"doctype": "LMS Quiz",
-			**cleaned_quiz
-		})
+
+		new_quiz_doc = frappe.get_doc({"doctype": "LMS Quiz", **cleaned_quiz})
 		new_quiz_doc.insert(ignore_permissions=True)
 		quiz_name_map[old_name] = new_quiz_doc.name
 
@@ -3034,11 +3101,8 @@ def import_course(course_data):
 		old_name = ass.get("name")
 		cleaned_ass = ass.copy()
 		cleaned_ass.pop("name", None)
-		
-		new_ass_doc = frappe.get_doc({
-			"doctype": "LMS Assignment",
-			**cleaned_ass
-		})
+
+		new_ass_doc = frappe.get_doc({"doctype": "LMS Assignment", **cleaned_ass})
 		new_ass_doc.insert(ignore_permissions=True)
 		assignment_name_map[old_name] = new_ass_doc.name
 
@@ -3048,17 +3112,45 @@ def import_course(course_data):
 	if "grading_categories" in cleaned_course:
 		cleaned_cats = []
 		for cat in cleaned_course["grading_categories"]:
-			cleaned_cat = {k: v for k, v in cat.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_cat = {
+				k: v
+				for k, v in cat.items()
+				if k
+				not in [
+					"name",
+					"owner",
+					"creation",
+					"modified",
+					"modified_by",
+					"parent",
+					"parenttype",
+					"parentfield",
+				]
+			}
 			cleaned_cats.append(cleaned_cat)
 		cleaned_course["grading_categories"] = cleaned_cats
 
 	if "grading_scale" in cleaned_course:
 		cleaned_scales = []
 		for scale in cleaned_course["grading_scale"]:
-			cleaned_scale = {k: v for k, v in scale.items() if k not in ["name", "owner", "creation", "modified", "modified_by", "parent", "parenttype", "parentfield"]}
+			cleaned_scale = {
+				k: v
+				for k, v in scale.items()
+				if k
+				not in [
+					"name",
+					"owner",
+					"creation",
+					"modified",
+					"modified_by",
+					"parent",
+					"parenttype",
+					"parentfield",
+				]
+			}
 			cleaned_scales.append(cleaned_scale)
 		cleaned_course["grading_scale"] = cleaned_scales
-	
+
 	original_course_title = cleaned_course.get("title")
 	course_title = original_course_title
 	suffix = 1
@@ -3066,54 +3158,55 @@ def import_course(course_data):
 		suffix += 1
 		course_title = f"{original_course_title} ({suffix})"
 	cleaned_course["title"] = course_title
-	
+
 	current_user = frappe.session.user
 	cleaned_course["instructors"] = [{"instructor": current_user}]
 	cleaned_course["owner"] = current_user
-	
-	course_doc = frappe.get_doc({
-		"doctype": "LMS Course",
-		**cleaned_course
-	})
+
+	course_doc = frappe.get_doc({"doctype": "LMS Course", **cleaned_course})
 	course_doc.insert(ignore_permissions=True)
 	new_course_name = course_doc.name
 
-	for old_ass_name, new_ass_name in assignment_name_map.items():
+	for _old_ass_name, new_ass_name in assignment_name_map.items():
 		frappe.db.set_value("LMS Assignment", new_ass_name, "course", new_course_name)
 
 	for ch in data.get("chapters", []):
-		chapter_doc = frappe.get_doc({
-			"doctype": "Course Chapter",
-			"course": new_course_name,
-			"title": ch.get("title"),
-			"idx": ch.get("idx"),
-			"is_scorm_package": ch.get("is_scorm_package"),
-			"scorm_package": ch.get("scorm_package"),
-			"scorm_package_path": ch.get("scorm_package_path"),
-			"manifest_file": ch.get("manifest_file"),
-			"launch_file": ch.get("launch_file")
-		})
+		chapter_doc = frappe.get_doc(
+			{
+				"doctype": "Course Chapter",
+				"course": new_course_name,
+				"title": ch.get("title"),
+				"idx": ch.get("idx"),
+				"is_scorm_package": ch.get("is_scorm_package"),
+				"scorm_package": ch.get("scorm_package"),
+				"scorm_package_path": ch.get("scorm_package_path"),
+				"manifest_file": ch.get("manifest_file"),
+				"launch_file": ch.get("launch_file"),
+			}
+		)
 		chapter_doc.insert(ignore_permissions=True)
 		new_chapter_name = chapter_doc.name
 
 		# Create Chapter Reference child row in the course
-		chapter_ref_doc = frappe.get_doc({
-			"doctype": "Chapter Reference",
-			"parent": new_course_name,
-			"parenttype": "LMS Course",
-			"parentfield": "chapters",
-			"chapter": new_chapter_name,
-			"idx": ch.get("idx")
-		})
+		chapter_ref_doc = frappe.get_doc(
+			{
+				"doctype": "Chapter Reference",
+				"parent": new_course_name,
+				"parenttype": "LMS Course",
+				"parentfield": "chapters",
+				"chapter": new_chapter_name,
+				"idx": ch.get("idx"),
+			}
+		)
 		chapter_ref_doc.insert(ignore_permissions=True)
-		
+
 		for les in ch.get("lessons", []):
 			cleaned_lesson = les.copy()
-			
+
 			old_quiz_ids = [q.strip() for q in (cleaned_lesson.get("quiz_id") or "").split(",") if q.strip()]
 			new_quiz_ids = [quiz_name_map.get(q, q) for q in old_quiz_ids]
 			cleaned_lesson["quiz_id"] = ", ".join(new_quiz_ids)
-			
+
 			for content_field in ["content", "instructor_content"]:
 				if cleaned_lesson.get(content_field):
 					try:
@@ -3130,40 +3223,34 @@ def import_course(course_data):
 						cleaned_lesson[content_field] = json.dumps(content)
 					except Exception:
 						pass
-			
-			lesson_doc = frappe.get_doc({
-				"doctype": "Course Lesson",
-				"chapter": new_chapter_name,
-				"course": new_course_name,
-				"title": cleaned_lesson.get("title"),
-				"include_in_preview": cleaned_lesson.get("include_in_preview"),
-				"body": cleaned_lesson.get("body"),
-				"content": cleaned_lesson.get("content"),
-				"instructor_notes": cleaned_lesson.get("instructor_notes"),
-				"instructor_content": cleaned_lesson.get("instructor_content"),
-				"youtube": cleaned_lesson.get("youtube"),
-				"require_quiz_pass": cleaned_lesson.get("require_quiz_pass"),
-				"quiz_id": cleaned_lesson.get("quiz_id"),
-				"question": cleaned_lesson.get("question"),
-				"file_type": cleaned_lesson.get("file_type")
-			})
+
+			lesson_doc = frappe.get_doc(
+				{
+					"doctype": "Course Lesson",
+					"chapter": new_chapter_name,
+					"course": new_course_name,
+					"title": cleaned_lesson.get("title"),
+					"include_in_preview": cleaned_lesson.get("include_in_preview"),
+					"body": cleaned_lesson.get("body"),
+					"content": cleaned_lesson.get("content"),
+					"instructor_notes": cleaned_lesson.get("instructor_notes"),
+					"instructor_content": cleaned_lesson.get("instructor_content"),
+					"youtube": cleaned_lesson.get("youtube"),
+					"require_quiz_pass": cleaned_lesson.get("require_quiz_pass"),
+					"quiz_id": cleaned_lesson.get("quiz_id"),
+					"question": cleaned_lesson.get("question"),
+					"file_type": cleaned_lesson.get("file_type"),
+				}
+			)
 			lesson_doc.insert(ignore_permissions=True)
 			new_lesson_name = lesson_doc.name
-			
-			chapter_doc.append("lessons", {
-				"lesson": new_lesson_name,
-				"idx": les.get("idx")
-			})
+
+			chapter_doc.append("lessons", {"lesson": new_lesson_name, "idx": les.get("idx")})
 
 			for new_q_ref in new_quiz_ids:
 				if frappe.db.exists("LMS Quiz", new_q_ref):
 					frappe.db.set_value(
-						"LMS Quiz",
-						new_q_ref,
-						{
-							"course": new_course_name,
-							"lesson": new_lesson_name
-						}
+						"LMS Quiz", new_q_ref, {"course": new_course_name, "lesson": new_lesson_name}
 					)
 
 		# Save Chapter Document to persist lessons child table and trigger index/counts
@@ -3179,24 +3266,29 @@ def export_aiken(quiz_name, selected_questions=None):
 
 	lines = []
 	for q_ref in quiz.questions:
-		if selected_questions and (q_ref.name not in selected_questions and q_ref.question not in selected_questions):
+		if selected_questions and (
+			q_ref.name not in selected_questions and q_ref.question not in selected_questions
+		):
 			continue
 		if not frappe.db.exists("LMS Question", q_ref.question):
-			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
-				q_ref.question, q_ref.question_detail or _("Untitled")
-			))
+			frappe.throw(
+				_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
+					q_ref.question, q_ref.question_detail or _("Untitled")
+				)
+			)
 		q = frappe.get_doc("LMS Question", q_ref.question)
 		if q.type != "Choices":
 			continue
 
-		from frappe.utils.html_utils import clean_html
 		import html
+
+		from frappe.utils.html_utils import clean_html
+
 		q_text = html.unescape(clean_html(q.question)).strip()
 		lines.append(q_text)
 
-		options = []
 		correct_option_letter = None
-		letters = ['A', 'B', 'C', 'D']
+		letters = ["A", "B", "C", "D"]
 		for idx, letter in enumerate(letters):
 			option_text = q.get(f"option_{idx+1}")
 			is_correct = q.get(f"is_correct_{idx+1}")
@@ -3211,7 +3303,11 @@ def export_aiken(quiz_name, selected_questions=None):
 
 	content = "\n".join(lines).strip()
 	if not content:
-		frappe.throw(_("No compatible questions found for AIKEN export. AIKEN format only supports multiple choice (Choices) questions."))
+		frappe.throw(
+			_(
+				"No compatible questions found for AIKEN export. AIKEN format only supports multiple choice (Choices) questions."
+			)
+		)
 	return content + "\n"
 
 
@@ -3227,14 +3323,16 @@ def import_aiken(quiz_name, file_content):
 			if current_question and correct_ans:
 				if len(current_options) < 2:
 					frappe.throw(_("Question '{0}' must have at least two options.").format(current_question))
-				questions.append({
-					"question": current_question,
-					"options": current_options,
-					"correct": correct_ans
-				})
+				questions.append(
+					{"question": current_question, "options": current_options, "correct": correct_ans}
+				)
 			current_question = None
 			current_options = []
-		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]):
+		elif any(
+			line.startswith(prefix)
+			for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+			+ [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+		):
 			letter = line[0]
 			opt_text = line[2:].strip()
 			current_options.append((letter, opt_text))
@@ -3255,10 +3353,7 @@ def import_aiken(quiz_name, file_content):
 
 		lms_q.insert(ignore_permissions=True)
 
-		quiz.append("questions", {
-			"question": lms_q.name,
-			"marks": 1
-		})
+		quiz.append("questions", {"question": lms_q.name, "marks": 1})
 	quiz.save(ignore_permissions=True)
 
 
@@ -3269,15 +3364,21 @@ def export_gift(quiz_name, selected_questions=None):
 
 	lines = []
 	for q_ref in quiz.questions:
-		if selected_questions and (q_ref.name not in selected_questions and q_ref.question not in selected_questions):
+		if selected_questions and (
+			q_ref.name not in selected_questions and q_ref.question not in selected_questions
+		):
 			continue
 		if not frappe.db.exists("LMS Question", q_ref.question):
-			frappe.throw(_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
-				q_ref.question, q_ref.question_detail or _("Untitled")
-			))
+			frappe.throw(
+				_("Question {0} ({1}) was not found in the database. The quiz cannot be exported.").format(
+					q_ref.question, q_ref.question_detail or _("Untitled")
+				)
+			)
 		q = frappe.get_doc("LMS Question", q_ref.question)
-		from frappe.utils.html_utils import clean_html
 		import html
+
+		from frappe.utils.html_utils import clean_html
+
 		q_text = html.unescape(clean_html(q.question)).strip()
 
 		if q.type == "Choices":
@@ -3321,31 +3422,31 @@ def import_gift(quiz_name, file_content):
 	content_normalized = file_content.replace("\r\n", "\n")
 	blocks = [b.strip() for b in content_normalized.split("\n\n") if b.strip()]
 
-
 	quiz = frappe.get_doc("LMS Quiz", quiz_name)
 
 	for block in blocks:
-		lines = [line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")]
+		lines = [
+			line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")
+		]
 		if not lines:
 			continue
 
 		block_text = "\n".join(lines)
 
-		question_title = None
 		if block_text.startswith("::"):
 			parts = block_text.split("::", 2)
 			if len(parts) >= 3:
-				question_title = parts[1].strip()
 				block_text = parts[2].strip()
 
 		import re
-		match = re.search(r'\{(.*?)\}', block_text, re.DOTALL)
+
+		match = re.search(r"\{(.*?)\}", block_text, re.DOTALL)
 		if not match:
 			q_text = block_text.strip()
 			q_type = "Open Ended"
 			answers = []
 		else:
-			q_text = block_text[:match.start()].strip() + block_text[match.end():].strip()
+			q_text = block_text[: match.start()].strip() + block_text[match.end() :].strip()
 			q_text = q_text.strip()
 			answer_content = match.group(1).strip()
 
@@ -3357,7 +3458,7 @@ def import_gift(quiz_name, file_content):
 				is_true = answer_content in ["T", "TRUE"]
 				answers = [
 					{"text": "True", "is_correct": 1 if is_true else 0},
-					{"text": "False", "is_correct": 0 if is_true else 1}
+					{"text": "False", "is_correct": 0 if is_true else 1},
 				]
 			else:
 				options = []
@@ -3371,7 +3472,7 @@ def import_gift(quiz_name, file_content):
 							p_idx = answer_content.find(next_prefix, idx + 1)
 							if p_idx != -1 and p_idx < next_idx:
 								next_idx = p_idx
-						opt_content = answer_content[idx+1:next_idx].strip()
+						opt_content = answer_content[idx + 1 : next_idx].strip()
 						opt_text = opt_content
 						explanation = ""
 						if "#" in opt_content:
@@ -3379,11 +3480,9 @@ def import_gift(quiz_name, file_content):
 							opt_text = opt_parts[0].strip()
 							explanation = opt_parts[1].strip()
 
-						options.append({
-							"text": opt_text,
-							"is_correct": is_correct,
-							"explanation": explanation
-						})
+						options.append(
+							{"text": opt_text, "is_correct": is_correct, "explanation": explanation}
+						)
 						idx = next_idx
 					else:
 						idx += 1
@@ -3412,10 +3511,7 @@ def import_gift(quiz_name, file_content):
 
 		lms_q.insert(ignore_permissions=True)
 
-		quiz.append("questions", {
-			"question": lms_q.name,
-			"marks": 1
-		})
+		quiz.append("questions", {"question": lms_q.name, "marks": 1})
 
 	quiz.save(ignore_permissions=True)
 
@@ -3455,6 +3551,7 @@ def import_quiz(quiz: str, file_content: str, format_type: str):
 @frappe.whitelist()
 def get_student_grades(course: str, student: str = None) -> dict:
 	from datetime import timedelta
+
 	from frappe.utils import flt
 
 	if not student:
@@ -3468,7 +3565,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 			"categories": [],
 			"grading_scale": [],
 			"final_percentage": 0,
-			"final_grade": "N/A"
+			"final_grade": "N/A",
 		}
 
 	grace_period_hours = getattr(course_doc, "grading_grace_period", 0) or 0
@@ -3476,9 +3573,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 	grading_scale = course_doc.get("grading_scale") or []
 
 	lessons = frappe.get_all(
-		"Course Lesson",
-		filters={"course": course, "exclude_from_course": 0},
-		fields=["content"]
+		"Course Lesson", filters={"course": course, "exclude_from_course": 0}, fields=["content"]
 	)
 
 	quizzes_dict = {}
@@ -3500,7 +3595,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 						"name": quiz_name,
 						"grading_category": data.get("grading_category"),
 						"due_date": data.get("due_date"),
-						"due_time": data.get("due_time")
+						"due_time": data.get("due_time"),
 					}
 			elif block.get("type") == "assignment":
 				data = block.get("data", {})
@@ -3510,52 +3605,56 @@ def get_student_grades(course: str, student: str = None) -> dict:
 						"name": asg_name,
 						"grading_category": data.get("grading_category"),
 						"due_date": data.get("due_date"),
-						"due_time": data.get("due_time")
+						"due_time": data.get("due_time"),
 					}
 
 	quizzes = []
 	if quizzes_dict:
 		quiz_names = list(quizzes_dict.keys())
 		quiz_docs = frappe.get_all(
-			"LMS Quiz",
-			filters={"name": ["in", quiz_names]},
-			fields=["name", "title", "passing_percentage"]
+			"LMS Quiz", filters={"name": ["in", quiz_names]}, fields=["name", "title", "passing_percentage"]
 		)
 		for q in quiz_docs:
 			scanned = quizzes_dict[q.name]
-			quizzes.append(frappe._dict({
-				"name": q.name,
-				"title": q.title,
-				"passing_percentage": q.passing_percentage,
-				"grading_category": scanned["grading_category"],
-				"due_date": scanned["due_date"],
-				"due_time": scanned["due_time"]
-			}))
+			quizzes.append(
+				frappe._dict(
+					{
+						"name": q.name,
+						"title": q.title,
+						"passing_percentage": q.passing_percentage,
+						"grading_category": scanned["grading_category"],
+						"due_date": scanned["due_date"],
+						"due_time": scanned["due_time"],
+					}
+				)
+			)
 
 	assignments = []
 	if assignments_dict:
 		asg_names = list(assignments_dict.keys())
 		asg_docs = frappe.get_all(
-			"LMS Assignment",
-			filters={"name": ["in", asg_names]},
-			fields=["name", "title"]
+			"LMS Assignment", filters={"name": ["in", asg_names]}, fields=["name", "title"]
 		)
 		for a in asg_docs:
 			scanned = assignments_dict[a.name]
-			assignments.append(frappe._dict({
-				"name": a.name,
-				"title": a.title,
-				"grading_category": scanned["grading_category"],
-				"due_date": scanned["due_date"],
-				"due_time": scanned["due_time"]
-			}))
+			assignments.append(
+				frappe._dict(
+					{
+						"name": a.name,
+						"title": a.title,
+						"grading_category": scanned["grading_category"],
+						"due_date": scanned["due_date"],
+						"due_time": scanned["due_time"],
+					}
+				)
+			)
 
 	quiz_submissions = {}
 	for q in quizzes:
 		subs = frappe.get_all(
 			"LMS Quiz Submission",
 			filters={"quiz": q.name, "member": student},
-			fields=["name", "percentage", "creation"]
+			fields=["name", "percentage", "creation"],
 		)
 		if not subs:
 			quiz_submissions[q.name] = None
@@ -3582,7 +3681,7 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		subs = frappe.get_all(
 			"LMS Assignment Submission",
 			filters={"assignment": a.name, "member": student},
-			fields=["name", "status", "creation", "score"]
+			fields=["name", "status", "creation", "score"],
 		)
 		if not subs:
 			assignment_submissions[a.name] = None
@@ -3622,16 +3721,18 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		score = sub["percentage"] if sub else 0
 		is_submitted = sub is not None
 		is_late = sub["is_late"] if sub else False
-		items_by_cat[cat].append({
-			"name": q.name,
-			"title": q.title,
-			"type": "Quiz",
-			"score": score,
-			"is_submitted": is_submitted,
-			"is_late": is_late,
-			"due_date": q.due_date,
-			"due_time": q.due_time
-		})
+		items_by_cat[cat].append(
+			{
+				"name": q.name,
+				"title": q.title,
+				"type": "Quiz",
+				"score": score,
+				"is_submitted": is_submitted,
+				"is_late": is_late,
+				"due_date": q.due_date,
+				"due_time": q.due_time,
+			}
+		)
 
 	for a in assignments:
 		cat = a.grading_category or "Uncategorized"
@@ -3641,16 +3742,18 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		score = sub["percentage"] if sub else 0
 		is_submitted = sub is not None
 		is_late = sub["is_late"] if sub else False
-		items_by_cat[cat].append({
-			"name": a.name,
-			"title": a.title,
-			"type": "Assignment",
-			"score": score,
-			"is_submitted": is_submitted,
-			"is_late": is_late,
-			"due_date": a.due_date,
-			"due_time": a.due_time
-		})
+		items_by_cat[cat].append(
+			{
+				"name": a.name,
+				"title": a.title,
+				"type": "Assignment",
+				"score": score,
+				"is_submitted": is_submitted,
+				"is_late": is_late,
+				"due_date": a.due_date,
+				"due_time": a.due_time,
+			}
+		)
 
 	category_results = []
 	total_weight = 0
@@ -3665,35 +3768,41 @@ def get_student_grades(course: str, student: str = None) -> dict:
 		if items:
 			cat_average = sum(x["score"] for x in items) / len(items)
 
-			category_results.append({
-				"category_name": cat_name,
-				"weight": weight,
-				"number_of_assessments": number_of_assessments,
-				"average": round(cat_average, 2),
-				"items": items
-			})
+			category_results.append(
+				{
+					"category_name": cat_name,
+					"weight": weight,
+					"number_of_assessments": number_of_assessments,
+					"average": round(cat_average, 2),
+					"items": items,
+				}
+			)
 
 			total_weight += weight
 			weighted_score_sum += cat_average * weight
 		else:
-			category_results.append({
-				"category_name": cat_name,
-				"weight": weight,
-				"number_of_assessments": number_of_assessments,
-				"average": 0,
-				"items": []
-			})
+			category_results.append(
+				{
+					"category_name": cat_name,
+					"weight": weight,
+					"number_of_assessments": number_of_assessments,
+					"average": 0,
+					"items": [],
+				}
+			)
 
 	uncat_items = items_by_cat.get("Uncategorized", [])
 	if uncat_items:
 		uncat_average = sum(x["score"] for x in uncat_items) / len(uncat_items)
-		category_results.append({
-			"category_name": "Uncategorized",
-			"weight": 0,
-			"number_of_assessments": 0,
-			"average": round(uncat_average, 2),
-			"items": uncat_items
-		})
+		category_results.append(
+			{
+				"category_name": "Uncategorized",
+				"weight": 0,
+				"number_of_assessments": 0,
+				"average": round(uncat_average, 2),
+				"items": uncat_items,
+			}
+		)
 
 	final_percentage = 0
 	if total_weight > 0:
@@ -3713,11 +3822,9 @@ def get_student_grades(course: str, student: str = None) -> dict:
 	return {
 		"enable_grading_policy": True,
 		"categories": category_results,
-		"grading_scale": [
-			{"grade": s.grade, "min_percentage": s.min_percentage} for s in sorted_scale
-		],
+		"grading_scale": [{"grade": s.grade, "min_percentage": s.min_percentage} for s in sorted_scale],
 		"final_percentage": final_percentage,
-		"final_grade": final_grade
+		"final_grade": final_grade,
 	}
 
 
@@ -3726,11 +3833,7 @@ def get_category_counts(course: str, current_lesson: str = None) -> dict:
 	filters = {"course": course}
 	if current_lesson:
 		filters["name"] = ["!=", current_lesson]
-	lessons = frappe.get_all(
-		"Course Lesson",
-		filters=filters,
-		fields=["content", "exclude_from_course"]
-	)
+	lessons = frappe.get_all("Course Lesson", filters=filters, fields=["content", "exclude_from_course"])
 
 	counts = {}
 	for lesson in lessons:
@@ -3750,13 +3853,10 @@ def get_category_counts(course: str, current_lesson: str = None) -> dict:
 					counts[cat] = counts.get(cat, 0) + 1
 	return counts
 
+
 @frappe.whitelist()
 def get_used_quizzes(course: str) -> list:
-	lessons = frappe.get_all(
-		"Course Lesson",
-		filters={"course": course},
-		fields=["content"]
-	)
+	lessons = frappe.get_all("Course Lesson", filters={"course": course}, fields=["content"])
 	used_quizzes = set()
 	for lesson in lessons:
 		if not lesson.content:
@@ -3771,6 +3871,7 @@ def get_used_quizzes(course: str) -> list:
 				if quiz:
 					used_quizzes.add(quiz)
 	return list(used_quizzes)
+
 
 @frappe.whitelist()
 def get_course_batches(course: str) -> list:
@@ -3789,6 +3890,7 @@ def get_course_batches(course: str) -> list:
 		fields=["name", "title"],
 	)
 	return batches
+
 
 @frappe.whitelist()
 def get_batch_members(batch: str, course: str = None) -> list:
@@ -3863,23 +3965,20 @@ def parse_aiken_questions(file_content):
 			if current_question and correct_ans:
 				if len(current_options) < 2:
 					frappe.throw(_("Question '{0}' must have at least two options.").format(current_question))
-				
+
 				answers = []
-				for idx, (letter, text) in enumerate(current_options[:4]):
+				for letter, text in current_options[:4]:
 					is_correct = 1 if letter.upper() == correct_ans.upper() else 0
-					answers.append({
-						"text": text,
-						"is_correct": is_correct
-					})
-				
-				questions.append({
-					"question": current_question,
-					"type": "Choices",
-					"answers": answers
-				})
+					answers.append({"text": text, "is_correct": is_correct})
+
+				questions.append({"question": current_question, "type": "Choices", "answers": answers})
 			current_question = None
 			current_options = []
-		elif any(line.startswith(prefix) for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"] + [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]):
+		elif any(
+			line.startswith(prefix)
+			for prefix in [f"{c}." for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+			+ [f"{c})" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
+		):
 			letter = line[0]
 			opt_text = line[2:].strip()
 			current_options.append((letter, opt_text))
@@ -3895,7 +3994,9 @@ def parse_gift_questions(file_content):
 	questions = []
 
 	for block in blocks:
-		lines = [line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")]
+		lines = [
+			line.strip() for line in block.split("\n") if line.strip() and not line.strip().startswith("//")
+		]
 		if not lines:
 			continue
 
@@ -3906,13 +4007,14 @@ def parse_gift_questions(file_content):
 				block_text = parts[2].strip()
 
 		import re
-		match = re.search(r'\{(.*?)\}', block_text, re.DOTALL)
+
+		match = re.search(r"\{(.*?)\}", block_text, re.DOTALL)
 		if not match:
 			q_text = block_text.strip()
 			q_type = "Open Ended"
 			answers = []
 		else:
-			q_text = block_text[:match.start()].strip() + block_text[match.end():].strip()
+			q_text = block_text[: match.start()].strip() + block_text[match.end() :].strip()
 			q_text = q_text.strip()
 			answer_content = match.group(1).strip()
 
@@ -3924,7 +4026,7 @@ def parse_gift_questions(file_content):
 				is_true = answer_content in ["T", "TRUE"]
 				answers = [
 					{"text": "True", "is_correct": 1 if is_true else 0},
-					{"text": "False", "is_correct": 0 if is_true else 1}
+					{"text": "False", "is_correct": 0 if is_true else 1},
 				]
 			else:
 				options = []
@@ -3938,7 +4040,7 @@ def parse_gift_questions(file_content):
 							p_idx = answer_content.find(next_prefix, idx + 1)
 							if p_idx != -1 and p_idx < next_idx:
 								next_idx = p_idx
-						opt_content = answer_content[idx+1:next_idx].strip()
+						opt_content = answer_content[idx + 1 : next_idx].strip()
 						opt_text = opt_content
 						explanation = ""
 						if "#" in opt_content:
@@ -3946,11 +4048,9 @@ def parse_gift_questions(file_content):
 							opt_text = opt_parts[0].strip()
 							explanation = opt_parts[1].strip()
 
-						options.append({
-							"text": opt_text,
-							"is_correct": is_correct,
-							"explanation": explanation
-						})
+						options.append(
+							{"text": opt_text, "is_correct": is_correct, "explanation": explanation}
+						)
 						idx = next_idx
 					else:
 						idx += 1
@@ -3963,11 +4063,7 @@ def parse_gift_questions(file_content):
 					q_type = "User Input"
 					answers = options
 
-		questions.append({
-			"question": q_text,
-			"type": q_type,
-			"answers": answers
-		})
+		questions.append({"question": q_text, "type": q_type, "answers": answers})
 
 	return questions
 
@@ -3977,21 +4073,22 @@ def get_question_banks():
 	if "question_bank" not in frappe.db.get_table_columns("LMS Question"):
 		frappe.db.add_column("LMS Question", "question_bank", "Data")
 
-	data = frappe.db.sql("""
-		SELECT question_bank, COUNT(*) as question_count 
-		FROM `tabLMS Question` 
-		WHERE question_bank IS NOT NULL AND question_bank != '' 
+	data = frappe.db.sql(
+		"""
+		SELECT question_bank, COUNT(*) as question_count
+		FROM `tabLMS Question`
+		WHERE question_bank IS NOT NULL AND question_bank != ''
 		GROUP BY question_bank
-	""", as_dict=True)
+	""",
+		as_dict=True,
+	)
 	return data
 
 
 @frappe.whitelist()
 def get_bank_questions(bank_label: str):
 	return frappe.get_all(
-		"LMS Question",
-		filters={"question_bank": bank_label},
-		fields=["name", "question", "type"]
+		"LMS Question", filters={"question_bank": bank_label}, fields=["name", "question", "type"]
 	)
 
 
@@ -4002,6 +4099,7 @@ def add_questions_to_quiz(quiz_name: str, question_names, marks: int = 1):
 		frappe.throw(_("You do not have permission to modify this quiz."), frappe.PermissionError)
 
 	import json
+
 	if isinstance(question_names, str):
 		question_names = json.loads(question_names)
 
@@ -4011,11 +4109,10 @@ def add_questions_to_quiz(quiz_name: str, question_names, marks: int = 1):
 	added_count = 0
 	for q_name in question_names:
 		if q_name not in existing_questions:
-			quiz.append("questions", {
-				"doctype": "LMS Quiz Question",
-				"question": q_name,
-				"marks": frappe.utils.cint(marks) or 1
-			})
+			quiz.append(
+				"questions",
+				{"doctype": "LMS Quiz Question", "question": q_name, "marks": frappe.utils.cint(marks) or 1},
+			)
 			added_count += 1
 
 	if added_count > 0:
@@ -4045,10 +4142,3 @@ def delete_bank_question(question_name: str):
 
 	frappe.delete_doc("LMS Question", question_name, ignore_permissions=True)
 	return {"status": "success"}
-
-
-
-
-
-
-

@@ -35,9 +35,18 @@ export class Quiz {
 	render() {
 		this.wrapper = document.createElement('div')
 		if (Object.keys(this.data).length) {
-			const enable_proctoring = this.data.enable_proctoring !== undefined ? this.data.enable_proctoring : true
-			const max_proctor_warnings = this.data.max_proctor_warnings !== undefined ? this.data.max_proctor_warnings : 3
-			const shuffle_answers = this.data.shuffle_answers !== undefined ? this.data.shuffle_answers : false
+			const enable_proctoring =
+				this.data.enable_proctoring !== undefined
+					? this.data.enable_proctoring
+					: true
+			const max_proctor_warnings =
+				this.data.max_proctor_warnings !== undefined
+					? this.data.max_proctor_warnings
+					: 3
+			const shuffle_answers =
+				this.data.shuffle_answers !== undefined
+					? this.data.shuffle_answers
+					: false
 			this.renderQuiz(
 				this.data.quiz,
 				this.data.grading_category,
@@ -69,11 +78,11 @@ export class Quiz {
 		if (this.readOnly) {
 			const quizPath = getLmsRoute(
 				`quiz/${quiz}?fromLesson=1` +
-				`${checkpoint_quiz ? '&checkpoint=1' : ''}` +
-				`${include_in_grading ? '&grading=1' : ''}` +
-				`${enable_proctoring ? '&proctor=1' : '&proctor=0'}` +
-				`&warnings=${max_proctor_warnings}` +
-				`${shuffle_answers ? '&shuffle_answers=1' : ''}`
+					`${checkpoint_quiz ? '&checkpoint=1' : ''}` +
+					`${include_in_grading ? '&grading=1' : ''}` +
+					`${enable_proctoring ? '&proctor=1' : '&proctor=0'}` +
+					`&warnings=${max_proctor_warnings}` +
+					`${shuffle_answers ? '&shuffle_answers=1' : ''}`
 			)
 			this.wrapper.innerHTML = `<iframe src="${quizPath}" class="w-full h-[500px]" allow="fullscreen" allowfullscreen></iframe>`
 			if (checkpoint_quiz) {
@@ -86,8 +95,26 @@ export class Quiz {
 			<div class="font-medium">
 				Quiz: ${quiz}
 			</div>
-			${checkpoint_quiz ? `<div class="text-xs text-ink-blue-7 mt-1">${__('Checkpoint Quiz')}</div>` : ''}
-			${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : !include_in_grading ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Not included in grading')}</div>` : ''}
+			${
+				checkpoint_quiz
+					? `<div class="text-xs text-ink-blue-7 mt-1">${__(
+							'Checkpoint Quiz'
+					  )}</div>`
+					: ''
+			}
+			${
+				category
+					? `<div class="text-xs text-ink-gray-6 mt-1">${__(
+							'Category'
+					  )}: ${category} ${
+							due_date ? `| ${__('Due')}: ${due_date}` : ''
+					  } ${due_time ? due_time : ''}</div>`
+					: !include_in_grading
+					? `<div class="text-xs text-ink-gray-6 mt-1">${__(
+							'Not included in grading'
+					  )}</div>`
+					: ''
+			}
 		</div>`
 		return
 	}
@@ -99,13 +126,21 @@ export class Quiz {
 		this.api.saver.save().then((outputData) => {
 			const currentAssessments = []
 			for (const block of outputData.blocks || []) {
-				if (block.type === 'quiz' && block.data?.quiz && block.data?.grading_category) {
+				if (
+					block.type === 'quiz' &&
+					block.data?.quiz &&
+					block.data?.grading_category
+				) {
 					currentAssessments.push({
 						type: 'quiz',
 						id: block.data.quiz,
 						category: block.data.grading_category,
 					})
-				} else if (block.type === 'assignment' && block.data?.assignment && block.data?.grading_category) {
+				} else if (
+					block.type === 'assignment' &&
+					block.data?.assignment &&
+					block.data?.grading_category
+				) {
 					currentAssessments.push({
 						type: 'assignment',
 						id: block.data.assignment,
@@ -117,7 +152,8 @@ export class Quiz {
 			const app = createApp(AssessmentPlugin, {
 				type: 'quiz',
 				courseName: router.currentRoute.value?.params?.courseName,
-				creationMode: router.currentRoute.value?.query?.mode || 'lesson',
+				creationMode:
+					router.currentRoute.value?.query?.mode || 'lesson',
 				allowCheckpointQuiz:
 					router.currentRoute.value?.query?.mode !== 'assessment',
 				currentAssessments: currentAssessments,
