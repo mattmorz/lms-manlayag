@@ -24,14 +24,22 @@ jobs:
       - name: Check commit titles
         run: |
           npm install @commitlint/cli @commitlint/config-conventional
+          copilot_email_suffix='Copilot@users.noreply.github.com'
+
           for commit in $(git rev-list --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}); do
             subject=$(git log -1 --format=%s "$commit")
             author_email=$(git log -1 --format=%ae "$commit")
 
-            if [ "$subject" = "Initial plan" ] && [ "$author_email" = "198982749+Copilot@users.noreply.github.com" ]; then
-              continue
-            fi
+            case "$subject" in
+              "Initial plan"|"Plan "*)
+                if [[ "$author_email" == *"$copilot_email_suffix" ]]; then
+                  echo "Skipping Copilot progress commit: $commit - $subject"
+                  continue
+                fi
+                ;;
+            esac
 
+            echo "Checking commit: $commit - $subject"
             git log -1 --format=%B "$commit" | npx commitlint --verbose
           done
 
