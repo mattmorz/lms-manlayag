@@ -22,16 +22,13 @@
 						doctype="LMS Quiz"
 						class="flex-2"
 					/>
-					<div class="flex items-center gap-2 h-9 mb-0.5">
-						<input
-							id="enforce_pass"
-							type="checkbox"
+					<div class="flex items-center h-9 mb-0.5">
+						<FormControl
 							v-model="quiz.enforce_pass"
-							class="rounded border-outline-gray-3 text-ink-gray-9 focus:ring-ink-gray-9 w-4 h-4 cursor-pointer"
+							type="checkbox"
+							:label="__('Require Pass')"
+							class="!mb-0"
 						/>
-						<label for="enforce_pass" class="text-xs text-ink-gray-7 select-none cursor-pointer whitespace-nowrap">
-							{{ __('Require Pass') }}
-						</label>
 					</div>
 					<Button @click="addQuiz()" variant="solid" class="mb-0.5">
 						<template #prefix>
