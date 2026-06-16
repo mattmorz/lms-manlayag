@@ -80,35 +80,35 @@ class TestLMSAPI(BaseTestUtils):
 			]
 		})
 		lesson.insert()
+		self.cleanup_items.append(("Course Lesson", lesson.name))
 
 		from lms.lms.doctype.course_lesson.course_lesson import get_video_progress
 		from lms.lms.api import track_video_watch_duration
 
-		# Login as student1
-		frappe.session.user = self.student1.email
+		try:
+			# Login as student1
+			frappe.session.user = self.student1.email
 
-		# Initially, get_video_progress should return False because no watch duration exists
-		self.assertFalse(get_video_progress(lesson.name))
+			# Initially, get_video_progress should return False because no watch duration exists
+			self.assertFalse(get_video_progress(lesson.name))
 
-		# Now track watch duration below 90% (e.g. 50s watch time, 100s duration)
-		track_video_watch_duration(
-			lesson.name,
-			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 50, "duration": 100}]
-		)
-		# get_video_progress should still be False
-		self.assertFalse(get_video_progress(lesson.name))
+			# Now track watch duration below 90% (e.g. 50s watch time, 100s duration)
+			track_video_watch_duration(
+				lesson.name,
+				[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 50, "duration": 100}]
+			)
+			# get_video_progress should still be False
+			self.assertFalse(get_video_progress(lesson.name))
 
-		# Now track watch duration >= 90% (e.g. 95s watch time, 100s duration)
-		track_video_watch_duration(
-			lesson.name,
-			[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 95, "duration": 100}]
-		)
-		# get_video_progress should now be True!
-		self.assertTrue(get_video_progress(lesson.name))
-
-		# Clean up
-		lesson.delete()
-		frappe.session.user = "Administrator"
+			# Now track watch duration >= 90% (e.g. 95s watch time, 100s duration)
+			track_video_watch_duration(
+				lesson.name,
+				[{"source": "https://www.youtube.com/watch?v=mock", "watch_time": 95, "duration": 100}]
+			)
+			# get_video_progress should now be True!
+			self.assertTrue(get_video_progress(lesson.name))
+		finally:
+			frappe.session.user = "Administrator"
 
 	def test_in_video_quiz_verification(self):
 		import json
@@ -134,46 +134,46 @@ class TestLMSAPI(BaseTestUtils):
 		})
 		
 		lesson.insert()
-		
-		from lms.lms.doctype.course_lesson.course_lesson import get_quiz_progress
+		self.cleanup_items.append(("Course Lesson", lesson.name))
 
-		# Login as student1
-		frappe.session.user = self.student1.email
-
-		# The student has already passed self.quiz in setup flow, so get_quiz_progress should be True
-		self.assertTrue(get_quiz_progress(lesson.name))
-
-		# Now create a quiz that the student has NOT passed
+		# Create a quiz that the student has NOT passed (do this as Administrator)
 		unpassed_quiz = frappe.new_doc("LMS Quiz")
 		unpassed_quiz.title = "Unpassed Quiz"
 		unpassed_quiz.passing_percentage = 80
 		unpassed_quiz.insert()
+		self.cleanup_items.append(("LMS Quiz", unpassed_quiz.name))
 
-		# Update the lesson to contain this unpassed quiz
-		lesson.content = json.dumps({
-			"blocks": [
-				{
-					"type": "embed",
-					"data": {
-						"service": "youtube",
-						"source": "https://www.youtube.com/watch?v=mock",
-						"embed": "https://www.youtube.com/embed/mock",
-						"quizzes": [
-							{"quiz": unpassed_quiz.name, "time": 10}
-						]
+		from lms.lms.doctype.course_lesson.course_lesson import get_quiz_progress
+
+		try:
+			# Login as student1
+			frappe.session.user = self.student1.email
+
+			# The student has already passed self.quiz in setup flow, so get_quiz_progress should be True
+			self.assertTrue(get_quiz_progress(lesson.name))
+
+			# Update the lesson to contain this unpassed quiz
+			lesson.content = json.dumps({
+				"blocks": [
+					{
+						"type": "embed",
+						"data": {
+							"service": "youtube",
+							"source": "https://www.youtube.com/watch?v=mock",
+							"embed": "https://www.youtube.com/embed/mock",
+							"quizzes": [
+								{"quiz": unpassed_quiz.name, "time": 10}
+							]
+						}
 					}
-				}
-			]
-		})
-		lesson.save()
+				]
+			})
+			lesson.save()
 
-		# get_quiz_progress should now be False!
-		self.assertFalse(get_quiz_progress(lesson.name))
-
-		# Clean up
-		lesson.delete()
-		unpassed_quiz.delete()
-		frappe.session.user = "Administrator"
+			# get_quiz_progress should now be False!
+			self.assertFalse(get_quiz_progress(lesson.name))
+		finally:
+			frappe.session.user = "Administrator"
 
 	def test_upload_video_transcript(self):
 		import json
@@ -184,12 +184,14 @@ class TestLMSAPI(BaseTestUtils):
 		lesson.chapter = self.course.chapters[0].chapter
 		lesson.youtube = "https://www.youtube.com/watch?v=mockytid"
 		lesson.insert()
+		self.cleanup_items.append(("Course Lesson", lesson.name))
 
-		# Log in as moderator/instructor
-		frappe.session.user = self.admin.email
+		try:
+			# Log in as moderator/instructor
+			frappe.session.user = self.admin.email
 
-		# 1. Test SRT parsing
-		srt_content = """1
+			# 1. Test SRT parsing
+			srt_content = """1
 00:00:01,000 --> 00:00:04,500
 Hello World!
 
@@ -197,26 +199,26 @@ Hello World!
 00:00:05,100 --> 00:00:08,200
 This is a test.
 """
-		from lms.lms.api import upload_video_transcript
-		res = upload_video_transcript(lesson.name, "mockytid", srt_content, "subtitles.srt")
-		
-		# Verify parsed result
-		self.assertEqual(len(res), 2)
-		self.assertEqual(res[0]["text"], "Hello World!")
-		self.assertEqual(res[0]["start"], 1.0)
-		self.assertEqual(res[0]["duration"], 3.5)
-		self.assertEqual(res[1]["text"], "This is a test.")
-		self.assertEqual(res[1]["start"], 5.1)
-		self.assertEqual(res[1]["duration"], 3.1)
+			from lms.lms.api import upload_video_transcript
+			res = upload_video_transcript(lesson.name, "mockytid", srt_content, "subtitles.srt")
+			
+			# Verify parsed result
+			self.assertEqual(len(res), 2)
+			self.assertEqual(res[0]["text"], "Hello World!")
+			self.assertEqual(res[0]["start"], 1.0)
+			self.assertEqual(res[0]["duration"], 3.5)
+			self.assertEqual(res[1]["text"], "This is a test.")
+			self.assertEqual(res[1]["start"], 5.1)
+			self.assertEqual(res[1]["duration"], 3.1)
 
-		# Verify it is saved in DB correctly
-		stored_transcript_str = frappe.db.get_value("Course Lesson", lesson.name, "video_transcript")
-		stored_transcript = json.loads(stored_transcript_str)
-		self.assertIn("mockytid", stored_transcript)
-		self.assertEqual(len(stored_transcript["mockytid"]), 2)
+			# Verify it is saved in DB correctly
+			stored_transcript_str = frappe.db.get_value("Course Lesson", lesson.name, "video_transcript")
+			stored_transcript = json.loads(stored_transcript_str)
+			self.assertIn("mockytid", stored_transcript)
+			self.assertEqual(len(stored_transcript["mockytid"]), 2)
 
-		# 2. Test VTT parsing
-		vtt_content = """WEBVTT
+			# 2. Test VTT parsing
+			vtt_content = """WEBVTT
 
 00:00:01.000 --> 00:00:04.500
 Hello VTT!
@@ -224,18 +226,16 @@ Hello VTT!
 00:00:05.100 --> 00:00:08.200
 This is vtt test.
 """
-		res2 = upload_video_transcript(lesson.name, "mockytid", vtt_content, "subtitles.vtt")
-		self.assertEqual(len(res2), 2)
-		self.assertEqual(res2[0]["text"], "Hello VTT!")
+			res2 = upload_video_transcript(lesson.name, "mockytid", vtt_content, "subtitles.vtt")
+			self.assertEqual(len(res2), 2)
+			self.assertEqual(res2[0]["text"], "Hello VTT!")
 
-		# 3. Test JSON parsing
-		json_content = json.dumps([
-			{"text": "Hello JSON!", "start": 1.0, "duration": 3.5}
-		])
-		res3 = upload_video_transcript(lesson.name, "mockytid", json_content, "subtitles.json")
-		self.assertEqual(len(res3), 1)
-		self.assertEqual(res3[0]["text"], "Hello JSON!")
-
-		# Clean up
-		lesson.delete()
-		frappe.session.user = "Administrator"
+			# 3. Test JSON parsing
+			json_content = json.dumps([
+				{"text": "Hello JSON!", "start": 1.0, "duration": 3.5}
+			])
+			res3 = upload_video_transcript(lesson.name, "mockytid", json_content, "subtitles.json")
+			self.assertEqual(len(res3), 1)
+			self.assertEqual(res3[0]["text"], "Hello JSON!")
+		finally:
+			frappe.session.user = "Administrator"
