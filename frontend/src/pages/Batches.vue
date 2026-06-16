@@ -132,7 +132,7 @@
 				<div class="min-w-40 sm:w-48 xl:w-56">
 					<Select
 						v-model="studentBatchFilter"
-						:options="studentList.data?.batch_options || []"
+						:options="studentBatchFilterOptions"
 						:placeholder="__('All Batches')"
 					/>
 				</div>
@@ -145,12 +145,12 @@
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
 			</div>
 			<template v-else>
-				<ListView
+				<ListViewStudents
 					v-if="studentListItems.length"
 					:columns="studentColumns"
 					:rows="studentListItems"
 					row-key="name"
-					:options="{ showTooltip: false, selectable: false }"
+					:options="{ showTooltip: false, selectable: true }"
 				>
 					<ListHeader
 						class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
@@ -176,10 +176,11 @@
 						v-for="row in studentListItems"
 						:key="row.name"
 						:row="row"
+						:class="{ 'opacity-50': row.enabled === 0 }"
 					>
 						<template #default="{ column }">
 							<ListRowItem :item="row[column.key]" :align="column.align">
-								<div v-if="column.key === 'member_name'" class="flex items-center gap-3">
+								<div v-if="column.key === 'member_name'" class="flex items-center gap-3 w-full">
 									<div
 										v-if="!row.user_image"
 										:style="getAvatarStyle(row.member_name)"
@@ -192,18 +193,28 @@
 										:src="row.user_image"
 										class="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-outline-gray-2"
 									/>
-									<div class="flex flex-col min-w-0">
+									<div class="flex flex-col min-w-0 flex-1">
 										<span class="font-semibold text-ink-gray-9 truncate">{{ row.member_name }}</span>
 										<span class="text-xs text-ink-gray-5 truncate">{{ row.email }}</span>
 									</div>
 								</div>
 								<div v-else-if="column.key === 'batch_title'" class="min-w-0 w-full">
 									<router-link
+										v-if="row.batch"
 										:to="{ name: 'BatchDetail', params: { batchName: row.batch } }"
 										class="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
 									>
 										{{ row.batch_title }}
 									</router-link>
+									<button
+										v-else
+										@click.stop="openManualModalForStudent(row)"
+										class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md border border-outline-gray-3 text-ink-gray-6 hover:bg-surface-gray-2 hover:text-ink-gray-9 transition-colors"
+										:title="__('Assign to a batch')"
+									>
+										<FeatherIcon name="plus" class="h-3 w-3" />
+										{{ __('Assign Batch') }}
+									</button>
 								</div>
 								<div v-else-if="column.key === 'creation'" class="text-ink-gray-7 text-sm">
 									{{ dayjs(row.creation).format('DD MMM YYYY') }}
@@ -231,7 +242,34 @@
 						</template>
 					</ListRow>
 				</ListRows>
-				</ListView>
+				<ListSelectBanner>
+					<template #actions="{ unselectAll, selections }">
+						<div class="flex gap-4">
+							<Button
+								variant="ghost"
+								:loading="disableStudentResource.loading"
+								@click="handleBulkToggleStudentAccounts(selections, unselectAll)"
+								class="text-red-600 hover:bg-red-50"
+							>
+								<FeatherIcon
+									:name="areAnySelectedStudentsActive(selections) ? 'user-x' : 'user-check'"
+									class="h-4 w-4 stroke-1.5 mr-1"
+								/>
+								{{ areAnySelectedStudentsActive(selections) ? __('Disable Account') : __('Enable Account') }}
+							</Button>
+							<Button
+								variant="ghost"
+								:loading="unenrollStudentResource.loading"
+								@click="handleUnenrollStudents(selections, unselectAll)"
+								class="text-red-600 hover:bg-red-50"
+							>
+								<FeatherIcon name="log-out" class="h-4 w-4 stroke-1.5 mr-1" />
+								{{ __('Unenroll from Batch') }}
+							</Button>
+						</div>
+					</template>
+				</ListSelectBanner>
+				</ListViewStudents>
 				<div v-else class="text-center py-12 text-ink-gray-5">
 					{{ __('No students found matching the filters.') }}
 				</div>
@@ -434,7 +472,7 @@ student2@example.com,Student Two</pre>
 			<Dialog
 				v-model="showManualModal"
 				:options="{
-					title: __('Add Student Manually'),
+					title: manualModalTitle,
 					size: 'lg',
 				}"
 			>
@@ -527,20 +565,24 @@ import {
 	Badge,
 	Breadcrumbs,
 	Button,
+	call,
+	Checkbox,
 	createListResource,
 	createResource,
 	Dialog,
 	Dropdown,
 	FeatherIcon,
 	FormControl,
-	ListView,
+	ListView as ListViewStudents,
 	ListHeader,
 	ListHeaderItem,
 	ListRows,
 	ListRow,
 	ListRowItem,
+	ListSelectBanner,
 	Select,
 	TabButtons,
+	toast,
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
@@ -665,7 +707,19 @@ const handleCSVFileChange = (e) => {
 
 const batchOptionsForImport = computed(() => {
 	const options = studentList.data?.batch_options || []
-	return options.filter(o => o.value !== '')
+	return options.filter(o => o.value !== '' && o.value !== '__without_batch__')
+})
+
+const studentBatchFilterOptions = computed(() => {
+	const options = studentList.data?.batch_options || []
+	// Inject "Without Batch" after the first (All Batches) entry
+	const base = options.filter(o => o.value !== '__without_batch__')
+	const insertAt = base.length > 0 ? 1 : base.length
+	return [
+		...base.slice(0, insertAt),
+		{ label: __('Without Batch'), value: '__without_batch__' },
+		...base.slice(insertAt),
+	]
 })
 
 const toggleSelectAllImported = (e) => {
@@ -747,6 +801,16 @@ const manualEmail = ref('')
 const manualFullName = ref('')
 const manualBatch = ref('')
 const manualError = ref('')
+const manualModalTitle = ref(__('Add Student Manually'))
+
+const openManualModalForStudent = (row) => {
+	manualEmail.value = row.email || ''
+	manualFullName.value = row.member_name || ''
+	manualBatch.value = ''
+	manualError.value = ''
+	manualModalTitle.value = __('Assign Student to Batch')
+	showManualModal.value = true
+}
 
 const manualResource = createResource({
 	url: 'lms.lms.api.add_student_manually',
@@ -776,6 +840,7 @@ const closeManualModal = () => {
 	manualFullName.value = ''
 	manualBatch.value = ''
 	manualError.value = ''
+	manualModalTitle.value = __('Add Student Manually')
 }
 
 const getAvatarStyle = (name) => {
@@ -821,6 +886,74 @@ watch([studentSearch, studentBatchFilter, studentSortBy], () => {
 		studentList.reload()
 	}
 })
+
+const disableStudentResource = createResource({
+	url: 'lms.lms.api.bulk_toggle_student_accounts',
+	onSuccess() {
+		studentStart.value = 0
+		studentList.reload()
+	},
+	onError(err) {
+		toast.error(err.messages?.[0] || err.message || __('Failed to update accounts.'))
+	},
+})
+
+const unenrollStudentResource = createResource({
+	url: 'lms.lms.api.bulk_unenroll_students_from_batch',
+	onSuccess() {
+		studentStart.value = 0
+		studentList.reload()
+	},
+	onError(err) {
+		toast.error(err.messages?.[0] || err.message || __('Failed to unenroll students.'))
+	},
+})
+
+const areAnySelectedStudentsActive = (selections) => {
+	if (!selections || !selections.size) return false
+	const enrollmentNames = Array.from(selections)
+	return enrollmentNames.some(n => {
+		const student = studentListItems.value.find(s => s.name === n)
+		return student && student.enabled !== 0
+	})
+}
+
+const handleBulkToggleStudentAccounts = (selections, unselectAll) => {
+	if (!selections.size) return
+	const enrollmentNames = Array.from(selections)
+	const emails = enrollmentNames
+		.map(n => studentListItems.value.find(s => s.name === n)?.email)
+		.filter(Boolean)
+	if (!emails.length) return
+
+	const targetEnabled = areAnySelectedStudentsActive(selections) ? 0 : 1
+	disableStudentResource.submit({ emails, enabled: targetEnabled })
+	unselectAll()
+}
+
+const handleUnenrollStudents = (selections, unselectAll) => {
+	if (!selections.size) return
+	const enrollmentNames = Array.from(selections)
+	unenrollStudentResource.submit({ enrollment_names: enrollmentNames })
+	unselectAll()
+}
+
+const toggleStudentAccountResource = createResource({
+	url: 'lms.lms.api.toggle_student_account',
+	onError(err) {
+		toast.error(err.messages?.[0] || err.message || __('Failed to update account status.'))
+		// revert the local change on error
+		studentStart.value = 0
+		studentList.reload()
+	},
+})
+
+const handleToggleStudentAccount = (row, isChecked) => {
+	const newEnabled = isChecked ? 0 : 1
+	// optimistic update
+	row.enabled = newEnabled
+	toggleStudentAccountResource.submit({ email: row.email, enabled: newEnabled })
+}
 
 onMounted(() => {
 	setFiltersFromQuery()

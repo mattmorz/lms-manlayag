@@ -4057,7 +4057,98 @@ def get_all_students_across_batches(search_term=None, batch_filter=None, order_b
 	conditions = []
 	values = {}
 
-	if batch_filter:
+	without_batch_mode = (batch_filter == "__without_batch__")
+
+	if without_batch_mode:
+		# Special mode: LMS Students with no batch enrollment at all
+		conditions_wb = []
+		values_wb = {}
+
+		if search_term:
+			conditions_wb.append("(u.full_name LIKE %(search)s OR u.username LIKE %(search)s OR u.name LIKE %(search)s)")
+			values_wb["search"] = f"%{search_term}%"
+
+		query_base_wb = """
+			FROM `tabUser` u
+			INNER JOIN `tabHas Role` hr ON hr.parent = u.name AND hr.role = 'LMS Student' AND hr.parenttype = 'User'
+			WHERE u.name NOT IN ('Administrator', 'Guest')
+				AND NOT EXISTS (
+					SELECT 1 FROM `tabLMS Batch Enrollment` env2
+					WHERE env2.member = u.name
+				)
+		"""
+		if conditions_wb:
+			query_base_wb += " AND " + " AND ".join(conditions_wb)
+
+		total_count = frappe.db.sql(f"SELECT COUNT(*) {query_base_wb}", values_wb)[0][0]
+
+		sql_order_by_wb = "u.creation DESC"
+		if order_by:
+			parts = order_by.lower().split()
+			sort_field = parts[0]
+			direction = "DESC" if len(parts) > 1 and parts[1] == "desc" else "ASC"
+			if sort_field == "member_name":
+				sql_order_by_wb = f"u.full_name {direction}"
+			elif sort_field == "creation":
+				sql_order_by_wb = f"u.creation {direction}"
+			elif sort_field == "last_active":
+				sql_order_by_wb = f"u.last_active {direction}"
+
+		select_wb = f"""
+			SELECT
+				u.name as member,
+				u.full_name as member_name,
+				u.username as username,
+				u.user_image as user_image,
+				u.last_active as last_active,
+				u.creation as creation,
+				u.enabled as enabled,
+				NULL as batch,
+				NULL as batch_title,
+				NULL as enrollment_name
+			{query_base_wb}
+			ORDER BY {sql_order_by_wb}
+			LIMIT {start}, {page_length}
+		"""
+		records_wb = frappe.db.sql(select_wb, values_wb, as_dict=True)
+
+		from frappe.utils import format_datetime, get_datetime
+		students_data = []
+		for r in records_wb:
+			raw_la = r.last_active
+			students_data.append(frappe._dict({
+				"name": r.enrollment_name or r.member,
+				"email": r.member,
+				"member_name": r.member_name or r.member,
+				"member_username": r.username,
+				"batch": None,
+				"batch_title": _("No Batch"),
+				"creation": r.creation,
+				"last_active": format_datetime(raw_la, "dd MMM YY") if raw_la else "Never",
+				"raw_last_active": raw_la or get_datetime("1970-01-01 00:00:00"),
+				"user_image": r.user_image,
+				"enabled": r.enabled if r.enabled is not None else 1,
+				"progress": 0,
+			}))
+
+		all_batches = frappe.get_all(
+			"LMS Batch",
+			fields=["name", "title"],
+			order_by="title asc",
+		)
+		batch_options = (
+			[{"label": _("All Batches"), "value": ""}]
+			+ [{"label": _("Without Batch"), "value": "__without_batch__"}]
+			+ [{"label": b.title, "value": b.name} for b in all_batches]
+		)
+		return {
+			"data": students_data,
+			"total_count": total_count,
+			"has_next_page": (start + page_length) < total_count,
+			"batch_options": batch_options
+		}
+
+	if batch_filter and batch_filter != "__without_batch__":
 		conditions.append("env.batch = %(batch)s")
 		values["batch"] = batch_filter
 
@@ -4108,6 +4199,7 @@ def get_all_students_across_batches(search_term=None, batch_filter=None, order_b
 				u.user_image as user_image,
 				u.username as username,
 				u.full_name as full_name,
+				u.enabled as enabled,
 				b.title as batch_title
 		""" + query_base
 		records = frappe.db.sql(select_query, values, as_dict=True)
@@ -4123,6 +4215,7 @@ def get_all_students_across_batches(search_term=None, batch_filter=None, order_b
 				u.user_image as user_image,
 				u.username as username,
 				u.full_name as full_name,
+				u.enabled as enabled,
 				b.title as batch_title
 		""" + query_base + f" ORDER BY {sql_order_by} LIMIT {start}, {page_length}"
 		records = frappe.db.sql(select_query, values, as_dict=True)
@@ -4244,6 +4337,7 @@ def get_all_students_across_batches(search_term=None, batch_filter=None, order_b
 			"last_active": formatted_last_active,
 			"raw_last_active": raw_last_active or get_datetime("1970-01-01 00:00:00"),
 			"user_image": r.user_image,
+			"enabled": r.enabled if r.enabled is not None else 1,
 			"progress": 0,
 		})
 
@@ -4292,9 +4386,11 @@ def get_all_students_across_batches(search_term=None, batch_filter=None, order_b
 		fields=["name", "title"],
 		order_by="title asc",
 	)
-	batch_options = [{"label": _("All Batches"), "value": ""}] + [
-		{"label": b.title, "value": b.name} for b in all_batches
-	]
+	batch_options = (
+		[{"label": _("All Batches"), "value": ""}]
+		+ [{"label": _("Without Batch"), "value": "__without_batch__"}]
+		+ [{"label": b.title, "value": b.name} for b in all_batches]
+	)
 
 	return {
 		"data": paginated_data,
@@ -4527,9 +4623,96 @@ def add_student_manually(email, full_name, batch=None):
 
 
 
+@frappe.whitelist()
+def bulk_disable_student_accounts(emails):
+	frappe.only_for("Moderator")
+
+	import json
+	if isinstance(emails, str):
+		emails = json.loads(emails)
+
+	if not emails:
+		frappe.throw(_("No accounts selected."))
+
+	disabled_count = 0
+	errors = []
+	for email in emails:
+		try:
+			if not frappe.db.exists("User", email):
+				errors.append(f"User '{email}' does not exist.")
+				continue
+			frappe.db.set_value("User", email, "enabled", 0)
+			disabled_count += 1
+		except Exception as e:
+			errors.append(f"Failed to disable '{email}': {str(e)}")
+
+	frappe.db.commit()
+	return {"disabled_count": disabled_count, "errors": errors}
 
 
+@frappe.whitelist()
+def bulk_toggle_student_accounts(emails, enabled):
+	frappe.only_for("Moderator")
+
+	import json
+	if isinstance(emails, str):
+		emails = json.loads(emails)
+
+	if not emails:
+		frappe.throw(_("No accounts selected."))
+
+	enabled_val = 1 if frappe.utils.cint(enabled) else 0
+	updated_count = 0
+	errors = []
+	for email in emails:
+		try:
+			if not frappe.db.exists("User", email):
+				errors.append(f"User '{email}' does not exist.")
+				continue
+			frappe.db.set_value("User", email, "enabled", enabled_val)
+			updated_count += 1
+		except Exception as e:
+			errors.append(f"Failed to update '{email}': {str(e)}")
+
+	frappe.db.commit()
+	return {"updated_count": updated_count, "errors": errors}
 
 
+@frappe.whitelist()
+def bulk_unenroll_students_from_batch(enrollment_names):
+	frappe.only_for("Moderator")
+
+	import json
+	if isinstance(enrollment_names, str):
+		enrollment_names = json.loads(enrollment_names)
+
+	if not enrollment_names:
+		frappe.throw(_("No enrollments selected."))
+
+	unenrolled_count = 0
+	errors = []
+	for name in enrollment_names:
+		try:
+			if not frappe.db.exists("LMS Batch Enrollment", name):
+				errors.append(f"Enrollment '{name}' does not exist.")
+				continue
+			frappe.delete_doc("LMS Batch Enrollment", name, ignore_permissions=True)
+			unenrolled_count += 1
+		except Exception as e:
+			errors.append(f"Failed to unenroll '{name}': {str(e)}")
+
+	frappe.db.commit()
+	return {"unenrolled_count": unenrolled_count, "errors": errors}
 
 
+@frappe.whitelist()
+def toggle_student_account(email, enabled):
+	frappe.only_for("Moderator")
+
+	if not frappe.db.exists("User", email):
+		frappe.throw(_("User '{0}' does not exist.").format(email))
+
+	enabled_val = 1 if frappe.utils.cint(enabled) else 0
+	frappe.db.set_value("User", email, "enabled", enabled_val)
+	frappe.db.commit()
+	return {"email": email, "enabled": enabled_val}
