@@ -1,9 +1,8 @@
 name: Semantic Pull Request
 
 on:
-  push:
-    branches: [ main ]
-  pull_request: {}
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
   # This workflow contains a single job called "build"
@@ -11,9 +10,12 @@ jobs:
     name: Validate PR title
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      - uses: amannn/action-semantic-pull-request@v5
+      - name: Validate title format
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          if [[ ! "$title" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?(!)?:\ .+ ]]; then
+            echo "Invalid PR title: $title"
+            echo "Expected Conventional Commits format, e.g., 'fix(scope): brief description'."
+            exit 1
+          fi
