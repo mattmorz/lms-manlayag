@@ -757,6 +757,7 @@ const assignResource = createResource({
 		closeImportModal()
 		studentStart.value = 0
 		studentList.reload()
+		toast.success(__('Students assigned to batch successfully.'))
 	}
 })
 
@@ -824,6 +825,7 @@ const manualResource = createResource({
 		closeManualModal()
 		studentStart.value = 0
 		studentList.reload()
+		toast.success(__('Student assigned to batch successfully.'))
 	},
 	onError(err) {
 		manualError.value = err.messages ? err.messages.join('\n') : err.message || __('Failed to add student.')
@@ -898,6 +900,7 @@ const disableStudentResource = createResource({
 	onSuccess() {
 		studentStart.value = 0
 		studentList.reload()
+		toast.success(__('Student accounts updated successfully.'))
 	},
 	onError(err) {
 		toast.error(err.messages?.[0] || err.message || __('Failed to update accounts.'))
@@ -909,6 +912,7 @@ const unenrollStudentResource = createResource({
 	onSuccess() {
 		studentStart.value = 0
 		studentList.reload()
+		toast.success(__('Students unenrolled successfully.'))
 	},
 	onError(err) {
 		toast.error(err.messages?.[0] || err.message || __('Failed to unenroll students.'))
@@ -946,6 +950,10 @@ const handleUnenrollStudents = (selections, unselectAll) => {
 
 const toggleStudentAccountResource = createResource({
 	url: 'lms.lms.api.toggle_student_account',
+	onSuccess(data) {
+		const status = data.enabled ? __('enabled') : __('disabled')
+		toast.success(__('Student account has been {0}.').format(status))
+	},
 	onError(err) {
 		toast.error(err.messages?.[0] || err.message || __('Failed to update account status.'))
 		// revert the local change on error
