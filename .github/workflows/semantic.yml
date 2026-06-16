@@ -14,7 +14,7 @@ jobs:
       - name: Validate title format
         run: |
           title="${{ github.event.pull_request.title }}"
-          if [[ ! "$title" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?(!)?:\ .+ ]]; then
+          if [[ ! "$title" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?(!)?:[[:space:]]+.+ ]]; then
             echo "Invalid PR title: $title"
             echo "Expected Conventional Commits format, e.g., 'fix(scope): brief description'."
             exit 1
