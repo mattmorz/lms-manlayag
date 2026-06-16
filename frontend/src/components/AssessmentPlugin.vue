@@ -97,7 +97,7 @@
 						/>
 						<FormControl
 							type="checkbox"
-							:label="__('Shuffle answers')"
+							:label="__('Shuffle choices')"
 							v-model="shuffle_answers"
 							class="mt-3"
 						/>
