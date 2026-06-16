@@ -56,6 +56,35 @@ The platform enables instructors and administrators to:
 
   * Access courses from desktop, tablet, and mobile devices.
 
+## CARSU Custom Enhancements
+
+The CARSU (Caraga State University) implementation of Manlayag introduces several custom features and platform optimizations:
+
+### 1. Advanced Student & Cohort Management
+* **Comprehensive Students Cohort View**: A dedicated "Students" tab on the Batches Page displaying all system-wide student accounts.
+* **Advanced Filtering & Sorting**: Filter students by search term or assigned batches, including a custom "Without Batch" filter option to isolate unassigned users.
+* **Quick Batch Assignment**: Inline actions to instantly assign unassigned students to batches using a dynamic modal.
+* **Visual Account Status Indicators**: Disabled student accounts are visually dimmed in the table list.
+* **Bulk Actions Banner**: Convenient selection-based actions to handle multiple cohort members simultaneously.
+* **Toggle Switch Bulk Controls**: A modern, dynamic toggle switch in the bulk action bar showing whether the selected cohort accounts are active or disabled, with full toggle support.
+* **Action Toast Notifications**: Modern toast alerts confirming successful completion of all cohort adjustments (adds, unenrollments, and status updates).
+
+### 2. Proctored Quiz & Assessment Module
+* **Full-Screen Enforcement**: Secure proctoring settings that enforce full-screen view during critical quizzes.
+* **Tab/Window Focus Monitoring**: Tracks focus loss or tab navigation to ensure quiz integrity.
+* **Checkpoint & Graded Quizzes**: Controls course progression by locking the "Next Lesson" button until mandatory quizzes are completed.
+
+### 3. Video-Embedded Interactive Quizzes (Quiz-in-Video)
+* **Timestamp-Based Popups**: Pauses lesson videos at designated timestamps to challenge learners with embedded quizzes.
+* **Interactive Management Modals**: Tools to specify exact video seconds, questions, and responses for quizzes in videos.
+
+### 4. Interactive & Accessible Lesson Layout
+* **Synced Video Transcripts**: Displays interactive text transcripts side-by-side with lesson videos, allowing students to click text snippets to seek directly to that part of the video.
+* **CodeBox Theme Selector**: LocalStorage-synced light/dark theme switch for code snippets inside lessons, automatically refreshing HighlightJS stylesheets dynamically.
+
+### 5. Performance & Scalability Enhancements
+* **High-Concurrency Rate Limiting**: Optimized API rate-limit thresholds and throttling properties in `utils.py` to seamlessly handle 1,000+ concurrent active sessions.
+
 ### Acknowledgements
 
 Manlayag is built upon the excellent work of the Frappe community and the Frappe Learning project.
