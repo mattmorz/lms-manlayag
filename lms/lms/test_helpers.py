@@ -19,6 +19,7 @@ class BaseTestUtils(UnitTestCase):
 		self.cleanup_items = []
 
 	def tearDown(self):
+		frappe.set_user("Administrator")
 		for item_type, item_name in reversed(self.cleanup_items):
 			if frappe.db.exists(item_type, item_name):
 				try:
