@@ -9,6 +9,14 @@ class TestLMSAPI(BaseTestUtils):
 		super().setUp()
 		self._setup_course_flow()
 
+	def switch_user(self, user):
+		frappe.set_user(user)
+		frappe.cache.hdel("roles", user)
+		frappe.clear_cache(user=user)
+		frappe.local.cache = {}
+		if hasattr(frappe.local, "roles"):
+			frappe.local.roles = None
+
 	def test_certified_participants_with_category(self):
 		filters = {"category": "Utility Course"}
 		certified_participants = get_certified_participants(filters=filters)
@@ -68,6 +76,7 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Video Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.content = json.dumps({
 			"blocks": [
 				{
@@ -84,7 +93,7 @@ class TestLMSAPI(BaseTestUtils):
 		from lms.lms.api import track_video_watch_duration
 
 		# Login as student1
-		frappe.session.user = self.student1.email
+		self.switch_user(self.student1.email)
 
 		# Initially, get_video_progress should return False because no watch duration exists
 		self.assertFalse(get_video_progress(lesson.name))
@@ -106,8 +115,8 @@ class TestLMSAPI(BaseTestUtils):
 		self.assertTrue(get_video_progress(lesson.name))
 
 		# Clean up
-		lesson.delete()
-		frappe.session.user = "Administrator"
+		self.switch_user("Administrator")
+		frappe.delete_doc("Course Lesson", lesson.name, force=True)
 
 	def test_in_video_quiz_verification(self):
 		import json
@@ -115,6 +124,7 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Embed Video Quiz Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.content = json.dumps({
 			"blocks": [
 				{
@@ -134,19 +144,20 @@ class TestLMSAPI(BaseTestUtils):
 		lesson.insert()
 		
 		from lms.lms.doctype.course_lesson.course_lesson import get_quiz_progress
-
+ 
 		# Login as student1
-		frappe.session.user = self.student1.email
-
+		self.switch_user(self.student1.email)
+ 
 		# The student has already passed self.quiz in setup flow, so get_quiz_progress should be True
 		self.assertTrue(get_quiz_progress(lesson.name))
-
+ 
 		# Now create a quiz that the student has NOT passed
+		self.switch_user("Administrator")
 		unpassed_quiz = frappe.new_doc("LMS Quiz")
 		unpassed_quiz.title = "Unpassed Quiz"
 		unpassed_quiz.passing_percentage = 80
 		unpassed_quiz.insert()
-
+ 
 		# Update the lesson to contain this unpassed quiz
 		lesson.content = json.dumps({
 			"blocks": [
@@ -164,14 +175,15 @@ class TestLMSAPI(BaseTestUtils):
 			]
 		})
 		lesson.save()
-
+ 
+		self.switch_user(self.student1.email)
 		# get_quiz_progress should now be False!
 		self.assertFalse(get_quiz_progress(lesson.name))
-
+ 
 		# Clean up
-		lesson.delete()
-		unpassed_quiz.delete()
-		frappe.session.user = "Administrator"
+		self.switch_user("Administrator")
+		frappe.delete_doc("Course Lesson", lesson.name, force=True)
+		frappe.delete_doc("LMS Quiz", unpassed_quiz.name, force=True)
 
 	def test_upload_video_transcript(self):
 		import json
@@ -179,11 +191,12 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Transcript Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.youtube = "https://www.youtube.com/watch?v=mockytid"
 		lesson.insert()
 
 		# Log in as moderator/instructor
-		frappe.session.user = self.admin.email
+		self.switch_user(self.admin.email)
 
 		# 1. Test SRT parsing
 		srt_content = """1
@@ -234,5 +247,75 @@ This is vtt test.
 		self.assertEqual(res3[0]["text"], "Hello JSON!")
 
 		# Clean up
-		lesson.delete()
-		frappe.session.user = "Administrator"
+		self.switch_user("Administrator")
+		frappe.delete_doc("Course Lesson", lesson.name, force=True)
+
+	def test_get_all_students_across_batches(self):
+		self.switch_user(self.admin.email)
+		
+		from lms.lms.api import get_all_students_across_batches
+		res = get_all_students_across_batches()
+		
+		self.assertIn("data", res)
+		self.assertIn("total_count", res)
+		self.assertIn("batch_options", res)
+		
+		self.switch_user(self.student1.email)
+		with self.assertRaises(frappe.PermissionError):
+			get_all_students_across_batches()
+			
+		self.switch_user("Administrator")
+
+	def test_import_students_csv(self):
+		self.switch_user(self.admin.email)
+		
+		batch = self._create_batch(self.course.name, title="CSV Import Test Batch")
+		
+		from lms.lms.api import import_students_csv, assign_students_to_batch
+		
+		csv_content = "email,full_name\nimport1@example.com,Imported User One\nimport2@example.com,Imported User Two\ninvalid-email,Invalid"
+		res = import_students_csv(csv_content)
+		
+		self.assertEqual(res["created"], 2)
+		self.assertEqual(len(res["imported_users"]), 2)
+		self.assertEqual(len(res["errors"]), 1)
+		
+		self.assertTrue(frappe.db.exists("User", "import1@example.com"))
+		
+		# Test bulk assignment to batch
+		emails = [u["email"] for u in res["imported_users"]]
+		assign_res = assign_students_to_batch(emails, batch=batch.name)
+		self.assertEqual(assign_res["assigned_count"], 2)
+		self.assertEqual(len(assign_res["errors"]), 0)
+		self.assertTrue(frappe.db.exists("LMS Batch Enrollment", {"batch": batch.name, "member": "import1@example.com"}))
+		
+		frappe.db.delete("LMS Batch Enrollment", {"batch": batch.name})
+		frappe.db.delete("User", {"email": ["in", ["import1@example.com", "import2@example.com"]]})
+		frappe.delete_doc("LMS Batch", batch.name, force=True)
+		
+		self.switch_user("Administrator")
+
+	def test_add_student_manually(self):
+		self.switch_user(self.admin.email)
+		
+		batch = self._create_batch(self.course.name, title="Manual Add Test Batch")
+		
+		from lms.lms.api import add_student_manually
+		
+		res = add_student_manually("manual1@example.com", "Manual User One", batch=batch.name)
+		self.assertEqual(res["status"], "success")
+		self.assertTrue(res["is_new"])
+		self.assertTrue(res["enrolled"])
+		
+		self.assertTrue(frappe.db.exists("User", "manual1@example.com"))
+		self.assertTrue(frappe.db.exists("LMS Batch Enrollment", {"batch": batch.name, "member": "manual1@example.com"}))
+		self.assertTrue(frappe.db.exists("Notification Log", {"for_user": "manual1@example.com"}))
+		
+		frappe.db.delete("Notification Log", {"for_user": "manual1@example.com"})
+		frappe.db.delete("LMS Batch Enrollment", {"batch": batch.name})
+		frappe.db.delete("User", {"email": "manual1@example.com"})
+		frappe.delete_doc("LMS Batch", batch.name, force=True)
+		
+		self.switch_user("Administrator")
+
+

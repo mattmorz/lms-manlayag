@@ -4047,6 +4047,487 @@ def delete_bank_question(question_name: str):
 	return {"status": "success"}
 
 
+@frappe.whitelist()
+def get_all_students_across_batches(search_term=None, batch_filter=None, order_by=None, start=0, page_length=20):
+	frappe.only_for("Moderator")
+
+	start = cint(start)
+	page_length = cint(page_length) or 20
+
+	conditions = []
+	values = {}
+
+	if batch_filter:
+		conditions.append("env.batch = %(batch)s")
+		values["batch"] = batch_filter
+
+	if search_term:
+		conditions.append("(env.member_name LIKE %(search)s OR u.username LIKE %(search)s OR env.member LIKE %(search)s)")
+		values["search"] = f"%{search_term}%"
+
+	query_base = """
+		FROM `tabLMS Batch Enrollment` env
+		LEFT JOIN `tabUser` u ON env.member = u.name
+		LEFT JOIN `tabLMS Batch` b ON env.batch = b.name
+	"""
+	if conditions:
+		query_base += " WHERE " + " AND ".join(conditions)
+
+	total_count_query = "SELECT COUNT(*) " + query_base
+	total_count = frappe.db.sql(total_count_query, values)[0][0]
+
+	sql_order_by = "env.creation DESC"
+	is_progress_sort = False
+	if order_by:
+		parts = order_by.lower().split()
+		sort_field = parts[0]
+		direction = "DESC" if len(parts) > 1 and parts[1] == "desc" else "ASC"
+
+		if sort_field == "member_name":
+			sql_order_by = f"env.member_name {direction}"
+		elif sort_field == "batch":
+			sql_order_by = f"b.title {direction}"
+		elif sort_field == "creation":
+			sql_order_by = f"env.creation {direction}"
+		elif sort_field == "last_active":
+			sql_order_by = f"u.last_active {direction}"
+		elif sort_field == "progress":
+			is_progress_sort = True
+
+	from frappe.utils import format_datetime, get_datetime
+
+	if is_progress_sort:
+		select_query = """
+			SELECT 
+				env.name as enrollment_name,
+				env.member as member,
+				env.member_name as member_name,
+				env.batch as batch,
+				env.creation as creation,
+				u.last_active as last_active,
+				u.user_image as user_image,
+				u.username as username,
+				u.full_name as full_name,
+				b.title as batch_title
+		""" + query_base
+		records = frappe.db.sql(select_query, values, as_dict=True)
+	else:
+		select_query = """
+			SELECT 
+				env.name as enrollment_name,
+				env.member as member,
+				env.member_name as member_name,
+				env.batch as batch,
+				env.creation as creation,
+				u.last_active as last_active,
+				u.user_image as user_image,
+				u.username as username,
+				u.full_name as full_name,
+				b.title as batch_title
+		""" + query_base + f" ORDER BY {sql_order_by} LIMIT {start}, {page_length}"
+		records = frappe.db.sql(select_query, values, as_dict=True)
+
+	# Batch-fetch courses and assessments for the batches of these students
+	batch_ids = list(set(r.batch for r in records))
+	
+	batch_courses = {}
+	batch_assignments = {}
+	batch_quizzes = {}
+	batch_exercises = {}
+	
+	for b_id in batch_ids:
+		courses = frappe.get_all("Batch Course", {"parent": b_id}, ["course"])
+		batch_courses[b_id] = [c.course for c in courses]
+		
+		assessments = frappe.get_all(
+			"LMS Assessment",
+			filters={"parent": b_id},
+			fields=["assessment_name", "assessment_type"],
+		)
+		batch_assignments[b_id] = [a.assessment_name for a in assessments if a.assessment_type == "LMS Assignment"]
+		batch_quizzes[b_id] = [a.assessment_name for a in assessments if a.assessment_type == "LMS Quiz"]
+		batch_exercises[b_id] = [a.assessment_name for a in assessments if a.assessment_type == "LMS Programming Exercise"]
+
+	members = [r.member for r in records]
+	
+	# Fetch LMS Enrollments progress
+	all_courses = []
+	for courses in batch_courses.values():
+		all_courses.extend(courses)
+	all_courses = list(set(all_courses))
+	
+	enrollments_map = {}
+	if members and all_courses:
+		enrollments = frappe.get_all(
+			"LMS Enrollment",
+			filters={"course": ["in", all_courses], "member": ["in", members]},
+			fields=["course", "member", "progress"]
+		)
+		for e in enrollments:
+			enrollments_map[(e.member, e.course)] = e.progress or 0
+			
+	# Fetch Assignment Submissions
+	all_assignments = []
+	for assigns in batch_assignments.values():
+		all_assignments.extend(assigns)
+	all_assignments = list(set(all_assignments))
+	
+	assignment_submissions_map = {}
+	if members and all_assignments:
+		submissions = frappe.get_all(
+			"LMS Assignment Submission",
+			filters={"assignment": ["in", all_assignments], "member": ["in", members]},
+			fields=["assignment", "member", "status"]
+		)
+		for s in submissions:
+			if s.status == "Pass":
+				assignment_submissions_map[(s.member, s.assignment)] = True
+				
+	# Fetch Programming Exercise Submissions
+	all_exercises = []
+	for exes in batch_exercises.values():
+		all_exercises.extend(exes)
+	all_exercises = list(set(all_exercises))
+	
+	exercise_submissions_map = {}
+	if members and all_exercises:
+		submissions = frappe.get_all(
+			"LMS Programming Exercise Submission",
+			filters={"exercise": ["in", all_exercises], "member": ["in", members]},
+			fields=["exercise", "member", "status"]
+		)
+		for s in submissions:
+			if s.status == "Pass":
+				exercise_submissions_map[(s.member, s.exercise)] = True
+				
+	# Fetch Quiz Submissions
+	all_quizzes = []
+	for qz in batch_quizzes.values():
+		all_quizzes.extend(qz)
+	all_quizzes = list(set(all_quizzes))
+	
+	quiz_submissions_map = {}
+	quiz_passing_percentages = {}
+	if all_quizzes:
+		quizzes_info = frappe.get_all(
+			"LMS Quiz",
+			filters={"name": ["in", all_quizzes]},
+			fields=["name", "passing_percentage"]
+		)
+		for q in quizzes_info:
+			quiz_passing_percentages[q.name] = q.passing_percentage or 0
+			
+	if members and all_quizzes:
+		submissions = frappe.get_all(
+			"LMS Quiz Submission",
+			filters={"quiz": ["in", all_quizzes], "member": ["in", members]},
+			fields=["quiz", "member", "percentage"]
+		)
+		for s in submissions:
+			passing = quiz_passing_percentages.get(s.quiz, 0)
+			if (s.percentage or 0) >= passing:
+				quiz_submissions_map[(s.member, s.quiz)] = True
+
+	students_data = []
+	for r in records:
+		raw_last_active = r.last_active
+		formatted_last_active = format_datetime(raw_last_active, "dd MMM YY") if raw_last_active else "Never"
+
+		details = frappe._dict({
+			"name": r.enrollment_name,
+			"email": r.member,
+			"member_name": r.member_name or r.full_name or r.member,
+			"member_username": r.username,
+			"batch": r.batch,
+			"batch_title": r.batch_title or r.batch,
+			"creation": r.creation,
+			"last_active": formatted_last_active,
+			"raw_last_active": raw_last_active or get_datetime("1970-01-01 00:00:00"),
+			"user_image": r.user_image,
+			"progress": 0,
+		})
+
+		# Calculate progress using the pre-fetched maps
+		courses = batch_courses.get(r.batch, [])
+		assigns = batch_assignments.get(r.batch, [])
+		qz = batch_quizzes.get(r.batch, [])
+		exes = batch_exercises.get(r.batch, [])
+		
+		total_course_progress = sum(enrollments_map.get((r.member, c), 0) for c in courses)
+		average_course_progress = total_course_progress / len(courses) if courses else 0
+		
+		assessments_completed = 0
+		total_assessments = len(assigns) + len(qz) + len(exes)
+		
+		for a in assigns:
+			if assignment_submissions_map.get((r.member, a)):
+				assessments_completed += 1
+		for q in qz:
+			if quiz_submissions_map.get((r.member, q)):
+				assessments_completed += 1
+		for e in exes:
+			if exercise_submissions_map.get((r.member, e)):
+				assessments_completed += 1
+				
+		average_assessments_progress = (assessments_completed / total_assessments * 100) if total_assessments else 0
+		
+		total_items = len(courses) + total_assessments
+		if total_items:
+			progress = ((average_course_progress * len(courses)) + (average_assessments_progress * total_assessments)) / total_items
+		else:
+			progress = 0
+			
+		details.progress = flt(progress, 2)
+		students_data.append(details)
+
+	if is_progress_sort:
+		reverse_dir = (direction == "DESC")
+		students_data.sort(key=lambda x: x.progress, reverse=reverse_dir)
+		paginated_data = students_data[start:start + page_length]
+	else:
+		paginated_data = students_data
+
+	all_batches = frappe.get_all(
+		"LMS Batch",
+		fields=["name", "title"],
+		order_by="title asc",
+	)
+	batch_options = [{"label": _("All Batches"), "value": ""}] + [
+		{"label": b.title, "value": b.name} for b in all_batches
+	]
+
+	return {
+		"data": paginated_data,
+		"total_count": total_count,
+		"has_next_page": (start + page_length) < total_count,
+		"batch_options": batch_options
+	}
+
+
+def enroll_student_in_batch(student_email, batch_name):
+	if not frappe.db.exists("LMS Batch Enrollment", {"batch": batch_name, "member": student_email}):
+		enrollment = frappe.new_doc("LMS Batch Enrollment")
+		enrollment.update({
+			"batch": batch_name,
+			"member": student_email,
+		})
+		enrollment.flags.ignore_permissions = True
+		enrollment.insert()
+		
+		# Send in-app notification
+		try:
+			batch_title = frappe.db.get_value("LMS Batch", batch_name, "title") or batch_name
+			from frappe.desk.doctype.notification_log.notification_log import make_notification_logs
+			notification = frappe._dict(
+				{
+					"subject": frappe._("You have been enrolled in the batch {0}").format(batch_title),
+					"email_content": "",
+					"document_type": "LMS Batch",
+					"document_name": batch_name,
+					"from_user": frappe.session.user or "Administrator",
+					"type": "Alert",
+					"link": f"/batches/{batch_name}",
+				}
+			)
+			make_notification_logs(notification, [student_email])
+		except Exception as e:
+			frappe.log_error(f"Failed to create notification log for batch enrollment: {str(e)}")
+			
+		return True
+	return False
+
+
+@frappe.whitelist()
+def import_students_csv(file_content, batch=None):
+	frappe.only_for("Moderator")
+	
+	if not file_content:
+		frappe.throw(_("Please upload a CSV file."))
+
+	import io
+	import csv
+
+	if isinstance(file_content, bytes):
+		file_content = file_content.decode("utf-8")
+		
+	f = io.StringIO(file_content.strip())
+	reader = csv.reader(f)
+	
+	headers = next(reader, None)
+	if not headers:
+		frappe.throw(_("CSV file is empty."))
+		
+	headers = [h.strip().lower() for h in headers]
+	
+	email_idx = -1
+	name_idx = -1
+	for idx, h in enumerate(headers):
+		if "email" in h:
+			email_idx = idx
+		elif "name" in h or "full" in h:
+			name_idx = idx
+			
+	if email_idx == -1:
+		email_idx = 0
+		
+	created_users = 0
+	skipped_users = 0
+	enrolled_users = 0
+	imported_users = []
+	errors = []
+	
+	for row_idx, row in enumerate(reader, start=2):
+		if not row:
+			continue
+		if len(row) <= email_idx:
+			continue
+			
+		email = row[email_idx].strip()
+		if not email:
+			continue
+			
+		full_name = ""
+		if name_idx != -1 and len(row) > name_idx:
+			full_name = row[name_idx].strip()
+			
+		if not full_name:
+			full_name = email.split("@")[0].capitalize()
+			
+		from frappe.utils import validate_email_address
+		if not validate_email_address(email):
+			errors.append(f"Row {row_idx}: Invalid email address '{email}'")
+			continue
+			
+		try:
+			user_exists = frappe.db.exists("User", email)
+			if not user_exists:
+				user = frappe.new_doc("User")
+				user.update({
+					"email": email,
+					"first_name": full_name,
+					"enabled": 1,
+					"user_type": "Website User",
+					"new_password": frappe.utils.random_string(10),
+					"send_welcome_email": 1,
+				})
+				user.flags.ignore_permissions = True
+				user.flags.ignore_password_policy = True
+				user.insert()
+				created_users += 1
+				
+				try:
+					user.send_welcome_mail()
+				except Exception as mail_err:
+					frappe.log_error(f"Failed to send welcome email to {email}: {str(mail_err)}")
+			else:
+				skipped_users += 1
+				
+			imported_users.append({
+				"email": email,
+				"full_name": full_name,
+				"is_new": not user_exists
+			})
+
+			if batch:
+				if enroll_student_in_batch(email, batch):
+					enrolled_users += 1
+		except Exception as e:
+			errors.append(f"Row {row_idx} ({email}): {str(e)}")
+			
+	return {
+		"created": created_users,
+		"skipped": skipped_users,
+		"enrolled": enrolled_users,
+		"imported_users": imported_users,
+		"errors": errors
+	}
+
+
+@frappe.whitelist()
+def assign_students_to_batch(students, batch):
+	frappe.only_for("Moderator")
+	
+	if not batch:
+		frappe.throw(_("Please select a batch."))
+	if not students:
+		frappe.throw(_("No students selected for assignment."))
+		
+	import json
+	if isinstance(students, str):
+		students = json.loads(students)
+		
+	assigned_count = 0
+	errors = []
+	
+	for student_email in students:
+		try:
+			if not frappe.db.exists("User", student_email):
+				errors.append(f"User '{student_email}' does not exist.")
+				continue
+				
+			enroll_student_in_batch(student_email, batch)
+			assigned_count += 1
+		except Exception as e:
+			errors.append(f"Failed to enroll '{student_email}': {str(e)}")
+			
+	return {
+		"assigned_count": assigned_count,
+		"errors": errors
+	}
+
+
+@frappe.whitelist()
+def add_student_manually(email, full_name, batch=None):
+	frappe.only_for("Moderator")
+	
+	if not email:
+		frappe.throw(_("Email is required."))
+	if not full_name:
+		frappe.throw(_("Full Name is required."))
+		
+	from frappe.utils import validate_email_address
+	if not validate_email_address(email):
+		frappe.throw(_("Invalid email address."))
+		
+	user_exists = frappe.db.exists("User", email)
+	is_new = not user_exists
+	
+	try:
+		if is_new:
+			user = frappe.new_doc("User")
+			user.update({
+				"email": email,
+				"first_name": full_name,
+				"enabled": 1,
+				"user_type": "Website User",
+				"new_password": frappe.utils.random_string(10),
+				"send_welcome_email": 1,
+			})
+			user.flags.ignore_permissions = True
+			user.flags.ignore_password_policy = True
+			user.insert()
+			
+			try:
+				user.send_welcome_mail()
+			except Exception as mail_err:
+				frappe.log_error(f"Failed to send welcome email to {email}: {str(mail_err)}")
+				
+		enrolled = False
+		if batch:
+			enrolled = enroll_student_in_batch(email, batch)
+			
+		return {
+			"status": "success",
+			"is_new": is_new,
+			"enrolled": enrolled,
+			"message": _("Student added successfully.")
+		}
+	except Exception as e:
+		frappe.throw(str(e))
+
+
+
+
 
 
 

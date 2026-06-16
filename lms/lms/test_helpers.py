@@ -28,7 +28,11 @@ class BaseTestUtils(UnitTestCase):
 
 	def _create_user(self, email, first_name, last_name, roles, user_type="Website User"):
 		if frappe.db.exists("User", email):
-			return frappe.get_doc("User", email)
+			user = frappe.get_doc("User", email)
+			user.set("roles", [{"role": r} for r in roles])
+			user.save(ignore_permissions=True)
+			frappe.clear_cache(user=email)
+			return user
 
 		user = frappe.new_doc("User")
 		user.update(
@@ -182,6 +186,9 @@ class BaseTestUtils(UnitTestCase):
 		title="Utility Training",
 		evaluator="frappe@example.com",
 	):
+		if evaluator:
+			self._create_evaluator(evaluator)
+
 		existing = frappe.db.exists("LMS Batch", {"title": title})
 		if existing:
 			return frappe.get_doc("LMS Batch", existing)
