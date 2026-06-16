@@ -116,7 +116,7 @@
 			class="flex flex-col lg:flex-row space-y-4 lg:space-y-0 lg:items-center justify-between mb-5 gap-4"
 		>
 			<div class="text-lg text-ink-gray-9 font-semibold">
-				{{ __('Enrolled Students') }}
+				{{ __('All Students') }}
 			</div>
 			<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto justify-end lg:ml-auto">
 				<FormControl
@@ -180,7 +180,7 @@
 					>
 						<template #default="{ column }">
 							<ListRowItem :item="row[column.key]" :align="column.align">
-								<div v-if="column.key === 'member_name'" class="flex items-center gap-3 w-full">
+								<div v-if="column.key === 'member_name'" class="flex items-center justify-center gap-3 w-full">
 									<div
 										v-if="!row.user_image"
 										:style="getAvatarStyle(row.member_name)"
@@ -193,16 +193,16 @@
 										:src="row.user_image"
 										class="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-outline-gray-2"
 									/>
-									<div class="flex flex-col min-w-0 flex-1">
+									<div class="flex flex-col min-w-0 text-left">
 										<span class="font-semibold text-ink-gray-9 truncate">{{ row.member_name }}</span>
 										<span class="text-xs text-ink-gray-5 truncate">{{ row.email }}</span>
 									</div>
 								</div>
-								<div v-else-if="column.key === 'batch_title'" class="min-w-0 w-full">
+								<div v-else-if="column.key === 'batch_title'" class="min-w-0 w-full flex justify-center text-center">
 									<router-link
 										v-if="row.batch"
 										:to="{ name: 'BatchDetail', params: { batchName: row.batch } }"
-										class="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
+										class="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
 									>
 										{{ row.batch_title }}
 									</router-link>
@@ -216,10 +216,10 @@
 										{{ __('Assign Batch') }}
 									</button>
 								</div>
-								<div v-else-if="column.key === 'creation'" class="text-ink-gray-7 text-sm">
+								<div v-else-if="column.key === 'creation'" class="text-ink-gray-7 text-sm text-center w-full">
 									{{ dayjs(row.creation).format('DD MMM YYYY') }}
 								</div>
-								<div v-else-if="column.key === 'progress'" class="flex items-center gap-3 w-full justify-start">
+								<div v-else-if="column.key === 'progress'" class="flex items-center gap-3 w-full justify-center">
 									<div class="w-full bg-outline-gray-2 rounded-full h-1.5 overflow-hidden max-w-[100px]">
 										<div
 											:class="[
@@ -235,7 +235,7 @@
 									</div>
 									<span class="text-xs font-semibold text-ink-gray-7 whitespace-nowrap">{{ Math.round(row.progress) }}%</span>
 								</div>
-								<div v-else-if="column.key === 'last_active'" class="text-ink-gray-6 text-sm text-left w-full">
+								<div v-else-if="column.key === 'last_active'" class="text-ink-gray-6 text-sm text-center w-full">
 									{{ row.last_active }}
 								</div>
 							</ListRowItem>
@@ -244,28 +244,27 @@
 				</ListRows>
 				<ListSelectBanner>
 					<template #actions="{ unselectAll, selections }">
-						<div class="flex gap-4">
-							<Button
-								variant="ghost"
-								:loading="disableStudentResource.loading"
-								@click="handleBulkToggleStudentAccounts(selections, unselectAll)"
-								class="text-red-600 hover:bg-red-50"
-							>
-								<FeatherIcon
-									:name="areAnySelectedStudentsActive(selections) ? 'user-x' : 'user-check'"
-									class="h-4 w-4 stroke-1.5 mr-1"
-								/>
-								{{ areAnySelectedStudentsActive(selections) ? __('Disable Account') : __('Enable Account') }}
-							</Button>
-							<Button
-								variant="ghost"
-								:loading="unenrollStudentResource.loading"
-								@click="handleUnenrollStudents(selections, unselectAll)"
-								class="text-red-600 hover:bg-red-50"
-							>
-								<FeatherIcon name="log-out" class="h-4 w-4 stroke-1.5 mr-1" />
-								{{ __('Unenroll from Batch') }}
-							</Button>
+						<div class="flex items-center gap-4">
+							<Switch
+								size="sm"
+								:label="__('Disable Account')"
+								labelClasses="!text-red-600 text-sm font-medium"
+								:modelValue="areAllSelectedStudentsDisabled(selections)"
+								@update:modelValue="val => handleBulkToggleStudentAccounts(selections, val, unselectAll)"
+								class="hover:!bg-red-50 py-1.5 px-3 rounded cursor-pointer"
+							/>
+							<Tooltip :text="__('Unenroll from Batch')">
+								<Button
+									variant="ghost"
+									:loading="unenrollStudentResource.loading"
+									@click="handleUnenrollStudents(selections, unselectAll)"
+									class="text-red-600 hover:bg-red-50"
+								>
+									<template #icon>
+										<FeatherIcon name="log-out" class="h-4 w-4 stroke-1.5" />
+									</template>
+								</Button>
+							</Tooltip>
 						</div>
 					</template>
 				</ListSelectBanner>
@@ -581,8 +580,10 @@ import {
 	ListRowItem,
 	ListSelectBanner,
 	Select,
+	Switch,
 	TabButtons,
 	toast,
+	Tooltip,
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
@@ -628,30 +629,35 @@ const studentColumns = computed(() => {
 			key: 'member_name',
 			width: 2,
 			icon: 'user',
+			align: 'center',
 		},
 		{
 			label: __('Assigned Batch'),
 			key: 'batch_title',
 			width: 1.5,
 			icon: 'book',
+			align: 'center',
 		},
 		{
 			label: __('Date of Enrolment'),
 			key: 'creation',
 			width: 1.2,
 			icon: 'calendar',
+			align: 'center',
 		},
 		{
 			label: __('Last Active'),
 			key: 'last_active',
 			width: 1.2,
 			icon: 'clock',
+			align: 'center',
 		},
 		{
 			label: __('Overall Completion'),
 			key: 'progress',
 			width: 1.5,
 			icon: 'percent',
+			align: 'center',
 		},
 	]
 })
@@ -909,16 +915,16 @@ const unenrollStudentResource = createResource({
 	},
 })
 
-const areAnySelectedStudentsActive = (selections) => {
+const areAllSelectedStudentsDisabled = (selections) => {
 	if (!selections || !selections.size) return false
 	const enrollmentNames = Array.from(selections)
-	return enrollmentNames.some(n => {
+	return enrollmentNames.every(n => {
 		const student = studentListItems.value.find(s => s.name === n)
-		return student && student.enabled !== 0
+		return student && student.enabled === 0
 	})
 }
 
-const handleBulkToggleStudentAccounts = (selections, unselectAll) => {
+const handleBulkToggleStudentAccounts = (selections, isChecked, unselectAll) => {
 	if (!selections.size) return
 	const enrollmentNames = Array.from(selections)
 	const emails = enrollmentNames
@@ -926,7 +932,7 @@ const handleBulkToggleStudentAccounts = (selections, unselectAll) => {
 		.filter(Boolean)
 	if (!emails.length) return
 
-	const targetEnabled = areAnySelectedStudentsActive(selections) ? 0 : 1
+	const targetEnabled = isChecked ? 0 : 1
 	disableStudentResource.submit({ emails, enabled: targetEnabled })
 	unselectAll()
 }
