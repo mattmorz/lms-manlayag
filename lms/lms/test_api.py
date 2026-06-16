@@ -68,6 +68,7 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Video Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.content = json.dumps({
 			"blocks": [
 				{
@@ -115,6 +116,7 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Embed Video Quiz Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.content = json.dumps({
 			"blocks": [
 				{
@@ -179,6 +181,7 @@ class TestLMSAPI(BaseTestUtils):
 		lesson = frappe.new_doc("Course Lesson")
 		lesson.title = "Test Transcript Lesson"
 		lesson.course = self.course.name
+		lesson.chapter = self.course.chapters[0].chapter
 		lesson.youtube = "https://www.youtube.com/watch?v=mockytid"
 		lesson.insert()
 

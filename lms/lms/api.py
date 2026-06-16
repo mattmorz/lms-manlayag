@@ -2979,7 +2979,7 @@ def export_course(course_name: str):
 
 
 @frappe.whitelist()
-def import_course(course_data):
+def import_course(course_data: dict | str):
 	if isinstance(course_data, str):
 		data = json.loads(course_data)
 	else:
