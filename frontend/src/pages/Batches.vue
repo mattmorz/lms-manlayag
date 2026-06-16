@@ -180,7 +180,7 @@
 					>
 						<template #default="{ column }">
 							<ListRowItem :item="row[column.key]" :align="column.align">
-								<div v-if="column.key === 'member_name'" class="flex items-center justify-center gap-3 w-full">
+								<div v-if="column.key === 'member_name'" class="flex items-center gap-3 w-full">
 									<div
 										v-if="!row.user_image"
 										:style="getAvatarStyle(row.member_name)"
@@ -193,16 +193,16 @@
 										:src="row.user_image"
 										class="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-outline-gray-2"
 									/>
-									<div class="flex flex-col min-w-0 text-left">
+									<div class="flex flex-col min-w-0 flex-1">
 										<span class="font-semibold text-ink-gray-9 truncate">{{ row.member_name }}</span>
 										<span class="text-xs text-ink-gray-5 truncate">{{ row.email }}</span>
 									</div>
 								</div>
-								<div v-else-if="column.key === 'batch_title'" class="min-w-0 w-full flex justify-center text-center">
+								<div v-else-if="column.key === 'batch_title'" class="min-w-0 w-full">
 									<router-link
 										v-if="row.batch"
 										:to="{ name: 'BatchDetail', params: { batchName: row.batch } }"
-										class="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
+										class="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block"
 									>
 										{{ row.batch_title }}
 									</router-link>
@@ -216,10 +216,10 @@
 										{{ __('Assign Batch') }}
 									</button>
 								</div>
-								<div v-else-if="column.key === 'creation'" class="text-ink-gray-7 text-sm text-center w-full">
+								<div v-else-if="column.key === 'creation'" class="text-ink-gray-7 text-sm">
 									{{ dayjs(row.creation).format('DD MMM YYYY') }}
 								</div>
-								<div v-else-if="column.key === 'progress'" class="flex items-center gap-3 w-full justify-center">
+								<div v-else-if="column.key === 'progress'" class="flex items-center gap-3 w-full justify-start">
 									<div class="w-full bg-outline-gray-2 rounded-full h-1.5 overflow-hidden max-w-[100px]">
 										<div
 											:class="[
@@ -235,7 +235,7 @@
 									</div>
 									<span class="text-xs font-semibold text-ink-gray-7 whitespace-nowrap">{{ Math.round(row.progress) }}%</span>
 								</div>
-								<div v-else-if="column.key === 'last_active'" class="text-ink-gray-6 text-sm text-center w-full">
+								<div v-else-if="column.key === 'last_active'" class="text-ink-gray-6 text-sm text-left w-full">
 									{{ row.last_active }}
 								</div>
 							</ListRowItem>
@@ -629,35 +629,35 @@ const studentColumns = computed(() => {
 			key: 'member_name',
 			width: 2,
 			icon: 'user',
-			align: 'center',
+			align: 'left',
 		},
 		{
 			label: __('Assigned Batch'),
 			key: 'batch_title',
 			width: 1.5,
 			icon: 'book',
-			align: 'center',
+			align: 'left',
 		},
 		{
 			label: __('Date of Enrolment'),
 			key: 'creation',
 			width: 1.2,
 			icon: 'calendar',
-			align: 'center',
+			align: 'left',
 		},
 		{
 			label: __('Last Active'),
 			key: 'last_active',
 			width: 1.2,
 			icon: 'clock',
-			align: 'center',
+			align: 'left',
 		},
 		{
 			label: __('Overall Completion'),
 			key: 'progress',
 			width: 1.5,
 			icon: 'percent',
-			align: 'center',
+			align: 'left',
 		},
 	]
 })
