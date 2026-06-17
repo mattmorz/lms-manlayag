@@ -86,15 +86,15 @@ The CARSU (Caraga State University) implementation of Manlayag introduces severa
 * **High-Concurrency Rate Limiting**: Optimized API rate-limit thresholds and throttling properties in `utils.py` to seamlessly handle 1,000+ concurrent active sessions.
 
 ### 6. Interactive Programming Exercises
-* **C/C++ Language Support**: Integrated `@codemirror/lang-cpp` for real-time syntax highlighting in C and C++ submissions.
-* **Separate Run & Submit Actions**: Separated execution logic into local compilation testing ("Run") and persistent database saving ("Submit").
-* **Multiline Test Cases**: Replaced single-line inputs with `<textarea>` elements in the test cases table, and changed database schemas to support storing multiline inputs/outputs.
-* **Console Whitespace Preservation**: Maintained exact console output formatting (newlines/spaces) in test case validation results.
+* **C & C++ Code Highlighting**: Full coding support for C and C++ with real-time syntax highlighting to help students write and debug code directly in their web browser.
+* **Separate Run and Submit Options**: Students can run their code as many times as they want to verify they pass local test cases before officially submitting their work for grading.
+* **Multiline Input & Output Test Cases**: Supports complex test cases with multiple lines of input and expected output, allowing instructors to test advanced programming scenarios.
+* **Formatted Output Display**: Code console output retains its formatting (including newlines and spaces) so students can easily compare their program's result with the expected test case output.
 
 ### 7. Unified Activity Editor & Grading Policies
-* **Dynamic Activity Routing**: Edit links automatically open quizzes, assignments, and programming exercises in the "Activity" view (with `mode: 'assessment'`), making all block types available for insertion or modification.
-* **Dynamic Success Alerts**: Dynamic success toasts confirming updates specific to the saved content ("Activity updated successfully" or "Lesson updated successfully").
-* **Unified Grading Controls**: Consolidated programming exercises into `AssessmentPlugin.vue`. Added "Include in Grading" controls, grading categories, and deadlines for both Assignments and Programming Exercises, aligning them fully with the quiz experience.
+* **Consolidated Activity Editing**: Selecting to edit any activity automatically enables all interactive block tools (quizzes, assignments, and programming exercises) so instructors can customize the lesson's content in a single screen.
+* **Context-Aware Save Success Alerts**: System notifies instructors with content-specific confirmation alerts ("Activity updated successfully" vs. "Lesson updated successfully") to reflect what type of content was saved.
+* **Unified Grading & Deadline Options**: All assignments and programming exercises support the same grading configuration options as quizzes. Instructors can toggle whether the work is graded, assign it to a specific course grading category, and set clear due dates and times.
 
 ### Acknowledgements
 
