@@ -51,3 +51,18 @@ const saveExercise = () => {
 	show.value = false
 }
 </script>
+
+<style>
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
+}
+</style>

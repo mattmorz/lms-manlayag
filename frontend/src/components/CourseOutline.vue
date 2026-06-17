@@ -119,6 +119,11 @@
 															chapterNumber: lesson.number.split('-')[0],
 															lessonNumber: lesson.number.split('-')[1],
 														},
+														query: allowEdit ? {
+															mode: ['icon-quiz', 'icon-assignment', 'icon-code'].includes(lesson.icon)
+																? 'assessment'
+																: 'lesson'
+														} : {}
 													}"
 												>
 												<div class="flex items-center text-sm leading-5 group">

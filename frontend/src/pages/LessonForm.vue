@@ -222,7 +222,14 @@ const getAssessmentBlockTypes = (content) => {
 }
 
 const getEditorToolOptions = (lessonData) => {
-	if (route.query.mode === 'assessment') {
+	const contentBlockTypes = getAssessmentBlockTypes(lessonData?.content)
+	const instructorBlockTypes = getAssessmentBlockTypes(
+		lessonData?.instructor_content
+	)
+	const hasAssessmentBlocks =
+		contentBlockTypes.size > 0 || instructorBlockTypes.size > 0
+
+	if (route.query.mode === 'assessment' || hasAssessmentBlocks) {
 		return {
 			allowAssessments: true,
 			allowQuiz: true,
@@ -249,35 +256,12 @@ const getEditorToolOptions = (lessonData) => {
 		}
 	}
 
-	const contentBlockTypes = getAssessmentBlockTypes(lessonData.content)
-	const instructorBlockTypes = getAssessmentBlockTypes(
-		lessonData.instructor_content
-	)
-	const hasAssessmentBlocks =
-		contentBlockTypes.size > 0 || instructorBlockTypes.size > 0
-	const hasQuiz =
-		contentBlockTypes.has('quiz') || instructorBlockTypes.has('quiz')
-	const hasAssignment =
-		contentBlockTypes.has('assignment') ||
-		instructorBlockTypes.has('assignment')
-	const hasProgram =
-		contentBlockTypes.has('program') || instructorBlockTypes.has('program')
-
-	return (
-		hasAssessmentBlocks
-			? {
-					allowAssessments: true,
-					allowQuiz: hasQuiz,
-					allowAssignment: hasAssignment,
-					allowProgram: hasProgram,
-				}
-			: {
-					allowAssessments: true,
-					allowQuiz: true,
-					allowAssignment: false,
-					allowProgram: false,
-				}
-	)
+	return {
+		allowAssessments: true,
+		allowQuiz: true,
+		allowAssignment: false,
+		allowProgram: false,
+	}
 }
 
 const initEditors = (toolOptions) => {
@@ -575,7 +559,11 @@ const createNewLesson = () => {
 								updateOnboardingStep('create_first_lesson')
 
 							capture('lesson_created')
-							toast.success(__('Lesson created successfully'))
+							toast.success(
+								route.query.mode === 'assessment'
+									? __('Activity created successfully')
+									: __('Lesson created successfully')
+							)
 							lessonDetails.reload()
 						},
 					}
@@ -599,7 +587,11 @@ const editCurrentLesson = () => {
 			},
 			onSuccess() {
 				showSuccessMessage
-					? toast.success(__('Lesson updated successfully'))
+					? toast.success(
+							route.query.mode === 'assessment'
+								? __('Activity updated successfully')
+								: __('Lesson updated successfully')
+					  )
 					: ''
 			},
 			onError(err) {

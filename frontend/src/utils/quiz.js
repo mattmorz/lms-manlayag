@@ -111,6 +111,12 @@ export class Quiz {
 						id: block.data.assignment,
 						category: block.data.grading_category,
 					})
+				} else if (block.type === 'program' && block.data?.exercise && block.data?.grading_category) {
+					currentAssessments.push({
+						type: 'program',
+						id: block.data.exercise,
+						category: block.data.grading_category,
+					})
 				}
 			}
 

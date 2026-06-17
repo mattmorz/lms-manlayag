@@ -5,7 +5,9 @@
 			title:
 				type == 'quiz'
 					? __('Add a quiz to your lesson')
-					: __('Add an assignment to your lesson'),
+					: type == 'program'
+						? __('Add a programming exercise to your lesson')
+						: __('Add an assignment to your lesson'),
 			size: 'xl',
 			position: 'top',
 			paddingTop: '3rem',
@@ -27,22 +29,23 @@
 						{{ __('Grading & Deadline') }}
 					</div>
 					<FormControl
-						v-if="type == 'quiz'"
+						v-if="type == 'quiz' || type == 'assignment' || type == 'program'"
 						v-model="include_in_grading"
 						type="checkbox"
 						:label="__('Include in grading')"
 					/>
 					<div class="grid grid-cols-1 gap-y-4 md:grid-cols-[1.2fr_1fr_1fr] md:gap-x-8">
 						<FormControl
-							v-if="gradingCategoryOptions.length && (type != 'quiz' || include_in_grading)"
+							v-if="gradingCategoryOptions.length && include_in_grading"
 							v-model="grading_category"
 							type="select"
 							:options="[{ label: __('Select Category'), value: '' }, ...gradingCategoryOptions]"
 							:label="__('Grading Category')"
-							:required="type != 'quiz' || include_in_grading"
+							:required="include_in_grading"
 						/>
 						<FormControl
-							v-else-if="type != 'quiz' || include_in_grading"
+							v-slot="{ value }"
+							v-else-if="include_in_grading"
 							v-model="grading_category"
 							type="text"
 							:label="__('Grading Category')"
@@ -54,6 +57,7 @@
 							:label="__('Due Date')"
 						/>
 						<FormControl
+							v-slot="{ value }"
 							v-model="due_time"
 							type="time"
 							:label="__('Due Time')"
@@ -128,6 +132,15 @@
 							v-model="filterAssignmentsByCourse"
 						/>
 					</div>
+					<div v-else-if="type == 'program'" class="space-y-4">
+						<Link
+							v-model="exercise"
+							doctype="LMS Programming Exercise"
+							placeholder=" "
+							:label="__('Select a Programming Exercise')"
+							:onCreate="(value, close) => redirectToForm()"
+						/>
+					</div>
 				</div>
 			</div>
 		</template>
@@ -143,6 +156,7 @@ import { getLmsRoute } from '@/utils/basePath'
 const show = ref(false)
 const quiz = ref(null)
 const assignment = ref(null)
+const exercise = ref(null)
 const grading_category = ref('')
 const due_date = ref('')
 const due_time = ref('')
@@ -276,12 +290,26 @@ const gradingCategoryOptions = computed(() => {
 })
 
 const addAssessment = () => {
-	const selectedItem = props.type == 'quiz' ? quiz.value : assignment.value
+	let selectedItem = null
+	if (props.type === 'quiz') {
+		selectedItem = quiz.value
+	} else if (props.type === 'program') {
+		selectedItem = exercise.value
+	} else {
+		selectedItem = assignment.value
+	}
+
 	if (!selectedItem) {
-		toast.error(props.type == 'quiz' ? __('Please select a quiz') : __('Please select an assignment'))
+		toast.error(
+			props.type === 'quiz'
+				? __('Please select a quiz')
+				: props.type === 'program'
+					? __('Please select a programming exercise')
+					: __('Please select an assignment')
+		)
 		return
 	}
-	if (courseDoc.value?.enable_grading_policy && (props.type != 'quiz' || include_in_grading.value)) {
+	if (courseDoc.value?.enable_grading_policy && include_in_grading.value) {
 		if (!grading_category.value) {
 			toast.error(__('Please select a Grading Category first.'))
 			return
@@ -294,8 +322,8 @@ const addAssessment = () => {
 	}
 	props.onAddition({
 		item: selectedItem,
-		grading_category: (props.type == 'quiz' && !include_in_grading.value) ? '' : grading_category.value,
-		include_in_grading: props.type == 'quiz' ? include_in_grading.value : true,
+		grading_category: !include_in_grading.value ? '' : grading_category.value,
+		include_in_grading: include_in_grading.value,
 		checkpoint_quiz: props.type == 'quiz' ? checkpoint_quiz.value : false,
 		due_date: due_date.value,
 		due_time: due_time.value,
@@ -309,6 +337,8 @@ const addAssessment = () => {
 const redirectToForm = () => {
 	if (props.type == 'quiz') {
 		window.open(getLmsRoute('quizzes?new=true'), '_blank')
+	} else if (props.type == 'program') {
+		window.open(getLmsRoute('programming-exercises?new=true'), '_blank')
 	} else {
 		window.open(getLmsRoute('assignments?new=true'), '_blank')
 	}
@@ -317,16 +347,19 @@ const redirectToForm = () => {
 
 <style>
 [data-dialog='Add a quiz to your lesson'] .dialog-content,
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content,
 [data-dialog='Add an assignment to your lesson'] .dialog-content {
 	overflow: visible !important;
 	border-radius: 12px !important;
 }
 [data-dialog='Add a quiz to your lesson'] .dialog-content > :first-child,
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content > :first-child,
 [data-dialog='Add an assignment to your lesson'] .dialog-content > :first-child {
 	border-top-left-radius: 12px !important;
 	border-top-right-radius: 12px !important;
 }
 [data-dialog='Add a quiz to your lesson'] .dialog-content > :last-child,
+[data-dialog='Add a programming exercise to your lesson'] .dialog-content > :last-child,
 [data-dialog='Add an assignment to your lesson'] .dialog-content > :last-child {
 	border-bottom-left-radius: 12px !important;
 	border-bottom-right-radius: 12px !important;

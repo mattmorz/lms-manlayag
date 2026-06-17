@@ -39,6 +39,11 @@
 							chapterNumber: props.chapterNumber,
 							lessonNumber: props.lessonNumber,
 						},
+						query: {
+							mode: ['icon-quiz', 'icon-assignment', 'icon-code'].includes(lesson.data?.icon)
+								? 'assessment'
+								: 'lesson'
+						}
 					}"
 				>
 					<Button>
@@ -217,6 +222,11 @@
 											chapterNumber: props.chapterNumber,
 											lessonNumber: props.lessonNumber,
 										},
+										query: {
+											mode: ['icon-quiz', 'icon-assignment', 'icon-code'].includes(lesson.data?.icon)
+												? 'assessment'
+												: 'lesson'
+										}
 									}"
 								>
 									<Button>
@@ -1414,7 +1424,9 @@ watch(
 	async (data) => {
 		if (data) {
 			window.currentLessonNext = data.next
-			window.isAssessmentMode = route.query.mode === 'assessment'
+			window.isAssessmentMode =
+				route.query.mode === 'assessment' ||
+				['icon-quiz', 'icon-assignment', 'icon-code'].includes(data.icon)
 		} else {
 			window.currentLessonNext = null
 			window.isAssessmentMode = false

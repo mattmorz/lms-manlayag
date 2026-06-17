@@ -36,11 +36,13 @@ export class Assignment {
 	render() {
 		this.wrapper = document.createElement('div')
 		if (Object.keys(this.data).length) {
+			const include_in_grading = this.data.include_in_grading !== undefined ? this.data.include_in_grading : true
 			this.renderAssignment(
 				this.data.assignment,
 				this.data.grading_category,
 				this.data.due_date,
-				this.data.due_time
+				this.data.due_time,
+				include_in_grading
 			)
 		} else {
 			this.renderAssignmentModal()
@@ -48,7 +50,7 @@ export class Assignment {
 		return this.wrapper
 	}
 
-	renderAssignment(assignment, category, due_date, due_time) {
+	renderAssignment(assignment, category, due_date, due_time, include_in_grading = true) {
 		if (this.readOnly) {
 			const { userResource } = usersStore()
 			const querySubmission = () => {
@@ -62,7 +64,8 @@ export class Assignment {
 				}).then((data) => {
 					let submission = (data && data.name) || 'new'
 					const submissionPath = getLmsRoute(
-						`assignment-submission/${assignment}/${submission}?fromLesson=1`
+						`assignment-submission/${assignment}/${submission}?fromLesson=1` +
+						`${include_in_grading ? '&grading=1' : ''}`
 					)
 					this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[500px]"></iframe>`
 				})
@@ -85,7 +88,7 @@ export class Assignment {
 				<div class="font-medium">
 					Assignment: ${data && data.title ? data.title : ''}
 				</div>
-				${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : ''}
+				${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : !include_in_grading ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Not included in grading')}</div>` : ''}
 			</div>`
 			return
 		})
@@ -110,19 +113,33 @@ export class Assignment {
 						id: block.data.assignment,
 						category: block.data.grading_category,
 					})
+				} else if (block.type === 'program' && block.data?.exercise && block.data?.grading_category) {
+					currentAssessments.push({
+						type: 'program',
+						id: block.data.exercise,
+						category: block.data.grading_category,
+					})
 				}
 			}
 
 			const app = createApp(AssessmentPlugin, {
 				type: 'assignment',
 				courseName: router.currentRoute.value?.params?.courseName,
+				creationMode: router.currentRoute.value?.query?.mode || 'lesson',
 				currentAssessments: currentAssessments,
 				onAddition: (data) => {
 					this.data.assignment = data.item
 					this.data.grading_category = data.grading_category
+					this.data.include_in_grading = data.include_in_grading
 					this.data.due_date = data.due_date
 					this.data.due_time = data.due_time
-					this.renderAssignment(data.item, data.grading_category, data.due_date, data.due_time)
+					this.renderAssignment(
+						data.item,
+						data.grading_category,
+						data.due_date,
+						data.due_time,
+						data.include_in_grading
+					)
 				},
 			})
 			app.use(translationPlugin)
@@ -136,6 +153,7 @@ export class Assignment {
 		return {
 			assignment: this.data.assignment,
 			grading_category: this.data.grading_category,
+			include_in_grading: this.data.include_in_grading !== undefined ? this.data.include_in_grading : true,
 			due_date: this.data.due_date,
 			due_time: this.data.due_time,
 		}
