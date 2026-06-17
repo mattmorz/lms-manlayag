@@ -227,7 +227,6 @@ const tabsStructure = computed(() => {
 										{
 											label: 'Livecode URL',
 											name: 'livecode_url',
-											doctype: 'Livecode URL',
 											type: 'text',
 											description:
 												'https://docs.frappe.io/learning/falcon-self-hosting-guide',

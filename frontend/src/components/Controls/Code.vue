@@ -37,7 +37,7 @@ import { tomorrow } from 'thememirror'
 
 const props = withDefaults(
 	defineProps<{
-		language: 'json' | 'javascript' | 'html' | 'css' | 'python'
+		language: 'json' | 'javascript' | 'html' | 'css' | 'python' | 'c' | 'c++'
 		modelValue: string | object | Array<string | object> | null
 		height?: string
 		maxHeight?: string
@@ -101,16 +101,19 @@ async function setLanguageExtension() {
 		html: () => import('@codemirror/lang-html'),
 		css: () => import('@codemirror/lang-css'),
 		python: () => import('@codemirror/lang-python'),
+		c: () => import('@codemirror/lang-cpp'),
+		'c++': () => import('@codemirror/lang-cpp'),
 	}
 
 	const languageImport = importMap[props.language]
 	if (!languageImport) return
 
 	const module = await languageImport()
-	languageExtension.value = (module as any)[props.language]?.()
+	const lang = (props.language === 'c' || props.language === 'c++') ? 'cpp' : props.language
+	languageExtension.value = (module as any)[lang]?.()
 
 	if (props.completions) {
-		const languageData = (module as any)[`${props.language}Language`]
+		const languageData = (module as any)[`${lang}Language`]
 		autocompleteExtension.value = languageData.data.of({
 			autocomplete: props.completions,
 		})

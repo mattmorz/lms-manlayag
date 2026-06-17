@@ -46,9 +46,17 @@ const title = createResource({
 	auto: true,
 })
 
-onMounted(() => {
+onMounted(async () => {
+	if (user && user.promise) {
+		try {
+			await user.promise
+		} catch (e) {
+			console.error('Failed to load user info:', e)
+		}
+	}
 	if (!user.data) {
 		window.location.href = '/login'
+		return
 	}
 
 	if (new URLSearchParams(window.location.search).get('fromLesson')) {

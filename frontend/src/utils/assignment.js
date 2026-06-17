@@ -51,20 +51,27 @@ export class Assignment {
 	renderAssignment(assignment, category, due_date, due_time) {
 		if (this.readOnly) {
 			const { userResource } = usersStore()
-			call('frappe.client.get_value', {
-				doctype: 'LMS Assignment Submission',
-				filters: {
-					assignment: assignment,
-					member: userResource.data?.name,
-				},
-				fieldname: ['name'],
-			}).then((data) => {
-				let submission = data.name || 'new'
-				const submissionPath = getLmsRoute(
-					`assignment-submission/${assignment}/${submission}?fromLesson=1`
-				)
-				this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[500px]"></iframe>`
-			})
+			const querySubmission = () => {
+				call('frappe.client.get_value', {
+					doctype: 'LMS Assignment Submission',
+					filters: {
+						assignment: assignment,
+						member: userResource.data?.name,
+					},
+					fieldname: ['name'],
+				}).then((data) => {
+					let submission = (data && data.name) || 'new'
+					const submissionPath = getLmsRoute(
+						`assignment-submission/${assignment}/${submission}?fromLesson=1`
+					)
+					this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[500px]"></iframe>`
+				})
+			}
+			if (userResource && userResource.promise) {
+				userResource.promise.then(querySubmission).catch(querySubmission)
+			} else {
+				querySubmission()
+			}
 			return
 		}
 		call('frappe.client.get_value', {
@@ -76,7 +83,7 @@ export class Assignment {
 		}).then((data) => {
 			this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-menu-bar mb-4'>
 				<div class="font-medium">
-					Assignment: ${data.title}
+					Assignment: ${data && data.title ? data.title : ''}
 				</div>
 				${category ? `<div class="text-xs text-ink-gray-6 mt-1">${__('Category')}: ${category} ${due_date ? `| ${__('Due')}: ${due_date}` : ''} ${due_time ? due_time : ''}</div>` : ''}
 			</div>`

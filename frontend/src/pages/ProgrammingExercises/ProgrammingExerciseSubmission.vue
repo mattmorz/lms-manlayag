@@ -47,13 +47,26 @@
 							(submissionID == 'new' ||
 								user.data?.name == submission.doc?.owner)
 						"
-						variant="solid"
-						@click="submitCode"
+						variant="outline"
+						@click="runCode"
 					>
 						<template #prefix>
 							<Play class="size-3" />
 						</template>
 						{{ __('Run') }}
+					</Button>
+					<Button
+						v-if="
+							!falconError &&
+							(submissionID == 'new' ||
+								user.data?.name == submission.doc?.owner)
+						"
+						variant="solid"
+						theme="green"
+						:disabled="!testCases.length"
+						@click="createSubmission"
+					>
+						{{ __('Submit') }}
 					</Button>
 				</div>
 			</div>
@@ -172,7 +185,7 @@ const { brand } = sessionStore()
 const { settings } = useSettings()
 const router = useRouter()
 const fromLesson = ref(false)
-const falconURL = ref<string>('https://falcon.frappe.io/')
+const falconURL = ref<string>('http://code.manlayag.local:8000/')
 const falconError = ref<string | null>(null)
 
 const props = withDefaults(
@@ -251,15 +264,27 @@ const updateBoilerPlate = () => {
 		boilerplate.value = `with open("stdin", "r") as f:\n    data = f.read()\n\ninputs = data.split() if len(data) else []\n\n# inputs is a list of strings\n# write your code below\n\n`
 	} else if (exercise.doc?.language == 'JavaScript') {
 		boilerplate.value = `const fs = require('fs');\n\nlet input = fs.readFileSync('/app/stdin', 'utf8').trim();\nconst inputs = input.split("\\n");\n// inputs is an array of strings\n// write your code below\n`
+	} else if (exercise.doc?.language == 'C') {
+		boilerplate.value = `#include <stdio.h>\n\nint main() {\n    // write your code below\n    \n    return 0;\n}\n`
+	} else if (exercise.doc?.language == 'C++') {
+		boilerplate.value = `#include <iostream>\n\nusing namespace std;\n\nint main() {\n    // write your code below\n    \n    return 0;\n}\n`
 	}
 }
 
-const checkIfUserIsPermitted = (doc: any = null) => {
+const checkIfUserIsPermitted = async (doc: any = null) => {
+	if (user && user.promise) {
+		try {
+			await user.promise
+		} catch (e) {
+			console.error('Failed to load user info:', e)
+		}
+	}
 	if (!user.data) {
 		const redirectPath = getLmsRoute(
 			`programming-exercises/${props.exerciseID}/submission/${props.submissionID}`
 		)
 		window.location.href = `/login?redirect-to=${redirectPath}`
+		return
 	}
 
 	if (!doc) return
@@ -294,8 +319,15 @@ watch(
 	{ immediate: true }
 )
 
-const loadFalcon = () => {
-	if (settings.data) {
+const loadFalcon = async () => {
+	if (!settings.data) {
+		try {
+			await settings.promise
+		} catch (e) {
+			console.error('Failed to load settings:', e)
+		}
+	}
+	if (settings.data?.livecode_url) {
 		falconURL.value = settings.data.livecode_url
 	}
 	return new Promise((resolve, reject) => {
@@ -307,10 +339,6 @@ const loadFalcon = () => {
 	})
 }
 
-const submitCode = async () => {
-	await runCode()
-	createSubmission()
-}
 
 const runCode = async () => {
 	if (!exercise.doc?.test_cases?.length) return
@@ -375,9 +403,14 @@ const execute = (stdin = ''): Promise<string> => {
 		let hasExited = false
 		let hasError = false
 
+		let runtime = exercise.doc?.language.toLowerCase() || 'python'
+		if (runtime === 'c++') {
+			runtime = 'cpp'
+		}
+
 		let session = new LiveCodeSession({
 			base_url: falconURL.value,
-			runtime: exercise.doc?.language.toLowerCase() || 'python',
+			runtime: runtime,
 			code: code.value,
 			files: [{ filename: 'stdin', contents: stdin }],
 			onMessage: (msg: any) => {

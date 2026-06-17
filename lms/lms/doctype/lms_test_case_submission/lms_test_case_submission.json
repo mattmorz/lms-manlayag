@@ -34,8 +34,7 @@
    "fieldname": "output",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Output",
-   "reqd": 1
+   "label": "Output"
   },
   {
    "fieldname": "status",

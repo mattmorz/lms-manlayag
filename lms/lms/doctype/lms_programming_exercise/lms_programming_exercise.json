@@ -34,7 +34,7 @@
    "fieldname": "language",
    "fieldtype": "Select",
    "label": "Language",
-   "options": "Python\nJavaScript\nRust\nGo",
+   "options": "Python\nJavaScript\nRust\nGo\nC\nC++",
    "reqd": 1
   },
   {

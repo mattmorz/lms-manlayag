@@ -143,6 +143,8 @@ const exercise = ref<ProgrammingExercise>({
 const languageOptions = [
 	{ label: 'Python', value: 'Python' },
 	{ label: 'JavaScript', value: 'JavaScript' },
+	{ label: 'C', value: 'C' },
+	{ label: 'C++', value: 'C++' },
 ]
 
 const props = withDefaults(

@@ -65,20 +65,27 @@ export class Program {
     renderExercise(exercise: string) {
         if (this.readOnly) {
             const { userResource } = usersStore()
-            call('frappe.client.get_value', {
-                doctype: 'LMS Programming Exercise Submission',
-                filters: {
-                    exercise: exercise,
-                    member: userResource.data?.name,
-                },
-                fieldname: ['name'],
-            }).then((data: { name: string }) => {
-                let submission = data.name || 'new'
-                const submissionPath = getLmsRoute(
-                    `programming-exercises/${exercise}/submission/${submission}?fromLesson=1`
-                )
-                this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[900px] border rounded-md"></iframe>`
-            })
+            const querySubmission = () => {
+                call('frappe.client.get_value', {
+                    doctype: 'LMS Programming Exercise Submission',
+                    filters: {
+                        exercise: exercise,
+                        member: userResource.data?.name,
+                    },
+                    fieldname: ['name'],
+                }).then((data: { name: string } | null) => {
+                    let submission = (data && data.name) || 'new'
+                    const submissionPath = getLmsRoute(
+                        `programming-exercises/${exercise}/submission/${submission}?fromLesson=1`
+                    )
+                    this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[900px] border rounded-md"></iframe>`
+                })
+            }
+            if (userResource && userResource.promise) {
+                userResource.promise.then(querySubmission).catch(querySubmission)
+            } else {
+                querySubmission()
+            }
             return
         } 
         call("frappe.client.get_value", {
@@ -87,10 +94,10 @@ export class Program {
                 name: exercise
             },
             fieldname: "title"
-        }).then((data: { title: string }) => {
+        }).then((data: { title: string } | null) => {
             this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-menu-bar mb-4'>
                 <span class="font-medium">
-                    Programming Exercise: ${data.title}
+                    Programming Exercise: ${data && data.title ? data.title : ''}
                 </span>
             </div>`
             return

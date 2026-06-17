@@ -268,6 +268,23 @@ router.beforeEach(async (to, from, next) => {
 	let { isLoggedIn } = sessionStore()
 	const { settings } = useSettings()
 
+	const inIframe = window.self !== window.top
+	const fromLesson = to.query.fromLesson || new URLSearchParams(window.location.search).get('fromLesson')
+
+	if (!isLoggedIn && (inIframe || fromLesson)) {
+		if (!userResource.promise) {
+			userResource.reload()
+		}
+		try {
+			await userResource.promise
+			if (userResource.data) {
+				isLoggedIn = true
+			}
+		} catch (error) {
+			// ignore error
+		}
+	}
+
 	try {
 		if (isLoggedIn) {
 			await userResource.promise

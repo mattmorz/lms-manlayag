@@ -11,16 +11,21 @@ export const sessionStore = defineStore('lms-session', () => {
 	function sessionUser() {
 		let cookies = new URLSearchParams(document.cookie.split('; ').join('&'))
 		let _sessionUser = cookies.get('user_id')
+		const inIframe = window.self !== window.top
+		const fromLesson = new URLSearchParams(window.location.search).get('fromLesson')
+
 		if (_sessionUser === 'Guest') {
 			_sessionUser = null
-		} else {
+		} else if (_sessionUser) {
+			userResource.reload()
+		} else if (inIframe || fromLesson) {
 			userResource.reload()
 		}
 		return _sessionUser
 	}
 
 	let user = ref(sessionUser())
-	const isLoggedIn = computed(() => !!user.value)
+	const isLoggedIn = computed(() => !!user.value || !!userResource.data)
 
 	const login = createResource({
 		url: 'login',

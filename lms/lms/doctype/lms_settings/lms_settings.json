@@ -80,7 +80,7 @@
  ],
  "fields": [
   {
-   "default": "https://falcon.frappe.io/",
+   "default": "http://code.manlayag.local:8000/",
    "fieldname": "livecode_url",
    "fieldtype": "Data",
    "label": "LiveCode URL"
