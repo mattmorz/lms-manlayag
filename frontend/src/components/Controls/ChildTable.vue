@@ -25,10 +25,11 @@
 					:style="{ gridTemplateColumns: getGridTemplateColumns() }"
 				>
 					<template v-for="key in Object.keys(row)" :key="key">
-						<input
+						<textarea
 							v-if="showKey(key)"
 							v-model="row[key]"
-							class="py-1.5 px-2 w-full border-none bg-transparent text-ink-gray-8 focus:ring-0 focus:border focus:border-outline-gray-3 focus:bg-surface-gray-2 rounded-md text-sm focus:outline-none"
+							rows="2"
+							class="py-1.5 px-2 w-full border-none bg-transparent text-ink-gray-8 focus:ring-0 focus:border focus:border-outline-gray-3 focus:bg-surface-gray-2 rounded-md text-sm focus:outline-none resize-y min-h-[2.5rem] leading-5"
 						/>
 					</template>
 
@@ -138,7 +139,7 @@ const focusNewRowInput = () => {
 		const rowElements = document.querySelectorAll('.overflow-x-auto .grid')[
 			rows.value!.length
 		]
-		const firstInput = rowElements.querySelector('input')
+		const firstInput = rowElements.querySelector('input, textarea')
 		if (firstInput) {
 			;(firstInput as HTMLInputElement).focus()
 		}

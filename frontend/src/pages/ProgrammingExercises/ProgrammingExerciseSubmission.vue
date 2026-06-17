@@ -127,13 +127,13 @@
 								<div class="text-xs text-ink-gray-7">
 									{{ __('Input') }}
 								</div>
-								<div class="text-ink-gray-9">{{ testCase.input }}</div>
+								<div class="text-ink-gray-9 whitespace-pre-wrap font-mono">{{ testCase.input }}</div>
 							</div>
 							<div class="space-y-2">
 								<div class="text-xs text-ink-gray-7">
 									{{ __('Your Output') }}
 								</div>
-								<div class="text-ink-gray-9">
+								<div class="text-ink-gray-9 whitespace-pre-wrap font-mono">
 									{{ testCase.output }}
 								</div>
 							</div>
@@ -141,7 +141,7 @@
 								<div class="text-xs text-ink-gray-7">
 									{{ __('Expected Output') }}
 								</div>
-								<div class="text-ink-gray-9">
+								<div class="text-ink-gray-9 whitespace-pre-wrap font-mono">
 									{{ testCase.expected_output }}
 								</div>
 							</div>
