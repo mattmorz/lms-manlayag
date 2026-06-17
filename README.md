@@ -69,7 +69,7 @@ The CARSU (Caraga State University) implementation of Manlayag introduces severa
 * **Toggle Switch Bulk Controls**: A modern, dynamic toggle switch in the bulk action bar showing whether the selected cohort accounts are active or disabled, with full toggle support.
 * **Action Toast Notifications**: Modern toast alerts confirming successful completion of all cohort adjustments (adds, unenrollments, and status updates).
 
-### 2. Proctored Quiz & Assessment Module
+### 2. Proctoring & Progression Controls
 * **Full-Screen Enforcement**: Secure proctoring settings that enforce full-screen view during critical quizzes.
 * **Tab/Window Focus Monitoring**: Tracks focus loss or tab navigation to ensure quiz integrity.
 * **Checkpoint & Graded Quizzes**: Controls course progression by locking the "Next Lesson" button until mandatory quizzes are completed.
@@ -84,6 +84,17 @@ The CARSU (Caraga State University) implementation of Manlayag introduces severa
 
 ### 5. Performance & Scalability Enhancements
 * **High-Concurrency Rate Limiting**: Optimized API rate-limit thresholds and throttling properties in `utils.py` to seamlessly handle 1,000+ concurrent active sessions.
+
+### 6. Interactive Programming Exercises
+* **C/C++ Language Support**: Integrated `@codemirror/lang-cpp` for real-time syntax highlighting in C and C++ submissions.
+* **Separate Run & Submit Actions**: Separated execution logic into local compilation testing ("Run") and persistent database saving ("Submit").
+* **Multiline Test Cases**: Replaced single-line inputs with `<textarea>` elements in the test cases table, and changed database schemas to support storing multiline inputs/outputs.
+* **Console Whitespace Preservation**: Maintained exact console output formatting (newlines/spaces) in test case validation results.
+
+### 7. Unified Activity Editor & Grading Policies
+* **Dynamic Activity Routing**: Edit links automatically open quizzes, assignments, and programming exercises in the "Activity" view (with `mode: 'assessment'`), making all block types available for insertion or modification.
+* **Dynamic Success Alerts**: Dynamic success toasts confirming updates specific to the saved content ("Activity updated successfully" or "Lesson updated successfully").
+* **Unified Grading Controls**: Consolidated programming exercises into `AssessmentPlugin.vue`. Added "Include in Grading" controls, grading categories, and deadlines for both Assignments and Programming Exercises, aligning them fully with the quiz experience.
 
 ### Acknowledgements
 
