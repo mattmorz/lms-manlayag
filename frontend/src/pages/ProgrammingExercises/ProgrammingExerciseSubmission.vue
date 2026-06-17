@@ -247,15 +247,39 @@ watch(exercise, () => {
 	updateCode()
 })
 
+const normalizeNewlines = (str: string | null | undefined): string => {
+	if (!str) return ''
+	return str.replace(/\r\n/g, '\n')
+}
+
+const hasBoilerplateSignature = (codeStr: string, language: string): boolean => {
+	const cleanCode = codeStr.replace(/\s/g, '')
+	if (language === 'python') {
+		return cleanCode.includes('withopen') || cleanCode.includes('inputs=')
+	}
+	if (language === 'javascript') {
+		return cleanCode.includes('require(')
+	}
+	if (language === 'c' || language === 'c++') {
+		return cleanCode.includes('#include') || cleanCode.includes('intmain')
+	}
+	return false
+}
+
 const updateCode = (submissionCode = '') => {
 	updateBoilerPlate()
-	if (!code.value?.includes(boilerplate.value)) {
-		code.value = `${boilerplate.value}${code.value}`
-	}
-	if (submissionCode && !code.value?.includes(submissionCode)) {
-		code.value = `${code.value}${submissionCode}`
-	} else if (!submissionCode && !code.value) {
-		code.value = boilerplate.value
+	const normalizedBoilerplate = normalizeNewlines(boilerplate.value)
+	const normalizedSubmission = normalizeNewlines(submissionCode)
+	const lang = exercise.doc?.language.toLowerCase() || 'python'
+
+	if (normalizedSubmission) {
+		if (!hasBoilerplateSignature(normalizedSubmission, lang)) {
+			code.value = `${normalizedBoilerplate}${normalizedSubmission}`
+		} else {
+			code.value = normalizedSubmission
+		}
+	} else if (!code.value) {
+		code.value = normalizedBoilerplate
 	}
 }
 
@@ -319,6 +343,18 @@ watch(
 	{ immediate: true }
 )
 
+watch(
+	() => [props.exerciseID, props.submissionID],
+	() => {
+		code.value = ''
+		testCases.value = []
+		error.value = null
+		errorMessage.value = null
+		output.value = null
+		updateCode()
+	}
+)
+
 const loadFalcon = async () => {
 	if (!settings.data) {
 		try {
@@ -369,7 +405,7 @@ const runCode = async () => {
 
 const createSubmission = () => {
 	if (!testCases.value.length) return
-	let codeToSave = code.value?.replace(boilerplate.value, '') || ''
+	let codeToSave = code.value || ''
 
 	call('lms.lms.api.create_programming_exercise_submission', {
 		exercise: props.exerciseID,
