@@ -109,7 +109,7 @@
 	</Dialog>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUpdated } from 'vue'
 import { escapeHTML } from '@/utils'
 import {
 	Badge,
@@ -163,6 +163,18 @@ watch(
 		fetchTestCases()
 	}
 )
+
+onMounted(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
 
 const setExerciseData = () => {
 	let isNew = true

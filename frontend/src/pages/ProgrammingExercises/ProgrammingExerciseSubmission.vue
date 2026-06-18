@@ -165,7 +165,7 @@ import {
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch, onUpdated } from 'vue'
 import { Play, X, Check, Settings } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
@@ -203,6 +203,15 @@ onMounted(() => {
 	checkIfUserIsPermitted()
 	checkIfInLesson()
 	fetchSubmission()
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 const checkIfInLesson = () => {

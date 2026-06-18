@@ -227,7 +227,7 @@ import {
 	TextEditor,
 	toast,
 } from 'frappe-ui'
-import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onMounted, onBeforeUnmount, ref, watch, onUpdated } from 'vue'
 import { FileText, X } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
@@ -254,6 +254,15 @@ const props = defineProps({
 
 onMounted(() => {
 	window.addEventListener('keydown', keyboardShortcut)
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 const keyboardShortcut = (e) => {

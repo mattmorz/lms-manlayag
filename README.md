@@ -96,6 +96,15 @@ The CARSU (Caraga State University) implementation of Manlayag introduces severa
 * **Context-Aware Save Success Alerts**: System notifies instructors with content-specific confirmation alerts ("Activity updated successfully" vs. "Lesson updated successfully") to reflect what type of content was saved.
 * **Unified Grading & Deadline Options**: All assignments and programming exercises support the same grading configuration options as quizzes. Instructors can toggle whether the work is graded, assign it to a specific course grading category, and set clear due dates and times.
 
+### 8. Dynamic Mathematical Notation (MathJax Integration)
+* **Comprehensive LaTeX Support**: Instructors and content creators can write complex mathematical equations using standard LaTeX delimiters: inline math (e.g. `$E=mc^2$` or `\(x^2\)`), and block-level display math (e.g. `$$\sum x_i$$` or `\[\frac{a}{b}\]`).
+* **Omnichannel Typesetting**: MathJax is fully integrated across all key components:
+  * **Lessons**: Dynamic math equations render inline in both student lesson views and instructor creation views.
+  * **Quizzes**: MathJax parses questions and multiple-choice options inside quizzes, question banks, and grading submissions.
+  * **Assignments**: Assignment prompts, student answers, and evaluator feedback render mathematical notation.
+  * **Programming Exercises**: LaTeX equations are rendered inside programming exercise problem statements, code instructions, and test case details.
+* **Smooth Asynchronous Rendering**: Custom hooks typeset mathematical content dynamically, ensuring math notation displays perfectly during page transitions, modal popups, and async data updates.
+
 ### Acknowledgements
 
 Manlayag is built upon the excellent work of the Frappe community and the Frappe Learning project.

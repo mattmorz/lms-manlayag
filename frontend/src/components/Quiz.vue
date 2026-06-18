@@ -501,7 +501,7 @@ import {
 	toast,
 	Dialog,
 } from 'frappe-ui'
-import { ref, watch, reactive, inject, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, reactive, inject, computed, onMounted, onBeforeUnmount, onUpdated } from 'vue'
 import { CheckCircle, XCircle, MinusCircle, Lock } from 'lucide-vue-next'
 import { timeAgo } from '@/utils'
 import { useRouter } from 'vue-router'
@@ -591,6 +591,15 @@ const loadSavedWarnings = () => {
 
 onMounted(() => {
 	loadSavedWarnings()
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 watch(() => props.quizName, () => {

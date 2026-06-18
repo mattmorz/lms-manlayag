@@ -334,32 +334,49 @@ export class Markdown {
 
 	_onKeyDown(event) {
 		const text = this.wrapper.textContent
+		const trimmedText = text.trim()
 
-		if (event.key === ' ' && /^#{1,6}$/.test(text)) {
+		if (event.key === ' ' && /^#{1,6}$/.test(trimmedText)) {
 			event.preventDefault()
-			const level = text.length
+			const level = trimmedText.length
 			this.wrapper.textContent = ''
 			this._convertBlock('header', { level })
-		} else if (event.key === ' ' && text === '-') {
+		} else if (event.key === ' ' && trimmedText === '-') {
 			event.preventDefault()
 			this.wrapper.textContent = ''
 			this._convertBlock('list', {
 				style: 'unordered',
 				items: [{ content: '' }],
 			})
-		} else if (event.key === ' ' && /^1\.$/.test(text)) {
+		} else if (event.key === ' ' && trimmedText === '$$') {
+			event.preventDefault()
+			this.wrapper.textContent = ''
+			this._convertBlock('latex', { formula: '' })
+		} else if (event.key === ' ' && trimmedText.startsWith('$$') && trimmedText.endsWith('$$')) {
+			event.preventDefault()
+			const formula = trimmedText.slice(2, -2).trim()
+			this.wrapper.textContent = ''
+			this._convertBlock('latex', { formula })
+		} else if (event.key === ' ' && /^1\.$/.test(trimmedText)) {
 			event.preventDefault()
 			this.wrapper.textContent = ''
 			this._convertBlock('list', {
 				style: 'ordered',
 				items: [{ content: '' }],
 			})
-		} else if (this._isEmbed(text) && event.key === 'Enter') {
+		} else if (this._isEmbed(trimmedText) && event.key === 'Enter') {
 			event.preventDefault()
 			this.wrapper.textContent = ''
-			this._convertBlock('embed', { source: text })
+			this._convertBlock('embed', { source: trimmedText })
 		} else if (event.key === 'Enter') {
-			setTimeout(() => this._checkMarkdownAfterEnter(), 0)
+			if (trimmedText.startsWith('$$') && trimmedText.endsWith('$$')) {
+				event.preventDefault()
+				const formula = trimmedText.slice(2, -2).trim()
+				this.wrapper.textContent = ''
+				this._convertBlock('latex', { formula })
+			} else {
+				setTimeout(() => this._checkMarkdownAfterEnter(), 0)
+			}
 		}
 	}
 

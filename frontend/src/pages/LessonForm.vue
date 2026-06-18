@@ -145,6 +145,7 @@ import {
 	inject,
 	ref,
 	onBeforeUnmount,
+	onUpdated,
 } from 'vue'
 import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
@@ -189,6 +190,15 @@ onMounted(() => {
 	capture('lesson_form_opened')
 	window.addEventListener('keydown', keyboardShortcut)
 	enablePlyr()
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 const renderEditor = (holder, toolOptions = { allowAssessments: true }) => {
@@ -199,6 +209,11 @@ const renderEditor = (holder, toolOptions = { allowAssessments: true }) => {
 		onChange: async (api, event) => {
 			enablePlyr()
 		},
+		onReady: () => {
+			if (window.triggerMathJax) {
+				window.triggerMathJax()
+			}
+		}
 	})
 }
 

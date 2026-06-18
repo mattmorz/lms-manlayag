@@ -584,6 +584,7 @@ import {
 	onMounted,
 	onBeforeUnmount,
 	nextTick,
+	onUpdated,
 } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -733,6 +734,15 @@ onMounted(() => {
 			lessonProgress.value = data.progress
 		}
 	})
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 const attachFullscreenEvent = () => {
@@ -1171,6 +1181,11 @@ const renderEditor = (holder, content) => {
 		data: JSON.parse(content),
 		readOnly: true,
 		defaultBlock: 'embed',
+		onReady: () => {
+			if (window.triggerMathJax) {
+				window.triggerMathJax()
+			}
+		}
 	})
 }
 

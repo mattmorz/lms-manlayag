@@ -405,6 +405,7 @@ import {
 	onMounted,
 	inject,
 	onBeforeUnmount,
+	onUpdated,
 } from 'vue'
 import { sessionStore } from '../stores/session'
 import { ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
@@ -589,6 +590,15 @@ onMounted(() => {
 	}
 	quizDetails.reload()
 	window.addEventListener('keydown', keyboardShortcut)
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 const keyboardShortcut = (e) => {

@@ -333,7 +333,7 @@ import {
 	usePageMeta,
 } from 'frappe-ui'
 import { useRouter, useRoute } from 'vue-router'
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch, onUpdated } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { escapeHTML } from '@/utils'
@@ -382,6 +382,15 @@ onMounted(() => {
 	}
 	if (route.query.new === 'true') {
 		showForm.value = true
+	}
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
 	}
 })
 

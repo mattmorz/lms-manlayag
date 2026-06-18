@@ -82,7 +82,7 @@ import {
 	usePageMeta,
 	toast,
 } from 'frappe-ui'
-import { computed, onBeforeUnmount, onMounted, inject } from 'vue'
+import { computed, onBeforeUnmount, onMounted, inject, onUpdated } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '@/stores/session'
 
@@ -95,6 +95,15 @@ onMounted(() => {
 		router.push({ name: 'Courses' })
 
 	window.addEventListener('keydown', keyboardShortcut)
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
+})
+
+onUpdated(() => {
+	if (window.triggerMathJax) {
+		window.triggerMathJax()
+	}
 })
 
 onBeforeUnmount(() => {

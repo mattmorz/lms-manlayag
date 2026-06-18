@@ -6,6 +6,7 @@ import { Program } from '@/utils/program'
 import { Assignment } from '@/utils/assignment'
 import { Upload } from '@/utils/upload'
 import { Markdown } from '@/utils/markdownParser'
+import { LatexBlock } from '@/utils/latexBlock'
 import { useSettings } from '@/stores/settings'
 import { usersStore } from '@/stores/user'
 import Header from '@editorjs/header'
@@ -138,6 +139,10 @@ export function getEditorTools(options = {}) {
 		upload: Upload,
 		markdown: {
 			class: Markdown,
+			inlineToolbar: true,
+		},
+		latex: {
+			class: LatexBlock,
 			inlineToolbar: true,
 		},
 		image: SimpleImage,

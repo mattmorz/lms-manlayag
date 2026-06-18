@@ -1,5 +1,5 @@
 import './index.css'
-import { createApp, watch } from 'vue'
+import { createApp, watch, nextTick } from 'vue'
 import router from './router'
 import App from './App.vue'
 import { createPinia } from 'pinia'
@@ -37,3 +37,37 @@ watch(userResource, () => {
 
 app.config.globalProperties.$user = userResource
 app.config.globalProperties.$dialog = createDialog
+
+window.triggerMathJax = (elements) => {
+	const runTypeset = () => {
+		if (window.MathJax && window.MathJax.typesetPromise) {
+			if (elements) {
+				const els = Array.isArray(elements) ? elements : [elements]
+				const validEls = els.filter((el) => el && el.nodeType)
+				if (validEls.length > 0) {
+					window.MathJax.typesetClear(validEls)
+					window.MathJax.typesetPromise(validEls).catch((err) => console.error(err))
+				}
+			} else {
+				window.MathJax.typesetPromise().catch((err) => console.error(err))
+			}
+		}
+	}
+
+	if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+		window.MathJax.startup.promise.then(runTypeset)
+	} else {
+		nextTick(() => {
+			if (window.MathJax && window.MathJax.typesetPromise) {
+				runTypeset()
+			} else {
+				setTimeout(runTypeset, 500)
+			}
+		})
+	}
+}
+
+
+router.afterEach(() => {
+	window.triggerMathJax()
+})
