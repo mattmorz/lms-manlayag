@@ -1548,6 +1548,9 @@ def get_batch_details(batch: str):
 			"timezone",
 			"category",
 			"zoom_account",
+			"use_enrolment_code",
+			"enrolment_code",
+			"enrolment_code_expiry",
 		],
 		as_dict=True,
 	)
@@ -2395,12 +2398,12 @@ def enroll_in_course(course: str, payment_name: str):
 
 
 @frappe.whitelist()
-def enroll_in_batch(batch: str, payment_name: str = None):
+def enroll_in_batch(batch: str, payment_name: str = None, code: str = None):
 	if not frappe.db.exists("LMS Batch", batch):
 		frappe.throw(_("The specified batch does not exist."))
 
 	payment_doc = get_payment_details(payment_name)
-	create_enrollment(batch, payment_doc)
+	create_enrollment(batch, payment_doc, code)
 
 
 def get_payment_details(payment_name: str) -> dict:
@@ -2412,12 +2415,13 @@ def get_payment_details(payment_name: str) -> dict:
 	return payment_doc
 
 
-def create_enrollment(batch: str, payment_doc: dict = None):
+def create_enrollment(batch: str, payment_doc: dict = None, code: str = None):
 	new_student = frappe.new_doc("LMS Batch Enrollment")
 	new_student.update(
 		{
 			"member": frappe.session.user,
 			"batch": batch,
+			"enrolment_code": code,
 		}
 	)
 

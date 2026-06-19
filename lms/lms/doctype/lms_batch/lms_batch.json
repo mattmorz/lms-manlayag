@@ -20,7 +20,10 @@
   "published",
   "column_break_wfkz",
   "allow_self_enrollment",
-    "allow_delayed_enrollment",
+  "allow_delayed_enrollment",
+  "use_enrolment_code",
+  "enrolment_code",
+  "enrolment_code_expiry",
   "column_break_vnrp",
   "certification",
   "section_break_6",
@@ -321,6 +324,24 @@
      "fieldname": "allow_delayed_enrollment",
      "fieldtype": "Check",
      "label": "Allow Delayed Enrollment"
+    },
+    {
+     "default": "0",
+     "fieldname": "use_enrolment_code",
+     "fieldtype": "Check",
+     "label": "Use Enrolment Code"
+    },
+    {
+     "depends_on": "eval:doc.use_enrolment_code",
+     "fieldname": "enrolment_code",
+     "fieldtype": "Data",
+     "label": "Enrolment Code"
+    },
+    {
+     "depends_on": "eval:doc.use_enrolment_code",
+     "fieldname": "enrolment_code_expiry",
+     "fieldtype": "Datetime",
+     "label": "Enrolment Code Expiry"
     },
   {
    "fieldname": "timezone",

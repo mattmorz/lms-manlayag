@@ -35,6 +35,11 @@ class LMSBatch(Document):
 		self.validate_duplicate_assessments()
 		self.validate_timetable()
 		self.validate_evaluation_end_date()
+		self.set_enrolment_code()
+
+	def set_enrolment_code(self):
+		if getattr(self, "use_enrolment_code", 0) and not getattr(self, "enrolment_code", None):
+			self.enrolment_code = frappe.generate_hash()[:8].upper()
 
 	def on_update(self):
 		if self.has_value_changed("published") and self.published:

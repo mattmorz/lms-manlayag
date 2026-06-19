@@ -13,6 +13,7 @@
   "batch",
   "payment",
   "source",
+  "enrolment_code",
   "confirmation_email_sent"
  ],
  "fields": [
@@ -51,6 +52,11 @@
    "in_standard_filter": 1,
    "label": "Source",
    "options": "LMS Source"
+  },
+  {
+   "fieldname": "enrolment_code",
+   "fieldtype": "Data",
+   "label": "Enrolment Code"
   },
   {
    "default": "0",

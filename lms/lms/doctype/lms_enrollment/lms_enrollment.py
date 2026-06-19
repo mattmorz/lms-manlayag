@@ -34,6 +34,9 @@ class LMSEnrollment(Document):
 			frappe.throw(_("Student is already enrolled in this course."))
 
 	def validate_course_enrollment_eligibility(self):
+		if self.enrollment_from_batch:
+			return
+
 		# Only validate eligibility for new enrollments, not when updating existing ones
 		course_details = frappe.db.get_value(
 			"LMS Course",
@@ -49,9 +52,6 @@ class LMSEnrollment(Document):
 						"You cannot enroll in this course as self-learning is disabled. Please contact the Administrator."
 					)
 				)
-
-		if self.enrollment_from_batch:
-			return
 
 		if not course_details.published and not is_admin():
 			frappe.throw(_("You cannot enroll in an unpublished course."))

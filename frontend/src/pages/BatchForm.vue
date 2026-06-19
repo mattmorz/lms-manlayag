@@ -52,28 +52,66 @@
 				<div class="text-lg text-ink-gray-9 font-semibold mb-4">
 					{{ __('Settings') }}
 				</div>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-					<FormControl
-						v-model="batch.published"
-						type="checkbox"
-						:label="__('Published')"
-					/>
-					<FormControl
-						v-model="batch.allow_self_enrollment"
-						type="checkbox"
-						:label="__('Allow self enrollment')"
-					/>
-					<FormControl
-						v-if="batch.allow_self_enrollment"
-						v-model="batch.allow_delayed_enrollment"
-						type="checkbox"
-						:label="__('Allow delayed enrollment')"
-					/>
-					<FormControl
-						v-model="batch.certification"
-						type="checkbox"
-						:label="__('Certification')"
-					/>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+					<!-- Column 1: General Settings -->
+					<div class="flex flex-col gap-6">
+						<FormControl
+							v-model="batch.published"
+							type="checkbox"
+							:label="__('Published')"
+						/>
+						<FormControl
+							v-model="batch.certification"
+							type="checkbox"
+							:label="__('Certification')"
+						/>
+					</div>
+
+					<!-- Column 2: Self Enrollment Settings -->
+					<div class="flex flex-col gap-6">
+						<FormControl
+							v-model="batch.allow_self_enrollment"
+							type="checkbox"
+							:label="__('Allow self enrollment')"
+						/>
+						<FormControl
+							v-if="batch.allow_self_enrollment"
+							v-model="batch.allow_delayed_enrollment"
+							type="checkbox"
+							:label="__('Allow delayed enrollment')"
+						/>
+					</div>
+
+					<!-- Column 3: Enrolment Code Settings -->
+					<div class="flex flex-col gap-6">
+						<FormControl
+							v-model="batch.use_enrolment_code"
+							type="checkbox"
+							:label="__('Enable enrolment code / link')"
+						/>
+						<div v-if="batch.use_enrolment_code" class="flex items-end gap-2">
+							<FormControl
+								v-model="batch.enrolment_code"
+								type="text"
+								:label="__('Enrolment Code')"
+								:placeholder="__('Leave blank to auto-generate')"
+								class="font-mono uppercase flex-1"
+								class-name="w-full"
+							/>
+							<Button @click="regenerateCode" class="mb-0.5">
+								<template #icon>
+									<RefreshCw class="size-4 stroke-1.5" />
+								</template>
+							</Button>
+						</div>
+						<FormControl
+							v-if="batch.use_enrolment_code"
+							v-model="batch.enrolment_code_expiry"
+							type="datetime-local"
+							:label="__('Enrolment Code Expiry')"
+							class-name="w-full"
+						/>
+					</div>
 				</div>
 			</div>
 
@@ -302,7 +340,7 @@ import {
 	updateMetaInfo,
 } from '@/utils'
 import { useRouter } from 'vue-router'
-import { Trash2 } from 'lucide-vue-next'
+import { Trash2, RefreshCw } from 'lucide-vue-next'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
 import { sessionStore } from '../stores/session'
 import Uploader from '@/components/Controls/Uploader.vue'
@@ -342,6 +380,9 @@ const batch = reactive({
 	category: '',
 	allow_self_enrollment: false,
 	allow_delayed_enrollment: false,
+	use_enrolment_code: false,
+	enrolment_code: '',
+	enrolment_code_expiry: '',
 	certification: false,
 	meta_image: null,
 	paid_batch: false,
@@ -355,6 +396,15 @@ const meta = reactive({
 	description: '',
 	keywords: '',
 })
+
+const regenerateCode = () => {
+	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+	let code = ''
+	for (let i = 0; i < 8; i++) {
+		code += chars.charAt(Math.floor(Math.random() * chars.length))
+	}
+	batch.enrolment_code = code
+}
 
 onMounted(() => {
 	if (!user.data) window.location.href = '/login'
@@ -424,6 +474,8 @@ const updateBatchData = (data) => {
 			})
 		} else if (['start_time', 'end_time'].includes(key)) {
 			batch[key] = formatTime(data[key])
+		} else if (key === 'enrolment_code_expiry') {
+			batch[key] = data[key] ? data[key].replace(' ', 'T').substring(0, 16) : ''
 		} else if (Object.hasOwn(batch, key)) batch[key] = data[key]
 	})
 	let checkboxes = [
@@ -432,6 +484,7 @@ const updateBatchData = (data) => {
 		'allow_self_enrollment',
 		'allow_delayed_enrollment',
 		'certification',
+		'use_enrolment_code',
 	]
 	for (let idx in checkboxes) {
 		let key = checkboxes[idx]

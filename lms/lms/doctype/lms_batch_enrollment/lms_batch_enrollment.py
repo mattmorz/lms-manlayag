@@ -59,11 +59,30 @@ class LMSBatchEnrollment(Document):
 				"start_date",
 				"start_time",
 				"end_date",
+				"use_enrolment_code",
+				"enrolment_code",
+				"enrolment_code_expiry",
 			],
 			as_dict=True,
 		)
 		if batch_details.paid_batch:
 			return
+
+		# If code enrolment is enabled on this batch, validate it.
+		if batch_details.use_enrolment_code:
+			if not getattr(self, "enrolment_code", None):
+				frappe.throw(_("An enrolment code is required to enroll in this batch."))
+
+			if self.enrolment_code != batch_details.enrolment_code:
+				frappe.throw(_("The enrolment code is invalid."))
+
+			if batch_details.enrolment_code_expiry:
+				from frappe.utils import get_datetime
+				if get_datetime(batch_details.enrolment_code_expiry) < get_datetime():
+					frappe.throw(_("The enrolment code has expired."))
+
+			return  # Successful validation using code bypasses allow_self_enrollment check
+
 		if not self.is_admin():
 			if batch_details.allow_delayed_enrollment:
 				if batch_details.end_date < getdate():
