@@ -118,7 +118,13 @@ const filterLinksToShow = (data) => {
 	Object.keys(data).forEach((key) => {
 		if (!parseInt(data[key])) {
 			sidebarLinks.value = sidebarLinks.value.filter(
-				(link) => link.label.toLowerCase().split(' ').join('_') !== key
+				(link) => {
+					let labelKey = link.label.toLowerCase().split(' ').join('_')
+					if (labelKey === 'analytics') {
+						labelKey = 'statistics'
+					}
+					return labelKey !== key
+				}
 			)
 		}
 	})

@@ -1,108 +1,96 @@
 <template>
-	<div class="min-h-screen bg-surface-gray-1">
+	<div v-if="!isStatisticsEnabled" class="min-h-screen flex flex-col items-center justify-center bg-surface-gray-1 p-6 text-ink-gray-5">
+		<div class="text-center space-y-4">
+			<TrendingUp class="w-12 h-12 mx-auto text-ink-gray-3 stroke-1" />
+			<h2 class="text-lg font-bold text-ink-gray-7">{{ __('Analytics is disabled') }}</h2>
+			<p class="text-sm">{{ __('This feature has been disabled by the administrator.') }}</p>
+			<Button variant="solid" @click="router.push({ name: 'Home' })">{{ __('Go Home') }}</Button>
+		</div>
+	</div>
+	<div v-else class="min-h-screen bg-surface-gray-1">
 		<header
 			class="sticky top-0 z-10 flex items-center justify-between border-b bg-surface-white px-3 py-2.5 sm:px-5"
 		>
 			<Breadcrumbs class="h-7" :items="breadcrumbs" />
 		</header>
 
-		<!-- Role & Selection Selector Bar -->
-		<div class="bg-surface-white border-b px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-			<!-- Tab Switcher for Instructors / Admins -->
-			<div v-if="isAdminOrStaff" class="flex space-x-1 bg-surface-gray-2 p-1 rounded-lg">
-				<button
-					v-for="tab in availableTabs"
-					:key="tab.value"
-					@click="currentTab = tab.value"
-					class="px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200"
-					:class="currentTab === tab.value ? 'bg-surface-white text-indigo-600 shadow-sm' : 'text-ink-gray-7 hover:text-ink-gray-9'"
-				>
-					{{ __(tab.label) }}
-				</button>
-			</div>
-			<div v-else class="text-sm font-semibold text-ink-gray-7">
-				{{ __('My Learning Insights') }}
-			</div>
-
-			<!-- Dynamic Parameter Dropdown depending on currentTab -->
-			<div class="flex items-center space-x-2">
-				<!-- Student Course Selector -->
-				<div v-if="currentTab === 'Student' && studentDashboard.data?.courses?.length" class="flex items-center space-x-2">
-					<label class="text-xs text-ink-gray-5 font-medium">{{ __('Select Course:') }}</label>
-					<select
-						v-model="selectedStudentCourse"
-						class="text-xs bg-surface-white border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-					>
-						<option
-							v-for="c in studentDashboard.data.courses"
-							:key="c.course"
-							:value="c.course"
-						>
-							{{ c.title }}
-						</option>
-					</select>
-				</div>
-
-				<!-- Instructor Course Selector -->
-				<div v-if="currentTab === 'Instructor' && instructorCourses.data?.length" class="flex items-center space-x-2">
-					<label class="text-xs text-ink-gray-5 font-medium">{{ __('Course:') }}</label>
-					<select
-						v-model="selectedInstructorCourse"
-						class="text-xs bg-surface-white border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-					>
-						<option
-							v-for="c in instructorCourses.data"
-							:key="c.name"
-							:value="c.name"
-						>
-							{{ c.title }}
-						</option>
-					</select>
-				</div>
-
-				<!-- Batch Selector -->
-				<div v-if="currentTab === 'Batch' && batchesList.data?.length" class="flex items-center space-x-2">
-					<label class="text-xs text-ink-gray-5 font-medium">{{ __('Batch:') }}</label>
-					<select
-						v-model="selectedBatchName"
-						class="text-xs bg-surface-white border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-					>
-						<option
-							v-for="b in batchesList.data"
-							:key="b.name"
-							:value="b.name"
-						>
-							{{ b.title }}
-						</option>
-					</select>
-				</div>
-
-				<!-- Department Selector -->
-				<div v-if="currentTab === 'Department' && categoriesList.data?.length" class="flex items-center space-x-2">
-					<label class="text-xs text-ink-gray-5 font-medium">{{ __('Department:') }}</label>
-					<select
-						v-model="selectedDepartment"
-						class="text-xs bg-surface-white border rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-					>
-						<option
-							v-for="cat in categoriesList.data"
-							:key="cat.name"
-							:value="cat.name"
-						>
-							{{ cat.name }}
-						</option>
-					</select>
-				</div>
-			</div>
-		</div>
-
 		<!-- Dashboard Body -->
-		<div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
-			<!-- 1. STUDENT DASHBOARD -->
-			<div v-if="currentTab === 'Student'" class="space-y-6">
+		<div class="p-5 pb-10 space-y-6">
+			<!-- Tab Switcher and Selectors -->
+			<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+				<!-- Tab Switcher for Instructors / Admins -->
+				<TabButtons
+					v-if="isAdminOrStaff"
+					:buttons="availableTabs"
+					v-model="currentTab"
+					class="w-fit"
+				/>
+				<div v-else-if="user" class="text-sm font-semibold text-ink-gray-7">
+					{{ __('My Learning Insights') }}
+				</div>
+				<div v-else class="text-sm font-semibold text-ink-gray-7">
+					{{ __('Platform Statistics') }}
+				</div>
+
+				<!-- Dynamic Parameter Dropdown depending on currentTab -->
+				<div class="flex items-center space-x-2">
+					<!-- Student Course Selector -->
+					<div v-if="currentTab === 'Student' && studentDashboard.data?.courses?.length" class="flex items-center space-x-2">
+						<label class="text-xs text-ink-gray-5 font-medium">{{ __('Select Course:') }}</label>
+						<FormControl
+							type="select"
+							:options="studentCourseOptions"
+							v-model="selectedStudentCourse"
+							class="text-xs min-w-[200px]"
+						/>
+					</div>
+
+					<!-- Instructor Course Selector -->
+					<div v-if="currentTab === 'Instructor' && instructorCourses.data?.length" class="flex items-center space-x-2">
+						<label class="text-xs text-ink-gray-5 font-medium">{{ __('Course:') }}</label>
+						<FormControl
+							type="select"
+							:options="instructorCourseOptions"
+							v-model="selectedInstructorCourse"
+							class="text-xs min-w-[200px]"
+						/>
+					</div>
+
+					<!-- Batch Selector -->
+					<div v-if="currentTab === 'Batch' && batchesList.data?.length" class="flex items-center space-x-2">
+						<label class="text-xs text-ink-gray-5 font-medium">{{ __('Batch:') }}</label>
+						<FormControl
+							type="select"
+							:options="batchOptions"
+							v-model="selectedBatchName"
+							class="text-xs min-w-[200px]"
+						/>
+					</div>
+
+					<!-- Department Selector -->
+					<div v-if="currentTab === 'Department' && categoriesList.data?.length" class="flex items-center space-x-2">
+						<label class="text-xs text-ink-gray-5 font-medium">{{ __('Department:') }}</label>
+						<FormControl
+							type="select"
+							:options="departmentOptions"
+							v-model="selectedDepartment"
+							class="text-xs min-w-[200px]"
+						/>
+					</div>
+				</div>
+			</div>
+
+			<!-- Loading State -->
+			<div v-if="loading" class="flex justify-center items-center py-24">
+				<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+			</div>
+
+			<div v-else class="space-y-6">
+				<!-- 1. STUDENT DASHBOARD -->
+				<div v-if="currentTab === 'Student'" class="space-y-6">
 				<!-- KPI Cards -->
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between">
 						<div>
 							<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Learning Streak') }}</div>
 							<div class="text-2xl font-extrabold text-indigo-600 flex items-center">
@@ -115,7 +103,7 @@
 						</div>
 					</div>
 
-					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between">
 						<div>
 							<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Time Spent Learning') }}</div>
 							<div class="text-2xl font-extrabold text-indigo-600">
@@ -127,7 +115,7 @@
 						</div>
 					</div>
 
-					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between">
 						<div>
 							<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Completed Courses') }}</div>
 							<div class="text-2xl font-extrabold text-indigo-600">
@@ -145,7 +133,7 @@
 					<!-- Left Details (Grades, Progress, Strengths, Recommendations) -->
 					<div class="lg:col-span-2 space-y-6">
 						<!-- Course Stats Overview -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-4">
+						<div class="bg-surface-white border rounded-md p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
 							<div class="text-center sm:text-left border-r sm:border-r border-gray-100 last:border-0 pr-4">
 								<div class="text-xs text-ink-gray-5 mb-1">{{ __('Course Progress') }}</div>
 								<div class="text-xl font-bold text-ink-gray-8">{{ activeCourseData.progress }}%</div>
@@ -166,7 +154,7 @@
 						</div>
 
 						<!-- Line Chart: Quiz Performance Trend -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Quiz Performance Trend') }}</h3>
 							<div v-if="activeCourseData.quiz_trend?.length">
 								<apexchart
@@ -182,7 +170,7 @@
 						</div>
 
 						<!-- Recommendations & Feedback -->
-						<div class="bg-indigo-50/55 border border-indigo-100 rounded-md p-5 shadow-xs">
+						<div class="bg-indigo-50/55 border border-indigo-100 rounded-md p-5">
 							<h3 class="text-sm font-bold text-indigo-900 mb-3 flex items-center">
 								<Zap class="w-4 h-4 mr-1.5 text-indigo-600 fill-indigo-600" />
 								{{ __('Personalized Action Recommendations') }}
@@ -191,15 +179,22 @@
 								<div
 									v-for="(rec, idx) in visibleRecommendations"
 									:key="idx"
-									class="bg-surface-white border border-indigo-100/50 p-4 rounded-lg flex items-start space-x-3 shadow-xxs"
+									class="bg-surface-white border border-indigo-100/50 p-4 rounded-lg flex items-start space-x-3"
 								>
 									<div class="bg-indigo-100 text-indigo-700 p-1.5 rounded">
 										<BookOpen v-if="rec.type === 'review_lesson'" class="w-4 h-4" />
+										<CircleHelp v-else-if="rec.type === 'retake_quiz'" class="w-4 h-4" />
+										<Pencil v-else-if="rec.type === 'retake_assignment'" class="w-4 h-4" />
+										<Code v-else-if="rec.type === 'retry_exercise'" class="w-4 h-4" />
 										<Award v-else class="w-4 h-4" />
 									</div>
 									<div class="flex-1">
 										<h4 class="text-xs font-bold text-ink-gray-9 mb-0.5">
-											{{ rec.type === 'review_lesson' ? __('Review Lesson:') : __('Retake Assessment:') }}
+											<span v-if="rec.type === 'review_lesson'">{{ __('Course Lesson') }}: </span>
+											<span v-else-if="rec.type === 'retake_quiz'">{{ __('Quiz') }}: </span>
+											<span v-else-if="rec.type === 'retake_assignment'">{{ __('Assignment') }}: </span>
+											<span v-else-if="rec.type === 'retry_exercise'">{{ __('Programming Exercise') }}: </span>
+											<span v-else>{{ __('Assessment') }}: </span>
 											{{ rec.title }}
 										</h4>
 										<p class="text-xs text-ink-gray-6">{{ rec.reason }}</p>
@@ -220,7 +215,7 @@
 					<!-- Right Sidebar (Risk score, Predictions, Missing activities) -->
 					<div class="space-y-6">
 						<!-- Risk Score Card -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Academic Risk Assessment') }}</h3>
 							<div class="flex items-center justify-between mb-4">
 								<div class="text-xs text-ink-gray-5">{{ __('Overall Risk Level') }}</div>
@@ -273,7 +268,7 @@
 						</div>
 
 						<!-- Explainable Predictions -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs space-y-4">
+						<div class="bg-surface-white border rounded-md p-5 space-y-4">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-1">{{ __('Foundational Predictions') }}</h3>
 							<p class="text-xs text-ink-gray-5 leading-normal">{{ __('Explainable progress indices computed from engagement statistics.') }}</p>
 
@@ -339,13 +334,13 @@
 						</div>
 
 						<!-- Missing Activities -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Pending / Missing Activities') }}</h3>
 							<div v-if="visibleMissingActivities.length" class="space-y-2">
 								<div
 									v-for="(act, idx) in visibleMissingActivities"
 									:key="idx"
-									class="border rounded p-2.5 flex items-start justify-between bg-surface-gray-1 shadow-xxs"
+									class="border rounded p-2.5 flex items-start justify-between bg-surface-gray-1"
 								>
 									<div>
 										<div class="text-xs font-bold text-ink-gray-8 mb-0.5 leading-snug">{{ act.title }}</div>
@@ -373,19 +368,19 @@
 			<div v-if="currentTab === 'Instructor'" class="space-y-6">
 				<!-- KPIs Grid -->
 				<div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Total Enrollments') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ instructorDashboard.data?.enrollment_count || 0 }}</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Active Students (7d)') }}</div>
 						<div class="text-2xl font-extrabold text-green-600">{{ instructorDashboard.data?.active_students || 0 }}</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
-						<div class="text-xs text-ink-gray-5 font-medium mb-1{{ __('Average Completion') }}">{{ __('Average Completion') }}</div>
+					<div class="bg-surface-white border rounded-md p-5">
+						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Average Completion') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ instructorDashboard.data?.completion_rate || 0 }}%</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Average Grade') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ instructorDashboard.data?.average_grade || 0 }}%</div>
 					</div>
@@ -394,7 +389,7 @@
 				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<!-- Struggling & At-Risk Students list -->
 					<div class="lg:col-span-2 space-y-6">
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-4 flex items-center text-red-700">
 								<AlertTriangle class="w-4 h-4 mr-1.5" />
 								{{ __('Struggling & At-Risk Students') }}
@@ -415,8 +410,7 @@
 											<td class="py-3">{{ s.progress }}%</td>
 											<td class="py-3 text-center">
 												<span
-													class="px-2 py-0.5 rounded text-xs font-extrabold"
-													:class="s.risk_level === 'High Risk' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'"
+													class="px-2 py-0.5 rounded text-xs font-extrabold bg-red-100 text-red-700"
 												>
 													{{ s.risk_score }}%
 												</span>
@@ -441,7 +435,7 @@
 						</div>
 
 						<!-- Difficult Modules & Question Analytics -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs space-y-6">
+						<div class="bg-surface-white border rounded-md p-5 space-y-6">
 							<div>
 								<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Problematic / Ambiguous Questions') }}</h3>
 								<div class="overflow-x-auto">
@@ -451,7 +445,7 @@
 												<th class="py-2.5">{{ __('Question Name') }}</th>
 												<th class="py-2.5">{{ __('Question Text') }}</th>
 												<th class="py-2.5 text-center">{{ __('Pass Rate') }}</th>
-												<th class="py-2.5">{{ __('Insight / Issue') }}</th>
+												<th class="py-2.5">{{ __('Issue') }}</th>
 											</tr>
 										</thead>
 										<tbody class="divide-y text-xs">
@@ -479,14 +473,14 @@
 					<!-- Right instructor stats column -->
 					<div class="space-y-6">
 						<!-- Difficult Lessons & Quizzes Dropoffs -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs space-y-6">
+						<div class="bg-surface-white border rounded-md p-5 space-y-6">
 							<div>
 								<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Difficult Lessons (Drop-Off Points)') }}</h3>
 								<div v-if="visibleLessons.length" class="space-y-2.5">
 									<div
 										v-for="l in visibleLessons"
 										:key="l.lesson_name"
-										class="border p-3 rounded-md bg-surface-gray-1 shadow-xxs"
+										class="border p-3 rounded-md bg-surface-gray-1"
 									>
 										<div class="text-xs font-bold text-ink-gray-8 mb-1 leading-snug">{{ l.title }}</div>
 										<p class="text-xs text-red-600 mb-2 leading-relaxed">{{ l.reason }}</p>
@@ -509,14 +503,17 @@
 							<hr class="border-gray-100" />
 
 							<div>
-								<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Difficult Quizzes') }}</h3>
+								<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Difficult Assessments') }}</h3>
 								<div v-if="visibleQuizzes.length" class="space-y-2.5">
 									<div
 										v-for="q in visibleQuizzes"
 										:key="q.quiz"
-										class="border p-3 rounded-md bg-surface-gray-1 shadow-xxs"
+										class="border p-3 rounded-md bg-surface-gray-1"
 									>
-										<div class="text-xs font-bold text-ink-gray-8 mb-1 leading-snug">{{ q.quiz }}</div>
+										<div class="text-xs font-bold text-ink-gray-8 mb-1 leading-snug">
+											<span class="text-ink-gray-5 font-semibold">{{ __(q.type) }}: </span>
+											{{ q.quiz }}
+										</div>
 										<p class="text-xs text-red-600 mb-2 leading-relaxed">{{ q.reason }}</p>
 										<div class="flex items-center justify-between text-xs text-ink-gray-5 font-semibold">
 											<span>{{ __('Attempts: ') }}{{ q.attempts }}</span>
@@ -530,13 +527,13 @@
 									</div>
 								</div>
 								<div v-else class="text-center py-6 text-xs text-ink-gray-4">
-									{{ __('All quizzes meeting performance targets.') }}
+									{{ __('All assessments meeting performance targets.') }}
 								</div>
 							</div>
 						</div>
 
 						<!-- Chart: Quizzes Averages comparison -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Assessment Averages') }}</h3>
 							<div v-if="instructorDashboard.data?.quizzes_stats?.length">
 								<apexchart
@@ -558,15 +555,15 @@
 			<div v-if="currentTab === 'Batch'" class="space-y-6">
 				<!-- KPIs -->
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Batch Completion Rate') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ batchDashboard.data?.completion_rate || 0 }}%</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Batch Average Grade') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ batchDashboard.data?.average_grade || 0 }}%</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs flex items-center justify-between">
+					<div class="bg-surface-white border rounded-md p-5 flex items-center justify-between">
 						<div>
 							<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('At-Risk Learners in Batch') }}</div>
 							<div class="text-2xl font-extrabold text-red-600">{{ batchDashboard.data?.at_risk_learners?.length || 0 }}</div>
@@ -581,7 +578,7 @@
 					<!-- Progress distribution and batch comparison -->
 					<div class="lg:col-span-2 space-y-6">
 						<!-- Distribution bar chart -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Progress Distribution (Student Counts)') }}</h3>
 							<div v-if="batchDashboard.data?.progress_distribution">
 								<apexchart
@@ -594,13 +591,13 @@
 						</div>
 
 						<!-- Comparisons with other semesters / batches -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Batch Comparisons (Progress vs Other Batches)') }}</h3>
 							<div v-if="batchDashboard.data?.comparisons?.length" class="space-y-4">
 								<div
 									v-for="(comp, i) in batchDashboard.data.comparisons"
 									:key="i"
-									class="border rounded-md p-4 bg-surface-gray-1 shadow-xxs"
+									class="border rounded-md p-4 bg-surface-gray-1"
 								>
 									<h4 class="text-xs font-bold text-ink-gray-8 mb-3">{{ comp.course_title }}</h4>
 									<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center sm:text-left">
@@ -630,7 +627,7 @@
 					<!-- Top performers & At-risk list -->
 					<div class="space-y-6">
 						<!-- Top Performers list -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-indigo-900 mb-3 flex items-center">
 								<Award class="w-4 h-4 mr-1.5 text-indigo-600 fill-indigo-600" />
 								{{ __('Top Performers') }}
@@ -639,7 +636,7 @@
 								<div
 									v-for="p in visiblePerformers"
 									:key="p.username"
-									class="border rounded p-2.5 flex items-center justify-between bg-surface-gray-1 shadow-xxs"
+									class="border rounded p-2.5 flex items-center justify-between bg-surface-gray-1"
 								>
 									<div>
 										<div class="text-xs font-bold text-ink-gray-8 leading-snug">{{ p.name }}</div>
@@ -661,7 +658,7 @@
 						</div>
 
 						<!-- Batch At-Risk Learners list -->
-						<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+						<div class="bg-surface-white border rounded-md p-5">
 							<h3 class="text-sm font-bold text-red-900 mb-3 flex items-center">
 								<AlertTriangle class="w-4 h-4 mr-1.5 text-red-500" />
 								{{ __('Batch At-Risk Learners') }}
@@ -670,7 +667,7 @@
 								<div
 									v-for="s in visibleBatchRisk"
 									:key="s.username"
-									class="border rounded-md p-3 bg-red-50/30 border-red-100 flex flex-col space-y-2 shadow-xxs"
+									class="border rounded-md p-3 bg-red-50/30 border-red-100 flex flex-col space-y-2"
 								>
 									<div class="flex items-center justify-between">
 										<div class="text-xs font-bold text-ink-gray-8">{{ s.name }}</div>
@@ -700,7 +697,7 @@
 			<div v-if="currentTab === 'Department'" class="space-y-6">
 				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<!-- Course completion rates in department -->
-					<div class="lg:col-span-2 bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="lg:col-span-2 bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Department Course Completion Rates') }}</h3>
 						<div v-if="visibleDepartmentCompletions.length" class="overflow-x-auto">
 							<table class="w-full text-left border-collapse">
@@ -728,7 +725,7 @@
 					</div>
 
 					<!-- Weekly active users line chart -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Student Engagement Trend') }}</h3>
 						<div v-if="departmentDashboard.data?.student_engagement_trends?.length">
 							<apexchart
@@ -743,7 +740,7 @@
 
 				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 					<!-- Course Average Performance -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Average Student Performance (Grades)') }}</h3>
 						<div v-if="departmentDashboard.data?.average_performance?.length">
 							<apexchart
@@ -756,7 +753,7 @@
 					</div>
 
 					<!-- Faculty Course Performance -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Faculty Course Workloads') }}</h3>
 						<div v-if="visibleFaculty.length" class="overflow-x-auto">
 							<table class="w-full text-left border-collapse">
@@ -789,15 +786,15 @@
 			<div v-if="currentTab === 'Administrative'" class="space-y-6">
 				<!-- KPI Cards -->
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Total Enrollments (Platform)') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ adminDashboard.data?.total_enrollments || 0 }}</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Active Learners (30d)') }}</div>
 						<div class="text-2xl font-extrabold text-green-600">{{ adminDashboard.data?.active_learners || 0 }}</div>
 					</div>
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<div class="text-xs text-ink-gray-5 font-medium mb-1">{{ __('Overall Completion Rate') }}</div>
 						<div class="text-2xl font-extrabold text-indigo-600">{{ adminDashboard.data?.overall_completion_rate || 0 }}%</div>
 					</div>
@@ -805,7 +802,7 @@
 
 				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<!-- Signup activity trend (Line Chart) -->
-					<div class="lg:col-span-2 bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="lg:col-span-2 bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-4">{{ __('Weekly Registration Trends (New Users)') }}</h3>
 						<div v-if="adminDashboard.data?.signup_trends?.length">
 							<apexchart
@@ -818,13 +815,13 @@
 					</div>
 
 					<!-- Popular courses list -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-ink-gray-9 mb-3">{{ __('Most Popular Courses') }}</h3>
 						<div v-if="adminDashboard.data?.popular_courses?.length" class="space-y-3">
 							<div
 								v-for="c in adminDashboard.data.popular_courses"
 								:key="c.course"
-								class="border rounded-md p-3 flex items-center justify-between bg-surface-gray-1 shadow-xxs"
+								class="border rounded-md p-3 flex items-center justify-between bg-surface-gray-1"
 							>
 								<div class="text-xs font-bold text-ink-gray-8 leading-snug">{{ c.course }}</div>
 								<span class="text-xs font-semibold text-indigo-600">
@@ -837,7 +834,7 @@
 
 				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<!-- Lowest Completion Courses -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-red-900 mb-3 flex items-center">
 							<AlertTriangle class="w-4 h-4 mr-1.5 text-red-500" />
 							{{ __('Lowest Completion Courses') }}
@@ -846,7 +843,7 @@
 							<div
 								v-for="c in adminDashboard.data.lowest_completion_courses"
 								:key="c.course"
-								class="border rounded-md p-3 flex items-center justify-between bg-red-50/10 border-red-100 shadow-xxs"
+								class="border rounded-md p-3 flex items-center justify-between bg-red-50/10 border-red-100"
 							>
 								<div class="text-xs font-bold text-ink-gray-8 leading-snug">{{ c.course }}</div>
 								<span class="text-xs font-bold text-red-600">
@@ -857,7 +854,7 @@
 					</div>
 
 					<!-- Highest Performing Courses -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-green-900 mb-3 flex items-center">
 							<CheckCircle2 class="w-4 h-4 mr-1.5 text-green-500" />
 							{{ __('Highest Performing Courses (Grades)') }}
@@ -866,7 +863,7 @@
 							<div
 								v-for="c in adminDashboard.data.highest_performing_courses"
 								:key="c.course"
-								class="border rounded-md p-3 flex items-center justify-between bg-green-50/10 border-green-100 shadow-xxs"
+								class="border rounded-md p-3 flex items-center justify-between bg-green-50/10 border-green-100"
 							>
 								<div class="text-xs font-bold text-ink-gray-8 leading-snug">{{ c.course }}</div>
 								<span class="text-xs font-bold text-green-600">
@@ -877,7 +874,7 @@
 					</div>
 
 					<!-- Highest Risk Courses -->
-					<div class="bg-surface-white border rounded-md p-5 shadow-xs">
+					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-red-900 mb-3 flex items-center">
 							<AlertTriangle class="w-4 h-4 mr-1.5 text-red-500" />
 							{{ __('Highest Risk Courses') }}
@@ -886,7 +883,7 @@
 							<div
 								v-for="c in adminDashboard.data.highest_risk_courses"
 								:key="c.course"
-								class="border rounded-md p-3 flex items-center justify-between bg-red-50/20 border-red-100 shadow-xxs"
+								class="border rounded-md p-3 flex items-center justify-between bg-red-50/20 border-red-100"
 							>
 								<div class="text-xs font-bold text-ink-gray-8 leading-snug">{{ c.course }}</div>
 								<span class="text-xs font-bold text-red-600">
@@ -897,13 +894,16 @@
 					</div>
 				</div>
 			</div>
+			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
-import { createResource, call, Breadcrumbs, Button, usePageMeta } from 'frappe-ui'
+import { createResource, call, Breadcrumbs, Button, usePageMeta, TabButtons, FormControl } from 'frappe-ui'
+import { useRouter } from 'vue-router'
+import { useSettings } from '@/stores/settings'
 import { sessionStore } from '@/stores/session'
 import { usersStore } from '@/stores/user'
 import {
@@ -916,12 +916,21 @@ import {
 	Zap,
 	BookOpen,
 	Award,
+	Pencil,
+	Code,
+	CircleHelp,
 } from 'lucide-vue-next'
 import apexchart from 'vue3-apexcharts'
 
 // Fetch logged in user and roles
 const { user, brand } = sessionStore()
 const { userResource } = usersStore()
+const { settings } = useSettings()
+const router = useRouter()
+
+const isStatisticsEnabled = computed(() => {
+	return settings.data?.statistics !== 0
+})
 
 usePageMeta(() => {
 	return {
@@ -954,30 +963,62 @@ const isAdminOrStaff = computed(() => {
 // Tabs definition
 const availableTabs = computed(() => {
 	const tabs = []
-	tabs.push({ label: 'Student Dashboard', value: 'Student' })
+	tabs.push({ label: __('Student Dashboard'), value: 'Student' })
 	
 	if (userResource.data?.is_instructor || userResource.data?.is_moderator) {
-		tabs.push({ label: 'Instructor View', value: 'Instructor' })
+		tabs.push({ label: __('Instructor View'), value: 'Instructor' })
 	}
 	if (userResource.data?.is_instructor || userResource.data?.is_moderator || userResource.data?.is_evaluator) {
-		tabs.push({ label: 'Batch Analytics', value: 'Batch' })
+		tabs.push({ label: __('Batch Analytics'), value: 'Batch' })
 	}
 	if (userResource.data?.is_moderator || userResource.data?.is_instructor) {
-		tabs.push({ label: 'Department Trends', value: 'Department' })
+		tabs.push({ label: __('Department Trends'), value: 'Department' })
 	}
 	if (userResource.data?.is_system_manager || userResource.data?.is_moderator) {
-		tabs.push({ label: 'Administrative View', value: 'Administrative' })
+		tabs.push({ label: __('Administrative View'), value: 'Administrative' })
 	}
 	return tabs
 })
 
-const currentTab = ref('Student')
+const currentTab = ref(user ? 'Student' : 'Administrative')
 
 // Selector values
 const selectedStudentCourse = ref(null)
 const selectedInstructorCourse = ref(null)
 const selectedBatchName = ref(null)
 const selectedDepartment = ref(null)
+
+const studentCourseOptions = computed(() => {
+	if (!studentDashboard.data?.courses) return []
+	return studentDashboard.data.courses.map((c) => ({
+		label: c.title,
+		value: c.course,
+	}))
+})
+
+const instructorCourseOptions = computed(() => {
+	if (!instructorCourses.data) return []
+	return instructorCourses.data.map((c) => ({
+		label: c.title,
+		value: c.name,
+	}))
+})
+
+const batchOptions = computed(() => {
+	if (!batchesList.data) return []
+	return batchesList.data.map((b) => ({
+		label: b.title,
+		value: b.name,
+	}))
+})
+
+const departmentOptions = computed(() => {
+	if (!categoriesList.data) return []
+	return categoriesList.data.map((cat) => ({
+		label: cat.name,
+		value: cat.name,
+	}))
+})
 
 // ----------------------------------------------------
 // Client-side pagination lists limits
@@ -1019,15 +1060,8 @@ watch(currentTab, resetLimits)
 
 // Fetch dropdown inputs
 const instructorCourses = createResource({
-	url: 'frappe.client.get_list',
-	makeParams() {
-		return {
-			doctype: 'LMS Course',
-			filters: { published: 1 },
-			fields: ['name', 'title'],
-			limit_page_length: 100,
-		}
-	},
+	url: 'lms.lms.api.get_instructor_analytics_courses',
+	auto: true,
 	onSuccess(data) {
 		if (data?.length) {
 			selectedInstructorCourse.value = data[0].name
@@ -1036,15 +1070,8 @@ const instructorCourses = createResource({
 })
 
 const batchesList = createResource({
-	url: 'frappe.client.get_list',
-	makeParams() {
-		return {
-			doctype: 'LMS Batch',
-			filters: { published: 1 },
-			fields: ['name', 'title'],
-			limit_page_length: 100,
-		}
-	},
+	url: 'lms.lms.api.get_instructor_analytics_batches',
+	auto: true,
 	onSuccess(data) {
 		if (data?.length) {
 			selectedBatchName.value = data[0].name
@@ -1075,7 +1102,7 @@ const studentDashboard = createResource({
 		dashboard_type: 'Student',
 		reference_name: user,
 	},
-	auto: true,
+	auto: user ? true : false,
 	onSuccess(data) {
 		if (data?.courses?.length) {
 			selectedStudentCourse.value = data.courses[0].course
@@ -1119,6 +1146,16 @@ const adminDashboard = createResource({
 		dashboard_type: 'Administrative',
 		reference_name: 'global',
 	},
+	auto: !user ? true : false,
+})
+
+const loading = computed(() => {
+	if (currentTab.value === 'Student') return studentDashboard.loading
+	if (currentTab.value === 'Instructor') return instructorDashboard.loading || instructorCourses.loading
+	if (currentTab.value === 'Batch') return batchDashboard.loading || batchesList.loading
+	if (currentTab.value === 'Department') return departmentDashboard.loading || categoriesList.loading
+	if (currentTab.value === 'Administrative') return adminDashboard.loading
+	return false
 })
 
 // Load active selectors data based on selection change
@@ -1211,7 +1248,10 @@ const visibleFaculty = computed(() => {
 })
 
 onMounted(() => {
-	if (isAdminOrStaff.value) {
+	if (!user) {
+		currentTab.value = 'Administrative'
+		adminDashboard.reload()
+	} else if (isAdminOrStaff.value) {
 		instructorCourses.reload()
 		batchesList.reload()
 		categoriesList.reload()
@@ -1415,10 +1455,4 @@ const getAdminTrendSeries = (trends) => {
 </script>
 
 <style scoped>
-.shadow-xxs {
-	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-}
-.shadow-xs {
-	box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-}
 </style>

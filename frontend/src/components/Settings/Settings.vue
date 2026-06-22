@@ -444,7 +444,7 @@ const tabsStructure = computed(() => {
 											type: 'checkbox',
 										},
 										{
-											label: 'Statistics',
+											label: 'Analytics',
 											name: 'statistics',
 											type: 'checkbox',
 										},

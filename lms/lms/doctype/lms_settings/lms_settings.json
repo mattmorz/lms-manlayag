@@ -294,7 +294,7 @@
    "default": "1",
    "fieldname": "statistics",
    "fieldtype": "Check",
-   "label": "Statistics"
+   "label": "Analytics"
   },
   {
    "default": "1",

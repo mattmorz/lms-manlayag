@@ -62,7 +62,7 @@
 												{{ item.title || item.content_name }}
 											</h4>
 											<div class="flex items-center gap-2 mt-0.5 text-xs text-ink-gray-4">
-												<span class="font-medium text-ink-gray-6">{{ item.content_doctype }}</span>
+												<span class="font-medium text-ink-gray-6">{{ formatItemType(item.content_doctype) }}</span>
 												<span>•</span>
 												<span class="truncate max-w-[150px]" :title="item.content_name">{{ item.content_name }}</span>
 											</div>
@@ -246,35 +246,37 @@
 					:label="__('Content Type')"
 				/>
 
-				<div class="flex flex-col">
-					<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">{{ __('Search Content') }}</label>
-					<div class="relative">
-						<input
-							type="text"
-							v-model="newItem.searchQuery"
-							@input="debounceSearch()"
-							class="w-full border rounded-md p-2 pl-8 text-sm bg-surface-white"
-							placeholder="Type to search..."
-						/>
-						<SearchIcon class="size-4 text-ink-gray-4 absolute left-2.5 top-3" />
-					</div>
+				<div class="flex flex-col space-y-1.5 overflow-visible">
+					<Link
+						:key="newItem.doctype"
+						:doctype="newItem.doctype"
+						v-model="newItem.selectedItemName"
+						:label="__('Select Content')"
+						:placeholder="__('Click to choose or type to search...')"
+						class="w-full"
+					/>
 				</div>
 
-				<!-- Search Results List -->
-				<div class="border rounded-md divide-y max-h-60 overflow-y-auto" v-if="newItem.searchResults.length">
-					<div
-						v-for="res in newItem.searchResults"
-						:key="res.name"
-						class="p-2.5 text-sm hover:bg-indigo-50 cursor-pointer flex items-center justify-between gap-4"
-						:class="newItem.selectedItem && newItem.selectedItem.name === res.name ? 'bg-indigo-50 border-indigo-200' : ''"
-						@click="selectSearchItem(res)"
-					>
-						<span class="font-medium text-ink-gray-9 truncate">{{ res.title || res.name }}</span>
-						<span class="text-xs text-ink-gray-4 flex-shrink-0">{{ res.name }}</span>
+				<!-- Selection Indicator -->
+				<div v-if="newItem.selectedItem" class="bg-green-50 border border-green-200 rounded-md p-3 flex items-center justify-between mt-4">
+					<div class="flex items-center space-x-2">
+						<span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+						<div class="text-xs">
+							<span class="font-bold text-green-800">{{ __('Selected: ') }}</span>
+							<span class="text-green-700 font-semibold">
+								{{ newItem.selectedItem.title || newItem.selectedItem.name }}
+							</span>
+							<span class="text-green-500 ml-1">({{ newItem.selectedItem.name }})</span>
+						</div>
 					</div>
-				</div>
-				<div v-else-if="newItem.searchQuery && !newItem.searching" class="text-center text-xs text-ink-gray-4 py-4">
-					{{ __('No matching items found.') }}
+					<Button
+						variant="ghost"
+						size="sm"
+						class="text-red-500 hover:text-red-700 p-1 text-xs"
+						@click="clearSelection()"
+					>
+						{{ __('Clear') }}
+					</Button>
 				</div>
 			</div>
 		</template>
@@ -322,7 +324,8 @@ import {
 	call,
 } from 'frappe-ui'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
-import { ref, computed, onMounted } from 'vue'
+import Link from '@/components/Controls/Link.vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
 import dayjs from '@/utils/dayjs'
@@ -334,14 +337,15 @@ import {
 	GripVertical,
 	Trash2,
 	GitCommit,
-	HelpCircle,
-	NotebookPen,
-	SquareCode,
-	FileText,
 	History,
 	BarChart2,
 	ExternalLink,
 	Search as SearchIcon,
+	BookOpen,
+	CircleHelp,
+	Pencil,
+	Code,
+	Award,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -364,9 +368,9 @@ const selectedInstructors = ref([])
 
 const newItem = ref({
 	doctype: 'Course Lesson',
-	searchQuery: '',
-	searchResults: [],
+	selectedItemName: null,
 	selectedItem: null,
+	searchResults: [],
 	searching: false,
 })
 
@@ -491,43 +495,48 @@ const restoreVersion = (versionNumber) => {
 const openAddItemModal = () => {
 	newItem.value = {
 		doctype: 'Course Lesson',
-		searchQuery: '',
-		searchResults: [],
+		selectedItemName: null,
 		selectedItem: null,
+		searchResults: [],
 		searching: false,
 	}
 	showAddModal.value = true
 }
 
-const debounceSearch = () => {
-	clearTimeout(searchTimeout)
-	newItem.value.searching = true
-	searchTimeout = setTimeout(() => {
-		const q = newItem.value.searchQuery.trim()
-		const titleField = newItem.value.doctype === 'LMS Assessment' ? 'name' : 'title'
-		const filters = {}
-		if (q) {
-			filters[titleField] = ['like', `%${q}%`]
-		}
-		
-		call('frappe.client.get_list', {
-			doctype: newItem.value.doctype,
-			fields: ['name', titleField],
-			filters: filters,
-			limit: 50,
-		})
-			.then((res) => {
-				newItem.value.searchResults = res || []
-			})
-			.finally(() => {
-				newItem.value.searching = false
-			})
-	}, 300)
+const clearSelection = () => {
+	newItem.value.selectedItemName = null
+	newItem.value.selectedItem = null
 }
 
-const selectSearchItem = (item) => {
-	newItem.value.selectedItem = item
-}
+watch(
+	() => newItem.value.selectedItemName,
+	(val) => {
+		if (val) {
+			const titleField = newItem.value.doctype === 'LMS Assessment' ? 'name' : 'title'
+			call('frappe.client.get_value', {
+				doctype: newItem.value.doctype,
+				filters: { name: val },
+				fieldname: titleField
+			}).then((res) => {
+				if (res) {
+					newItem.value.selectedItem = {
+						name: val,
+						[titleField]: res[titleField]
+					}
+				}
+			})
+		} else {
+			newItem.value.selectedItem = null
+		}
+	}
+)
+
+watch(
+	() => newItem.value.doctype,
+	() => {
+		clearSelection()
+	}
+)
 
 const handleAddItem = () => {
 	if (!newItem.value.selectedItem) {
@@ -570,15 +579,26 @@ const itemTypeClass = (doctype) => {
 	if (doctype === 'LMS Quiz') return 'bg-amber-50 text-amber-600'
 	if (doctype === 'LMS Assignment') return 'bg-rose-50 text-rose-600'
 	if (doctype === 'LMS Programming Exercise') return 'bg-emerald-50 text-emerald-600'
-	return 'bg-purple-50 text-purple-600'
+	if (doctype === 'LMS Assessment') return 'bg-purple-50 text-purple-600'
+	return 'bg-gray-50 text-gray-600'
 }
 
 const itemTypeIcon = (doctype) => {
-	if (doctype === 'Course Lesson') return FileText
-	if (doctype === 'LMS Quiz') return HelpCircle
-	if (doctype === 'LMS Assignment') return NotebookPen
-	if (doctype === 'LMS Programming Exercise') return SquareCode
+	if (doctype === 'Course Lesson') return BookOpen
+	if (doctype === 'LMS Quiz') return CircleHelp
+	if (doctype === 'LMS Assignment') return Pencil
+	if (doctype === 'LMS Programming Exercise') return Code
+	if (doctype === 'LMS Assessment') return Award
 	return GitCommit
+}
+
+const formatItemType = (doctype) => {
+	if (doctype === 'Course Lesson') return __('Lesson')
+	if (doctype === 'LMS Quiz') return __('Quiz')
+	if (doctype === 'LMS Assignment') return __('Assignment')
+	if (doctype === 'LMS Programming Exercise') return __('Programming Exercise')
+	if (doctype === 'LMS Assessment') return __('Assessment')
+	return __(doctype)
 }
 
 const formatDate = (dateStr) => {
@@ -613,5 +633,20 @@ const breadcrumbs = computed(() => [
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
+}
+</style>
+
+<style>
+[data-dialog='Add Content to Library'] .dialog-content {
+	overflow: visible !important;
+	border-radius: 12px !important;
+}
+[data-dialog='Add Content to Library'] .dialog-content > :first-child {
+	border-top-left-radius: 12px !important;
+	border-top-right-radius: 12px !important;
+}
+[data-dialog='Add Content to Library'] .dialog-content > :last-child {
+	border-bottom-left-radius: 12px !important;
+	border-bottom-right-radius: 12px !important;
 }
 </style>

@@ -284,7 +284,13 @@ const updateSidebarLinksVisibility = () => {
 					if (!parseInt(data[key])) {
 						sidebarLinks.value.forEach((link) => {
 							link.items = link.items.filter(
-								(item) => item.label.toLowerCase().split(' ').join('_') !== key
+								(item) => {
+									let labelKey = item.label.toLowerCase().split(' ').join('_')
+									if (labelKey === 'analytics') {
+										labelKey = 'statistics'
+									}
+									return labelKey !== key
+								}
 							)
 						})
 					}

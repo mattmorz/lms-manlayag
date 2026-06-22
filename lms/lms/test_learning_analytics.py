@@ -91,3 +91,43 @@ class TestLearningAnalytics(unittest.TestCase):
 		# Trigger update cache job
 		update_analytics_cache()
 		self.assertTrue(frappe.db.exists("LMS Analytics Cache", {"cache_type": "Administrative", "reference_name": "global"}))
+
+	def test_dropdown_filtering(self):
+		from lms.lms.lms.api import (
+			get_instructor_analytics_courses,
+			get_instructor_analytics_batches
+		)
+		# 1. Administrator should see all published courses and batches
+		courses = get_instructor_analytics_courses()
+		self.assertTrue(len(courses) > 0)
+
+		# 2. Add an instructor role and check course visibility for regular instructor
+		old_get_roles = frappe.get_roles
+		try:
+			frappe.get_roles = lambda u: ["Course Creator"]
+
+			# Check courses dropdown for a course creator who is not Course Evaluator
+			courses_instructor = get_instructor_analytics_courses()
+			# It should be empty because Administrator isn't in any Course Instructor records by default
+			self.assertEqual(len(courses_instructor), 0)
+
+			# Add a Course Instructor record linking Administrator to self.course_name
+			ci = frappe.get_doc({
+				"doctype": "Course Instructor",
+				"parent": self.course_name,
+				"parenttype": "LMS Course",
+				"parentfield": "instructors",
+				"instructor": self.student
+			})
+			ci.insert(ignore_permissions=True)
+
+			# Now should see the course
+			courses_instructor = get_instructor_analytics_courses()
+			self.assertEqual(len(courses_instructor), 1)
+			self.assertEqual(courses_instructor[0].name, self.course_name)
+
+			# Clean up Course Instructor
+			frappe.db.delete("Course Instructor", {"instructor": self.student})
+
+		finally:
+			frappe.get_roles = old_get_roles

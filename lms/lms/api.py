@@ -1318,6 +1318,7 @@ def get_lms_settings():
 		"contact_us_url",
 		"livecode_url",
 		"disable_pwa",
+		"statistics",
 	]
 
 	settings = frappe._dict()
@@ -5786,6 +5787,36 @@ def get_student_dashboard_metrics(student: str) -> dict:
 				"quiz": fs.quiz
 			})
 
+		failed_asgs = frappe.get_all(
+			"LMS Assignment Submission",
+			filters={"member": student, "course": course_name, "score": ["<", 60]},
+			fields=["assignment", "assignment_title", "score"]
+		)
+		for fa in failed_asgs:
+			asg_title = fa.assignment_title or frappe.db.get_value("LMS Assignment", fa.assignment, "title") or fa.assignment
+			recommendations.append({
+				"type": "retake_assignment",
+				"title": asg_title,
+				"reason": f"You scored {fa.score}% which is below the passing criteria. Consider resubmitting this assignment.",
+				"assignment": fa.assignment
+			})
+
+		failed_exs = frappe.get_all(
+			"LMS Programming Exercise Submission",
+			filters={"member": student, "status": "Failed"},
+			fields=["exercise"]
+		)
+		course_ex_names = [e["exercise"] for e in outline_data["exercises"]]
+		for fe in failed_exs:
+			if fe.exercise in course_ex_names:
+				ex_title = frappe.db.get_value("LMS Programming Exercise", fe.exercise, "title") or fe.exercise
+				recommendations.append({
+					"type": "retry_exercise",
+					"title": ex_title,
+					"reason": "Your submission did not pass all test cases. Retry the programming exercise to solve it.",
+					"exercise": fe.exercise
+				})
+
 		courses_data.append({
 			"course": course_name,
 			"title": course_title,
@@ -5908,10 +5939,42 @@ def get_instructor_dashboard_metrics(course: str) -> dict:
 		if (avg_score > 0 and avg_score < 65) or failure_rate > 30:
 			difficult_quizzes.append({
 				"quiz": quiz["title"],
+				"type": "Quiz",
 				"avg_score": round(avg_score, 1),
 				"attempts": subs_count,
 				"failure_rate": failure_rate,
 				"reason": _("Average score is low ({0}%) and failure rate is {1}%.").format(round(avg_score, 1), round(failure_rate, 1))
+			})
+
+	for asg in outline_data["assignments"]:
+		avg_score = frappe.db.get_value("LMS Assignment Submission", {"course": course, "assignment": asg["assignment"]}, "avg(score)") or 0.0
+		subs_count = frappe.db.count("LMS Assignment Submission", {"course": course, "assignment": asg["assignment"]})
+		failed_count = frappe.db.count("LMS Assignment Submission", {"course": course, "assignment": asg["assignment"], "score": ["<", 60]})
+		failure_rate = round((failed_count / subs_count * 100), 2) if subs_count > 0 else 0.0
+
+		if (avg_score > 0 and avg_score < 65) or failure_rate > 30:
+			difficult_quizzes.append({
+				"quiz": asg["title"],
+				"type": "Assignment",
+				"avg_score": round(avg_score, 1),
+				"attempts": subs_count,
+				"failure_rate": failure_rate,
+				"reason": _("Average score is low ({0}%) and failure rate is {1}%.").format(round(avg_score, 1), round(failure_rate, 1))
+			})
+
+	for ex in outline_data["exercises"]:
+		subs_count = frappe.db.count("LMS Programming Exercise Submission", {"exercise": ex["exercise"]})
+		failed_count = frappe.db.count("LMS Programming Exercise Submission", {"exercise": ex["exercise"], "status": "Failed"})
+		failure_rate = round((failed_count / subs_count * 100), 2) if subs_count > 0 else 0.0
+
+		if failure_rate > 30 and subs_count > 0:
+			difficult_quizzes.append({
+				"quiz": ex["title"],
+				"type": "Programming Exercise",
+				"avg_score": round(100.0 - failure_rate, 1),
+				"attempts": subs_count,
+				"failure_rate": failure_rate,
+				"reason": _("Failure rate is high ({0}%) over {1} attempts.").format(round(failure_rate, 1), subs_count)
 			})
 
 	high_failure_questions = []
@@ -5941,6 +6004,13 @@ def get_instructor_dashboard_metrics(course: str) -> dict:
 		quizzes_stats.append({
 			"title": quiz["title"],
 			"average": round(avg_q, 1)
+		})
+
+	for asg in outline_data["assignments"]:
+		avg_asg = frappe.db.get_value("LMS Assignment Submission", {"course": course, "assignment": asg["assignment"]}, "avg(score)") or 0.0
+		quizzes_stats.append({
+			"title": asg["title"],
+			"average": round(avg_asg, 1)
 		})
 
 	return {
@@ -6310,8 +6380,12 @@ def save_dashboard_to_cache(dashboard_type: str, reference_name: str, data: dict
 	frappe.db.commit()
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_analytics_dashboard(dashboard_type: str, reference_name: str = None) -> dict:
+	if frappe.session.user == "Guest":
+		dashboard_type = "Administrative"
+		reference_name = "global"
+
 	ref = reference_name or "global"
 
 	if dashboard_type == "Student":
@@ -6393,4 +6467,66 @@ def update_analytics_cache():
 				save_dashboard_to_cache("Student", ast, student_data)
 			except Exception:
 				pass
+
+
+@frappe.whitelist()
+def get_instructor_analytics_courses():
+	user = frappe.session.user
+	roles = frappe.get_roles(user)
+
+	if any(role in roles for role in ["Course Evaluator", "Moderator", "System Manager", "Administrator"]):
+		courses = frappe.get_all(
+			"LMS Course",
+			filters={"published": 1},
+			fields=["name", "title"],
+			order_by="title asc",
+			limit=100
+		)
+	else:
+		course_names = frappe.get_all(
+			"Course Instructor",
+			filters={"instructor": user, "parenttype": "LMS Course"},
+			pluck="parent"
+		)
+		if not course_names:
+			return []
+		courses = frappe.get_all(
+			"LMS Course",
+			filters={"name": ["in", course_names], "published": 1},
+			fields=["name", "title"],
+			order_by="title asc",
+			limit=100
+		)
+	return courses
+
+
+@frappe.whitelist()
+def get_instructor_analytics_batches():
+	user = frappe.session.user
+	roles = frappe.get_roles(user)
+
+	if any(role in roles for role in ["Batch Evaluator", "Moderator", "System Manager", "Administrator"]):
+		batches = frappe.get_all(
+			"LMS Batch",
+			filters={"published": 1},
+			fields=["name", "title"],
+			order_by="title asc",
+			limit=100
+		)
+	else:
+		batch_names = frappe.get_all(
+			"Course Instructor",
+			filters={"instructor": user, "parenttype": "LMS Batch"},
+			pluck="parent"
+		)
+		if not batch_names:
+			return []
+		batches = frappe.get_all(
+			"LMS Batch",
+			filters={"name": ["in", batch_names], "published": 1},
+			fields=["name", "title"],
+			order_by="title asc",
+			limit=100
+		)
+	return batches
 
