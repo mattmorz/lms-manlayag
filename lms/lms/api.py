@@ -5563,6 +5563,7 @@ def get_at_risk_details(member: str, course: str) -> dict:
 
 @frappe.whitelist()
 def get_predictive_analytics(member: str, course: str) -> dict:
+	from frappe.utils import get_datetime, now_datetime
 	progress = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "progress") or 0.0
 
 	if progress >= 100.0:
@@ -5570,7 +5571,6 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 		factors_comp = [_("Course is already 100% completed.")]
 	else:
 		last_active = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
-		from frappe.utils import get_datetime, now_datetime
 		active_days_ago = 99
 		if last_active:
 			active_days_ago = (now_datetime() - get_datetime(last_active)).days
