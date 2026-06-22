@@ -5308,3 +5308,1089 @@ def propagate_lesson_update(doc, method=None):
 		except Exception:
 			pass
 
+
+@frappe.whitelist()
+def log_learning_activity(course: str, chapter: str = None, lesson: str = None):
+	if frappe.session.user == "Guest":
+		return {"status": "ignored", "reason": "guest_user"}
+
+	log = frappe.new_doc("LMS Page View Log")
+	log.member = frappe.session.user
+	log.course = course
+	log.chapter = chapter
+	log.lesson = lesson
+	log.time_spent = 0.0
+	log.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"status": "success", "name": log.name}
+
+
+@frappe.whitelist()
+def log_learning_heartbeat(course: str, chapter: str = None, lesson: str = None):
+	if frappe.session.user == "Guest":
+		return {"status": "ignored", "reason": "guest_user"}
+
+	filters = {
+		"member": frappe.session.user,
+		"course": course,
+	}
+	if chapter:
+		filters["chapter"] = chapter
+	if lesson:
+		filters["lesson"] = lesson
+
+	recent_logs = frappe.get_all(
+		"LMS Page View Log",
+		filters=filters,
+		fields=["name", "creation", "time_spent"],
+		order_by="creation desc",
+		limit=1,
+	)
+
+	if recent_logs:
+		log_name = recent_logs[0].name
+		new_time = (recent_logs[0].time_spent or 0.0) + 15.0
+		frappe.db.set_value("LMS Page View Log", log_name, "time_spent", new_time, update_modified=True)
+		frappe.db.commit()
+		return {"status": "updated", "name": log_name, "time_spent": new_time}
+	else:
+		return log_learning_activity(course, chapter, lesson)
+
+
+def get_student_streak(student: str) -> int:
+	logs = frappe.db.sql("""
+		select distinct date(creation) as act_date from `tabLMS Page View Log` where member = %s
+		union
+		select distinct date(modified) as act_date from `tabLMS Course Progress` where member = %s and status = 'Complete'
+		order by act_date desc
+	""", (student, student), as_dict=True)
+
+	if not logs:
+		return 0
+
+	from frappe.utils import getdate, add_days
+	today = getdate()
+	yesterday = add_days(today, -1)
+
+	dates = {getdate(r.act_date) for r in logs}
+
+	if today not in dates and yesterday not in dates:
+		return 0
+
+	current_check = today if today in dates else yesterday
+	streak = 0
+
+	while current_check in dates:
+		streak += 1
+		current_check = add_days(current_check, -1)
+
+	return streak
+
+
+def get_student_time_spent(student: str, course: str = None) -> float:
+	filters_pv = {"member": student}
+	filters_video = {"member": student}
+	if course:
+		filters_pv["course"] = course
+		filters_video["course"] = course
+
+	pv_time = frappe.db.get_value("LMS Page View Log", filters_pv, "sum(time_spent)") or 0.0
+	video_time = frappe.db.get_value("LMS Video Watch Duration", filters_video, "sum(duration)") or 0.0
+
+	return round(pv_time + video_time, 2)
+
+
+def get_course_assessments_and_content(course: str) -> dict:
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"course": course, "exclude_from_course": 0},
+		fields=["name", "title", "content", "chapter"]
+	)
+
+	quizzes = []
+	assignments = []
+	exercises = []
+	lessons_list = []
+
+	for lesson in lessons:
+		lessons_list.append({
+			"name": lesson.name,
+			"title": lesson.title,
+			"chapter": lesson.chapter
+		})
+		if not lesson.content:
+			continue
+		try:
+			content = json.loads(lesson.content)
+		except Exception:
+			continue
+		for block in content.get("blocks", []):
+			btype = block.get("type")
+			bdata = block.get("data", {})
+			if btype == "quiz" and bdata.get("quiz"):
+				quiz_id = bdata.get("quiz")
+				quiz_title = frappe.db.get_value("LMS Quiz", quiz_id, "title") or quiz_id
+				quizzes.append({
+					"quiz": quiz_id,
+					"title": quiz_title,
+					"lesson": lesson.name,
+					"chapter": lesson.chapter,
+					"grading_category": bdata.get("grading_category"),
+					"due_date": bdata.get("due_date")
+				})
+			elif btype == "assignment" and bdata.get("assignment"):
+				asg_id = bdata.get("assignment")
+				asg_title = frappe.db.get_value("LMS Assignment", asg_id, "title") or asg_id
+				assignments.append({
+					"assignment": asg_id,
+					"title": asg_title,
+					"lesson": lesson.name,
+					"chapter": lesson.chapter,
+					"grading_category": bdata.get("grading_category"),
+					"due_date": bdata.get("due_date")
+				})
+			elif btype == "program" and bdata.get("exercise"):
+				ex_id = bdata.get("exercise")
+				ex_title = frappe.db.get_value("LMS Programming Exercise", ex_id, "title") or ex_id
+				exercises.append({
+					"exercise": ex_id,
+					"title": ex_title,
+					"lesson": lesson.name,
+					"chapter": lesson.chapter,
+					"grading_category": bdata.get("grading_category"),
+					"due_date": bdata.get("due_date")
+				})
+
+	return {
+		"lessons": lessons_list,
+		"quizzes": quizzes,
+		"assignments": assignments,
+		"exercises": exercises
+	}
+
+
+def get_student_score_fallback(course: str, student: str) -> float:
+	quizzes = frappe.get_all("LMS Quiz Submission", filters={"course": course, "member": student}, fields=["percentage"])
+	assignments = frappe.get_all("LMS Assignment Submission", filters={"course": course, "member": student}, fields=["score"])
+
+	scores = [q.percentage for q in quizzes if q.percentage is not None]
+	scores.extend([a.score for a in assignments if a.score is not None])
+
+	if scores:
+		return round(sum(scores) / len(scores), 2)
+	return 0.0
+
+
+@frappe.whitelist()
+def get_at_risk_details(member: str, course: str) -> dict:
+	score = 0
+	reasons = []
+
+	last_pv = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
+	last_sub = frappe.db.get_value("LMS Quiz Submission", {"member": member, "course": course}, "max(creation)")
+
+	from frappe.utils import get_datetime, now_datetime
+	last_act = None
+	if last_pv and last_sub:
+		last_act = max(get_datetime(last_pv), get_datetime(last_sub))
+	elif last_pv:
+		last_act = get_datetime(last_pv)
+	elif last_sub:
+		last_act = get_datetime(last_sub)
+
+	if last_act:
+		days_inactive = (now_datetime() - last_act).days
+		if days_inactive >= 14:
+			score += 40
+			reasons.append(_("No activity recorded for over 14 days ({0} days inactive).").format(days_inactive))
+		elif days_inactive >= 7:
+			score += 20
+			reasons.append(_("No activity recorded for over 7 days ({0} days inactive).").format(days_inactive))
+	else:
+		enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
+		if enrollment_date:
+			days_since_enroll = (now_datetime() - get_datetime(enrollment_date)).days
+			if days_since_enroll >= 7:
+				score += 35
+				reasons.append(_("No activity since enrollment {0} days ago.").format(days_since_enroll))
+
+	avg_quiz = frappe.db.get_value("LMS Quiz Submission", {"member": member, "course": course}, "avg(percentage)") or 0.0
+	if avg_quiz > 0 and avg_quiz < 60:
+		score += 30
+		reasons.append(_("Average quiz score is low ({0}%).").format(round(avg_quiz, 2)))
+
+	progress = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "progress") or 0.0
+	batch = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "enrollment_from_batch")
+	if batch:
+		start_date, end_date = frappe.db.get_value("LMS Batch", batch, ["start_date", "end_date"])
+		if start_date and end_date:
+			total_days = (get_datetime(end_date) - get_datetime(start_date)).days
+			elapsed_days = (now_datetime().date() - get_datetime(start_date).date()).days
+			if total_days > 0 and elapsed_days > 0:
+				elapsed_pct = (elapsed_days / total_days) * 100
+				if elapsed_pct >= 50 and progress < 15:
+					score += 20
+					reasons.append(_("Struggling with progress: Course is {0}% elapsed but completion is only {1}%.").format(round(elapsed_pct, 1), round(progress, 1)))
+	else:
+		enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
+		if enrollment_date:
+			days_since_enroll = (now_datetime() - get_datetime(enrollment_date)).days
+			if days_since_enroll >= 15 and progress < 5:
+				score += 15
+				reasons.append(_("Stagnant progress: Completed only {0}% in {1} days since enrollment.").format(round(progress, 1), days_since_enroll))
+
+	failed_quizzes = frappe.db.count("LMS Quiz Submission", {"member": member, "course": course, "percentage": ["<", 60]})
+	if failed_quizzes >= 3:
+		score += 10
+		reasons.append(_("Failed {0} quiz attempts.").format(failed_quizzes))
+
+	risk_level = "Low Risk"
+	if score >= 70:
+		risk_level = "High Risk"
+	elif score >= 35:
+		risk_level = "Medium Risk"
+
+	return {
+		"member": member,
+		"course": course,
+		"risk_score": score,
+		"risk_level": risk_level,
+		"reasons": reasons
+	}
+
+
+@frappe.whitelist()
+def get_predictive_analytics(member: str, course: str) -> dict:
+	progress = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "progress") or 0.0
+
+	if progress >= 100.0:
+		comp_prob = 100.0
+		factors_comp = [_("Course is already 100% completed.")]
+	else:
+		last_active = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
+		from frappe.utils import get_datetime, now_datetime
+		active_days_ago = 99
+		if last_active:
+			active_days_ago = (now_datetime() - get_datetime(last_active)).days
+
+		eng_factor = 1.0
+		if active_days_ago > 14:
+			eng_factor = 0.2
+		elif active_days_ago > 7:
+			eng_factor = 0.5
+		elif active_days_ago > 3:
+			eng_factor = 0.8
+
+		avg_quiz = frappe.db.get_value("LMS Quiz Submission", {"member": member, "course": course}, "avg(percentage)") or 0.0
+		perf_factor = 1.0
+		if avg_quiz > 0 and avg_quiz < 60:
+			perf_factor = 0.7
+
+		comp_prob = progress + (eng_factor * perf_factor * (100.0 - progress))
+		comp_prob = max(0.0, min(100.0, round(comp_prob, 2)))
+
+		factors_comp = []
+		if eng_factor < 1.0:
+			factors_comp.append(_("Recent inactivity ({0} days) reduces completion momentum.").format(active_days_ago))
+		else:
+			factors_comp.append(_("Active study engagement maintains progress projection."))
+		if perf_factor < 1.0:
+			factors_comp.append(_("Struggling with quizzes (avg {0}%) might slow down module progression.").format(round(avg_quiz, 1)))
+
+	avg_score = get_student_score_fallback(course, member)
+	if avg_score > 0:
+		if avg_score >= 80:
+			pass_prob = 95.0
+			factors_pass = [_("Excellent average grade ({0}%) indicates strong topic mastery.").format(round(avg_score, 1))]
+		elif avg_score >= 60:
+			pass_prob = 80.0
+			factors_pass = [_("Good average grade ({0}%) meets standard passing criteria.").format(round(avg_score, 1))]
+		else:
+			pass_prob = 40.0
+			factors_pass = [_("Struggling grade average ({0}%) is currently below standard pass rate.").format(round(avg_score, 1))]
+	else:
+		if progress > 0:
+			pass_prob = 70.0
+			factors_pass = [_("Progressing in coursework, but no quiz scores are logged yet.")]
+		else:
+			pass_prob = 50.0
+			factors_pass = [_("No graded activities or progress submitted yet.")]
+
+	dropout_prob = 10.0
+	factors_drop = []
+
+	last_active = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
+	if last_active:
+		days_inactive = (now_datetime() - get_datetime(last_active)).days
+		if days_inactive >= 14:
+			dropout_prob += 60.0
+			factors_drop.append(_("Critically inactive for {0} days.").format(days_inactive))
+		elif days_inactive >= 7:
+			dropout_prob += 30.0
+			factors_drop.append(_("Inactive for {0} days.").format(days_inactive))
+	else:
+		enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
+		if enrollment_date:
+			days_since_enroll = (now_datetime() - get_datetime(enrollment_date)).days
+			if days_since_enroll >= 10:
+				dropout_prob += 50.0
+				factors_drop.append(_("Zero learning activity in the {0} days since enrollment.").format(days_since_enroll))
+
+	if progress < 10.0 and dropout_prob > 20.0:
+		dropout_prob += 10.0
+		factors_drop.append(_("Stagnated at low course completion ({0}%).").format(round(progress, 1)))
+
+	dropout_prob = max(5.0, min(95.0, round(dropout_prob, 2)))
+	if not factors_drop:
+		factors_drop.append(_("Consistent recent activity indicates low dropout risk."))
+
+	return {
+		"completion_probability": comp_prob,
+		"factors_completion": factors_comp,
+		"pass_probability": pass_prob,
+		"factors_pass": factors_pass,
+		"dropout_probability": dropout_prob,
+		"factors_dropout": factors_drop
+	}
+
+
+def get_student_dashboard_metrics(student: str) -> dict:
+	enrollments = frappe.get_all(
+		"LMS Enrollment",
+		filters={"member": student},
+		fields=["name", "course", "progress"]
+	)
+
+	courses_data = []
+	for env in enrollments:
+		course_name = env.course
+		course_title = frappe.db.get_value("LMS Course", course_name, "title") or course_name
+
+		grade_info = get_student_grades(course_name, student)
+		current_grade = grade_info.get("final_percentage", 0.0)
+		grade_label = grade_info.get("final_grade", "N/A")
+
+		if not grade_info.get("enable_grading_policy") or not current_grade:
+			current_grade = get_student_score_fallback(course_name, student)
+			grade_label = "Pass" if current_grade >= 50 else "Fail" if current_grade > 0 else "N/A"
+
+		time_spent = get_student_time_spent(student, course_name)
+		outline_data = get_course_assessments_and_content(course_name)
+		total_lessons = len(outline_data["lessons"])
+
+		completed_lessons_count = frappe.db.count("LMS Course Progress", {"member": student, "course": course_name, "status": "Complete"})
+		lesson_completion_rate = round((completed_lessons_count / total_lessons * 100), 2) if total_lessons > 0 else 0.0
+
+		quiz_subs = frappe.get_all(
+			"LMS Quiz Submission",
+			filters={"member": student, "course": course_name},
+			fields=["quiz_title", "percentage", "creation"],
+			order_by="creation asc"
+		)
+		quiz_trend = [{
+			"quiz": q.quiz_title,
+			"score": q.percentage,
+			"date": frappe.utils.format_date(q.creation)
+		} for q in quiz_subs]
+
+		ex_subs = frappe.get_all(
+			"LMS Programming Exercise Submission",
+			filters={"member": student},
+			fields=["exercise", "status"]
+		)
+		course_ex_names = [e["exercise"] for e in outline_data["exercises"]]
+		course_ex_subs = [es for es in ex_subs if es.exercise in course_ex_names]
+
+		passed_ex = len([es for es in course_ex_subs if es.status == "Passed"])
+		failed_ex = len([es for es in course_ex_subs if es.status == "Failed"])
+
+		missing_quizzes = []
+		completed_quizzes = {q.quiz for q in frappe.get_all("LMS Quiz Submission", filters={"member": student, "course": course_name}, fields=["quiz"])}
+		for q in outline_data["quizzes"]:
+			if q["quiz"] not in completed_quizzes:
+				missing_quizzes.append({"title": q["title"], "type": "Quiz", "due": q["due_date"]})
+
+		missing_assignments = []
+		completed_asgs = {a.assignment for a in frappe.get_all("LMS Assignment Submission", filters={"member": student, "course": course_name}, fields=["assignment"])}
+		for a in outline_data["assignments"]:
+			if a["assignment"] not in completed_asgs:
+				missing_assignments.append({"title": a["title"], "type": "Assignment", "due": a["due_date"]})
+
+		missing_exercises = []
+		passed_exercises = {e.exercise for e in frappe.get_all("LMS Programming Exercise Submission", filters={"member": student, "status": "Passed"}, fields=["exercise"])}
+		for e in outline_data["exercises"]:
+			if e["exercise"] not in passed_exercises:
+				missing_exercises.append({"title": e["title"], "type": "Programming Exercise", "due": e["due_date"]})
+
+		missing_activities = missing_quizzes + missing_assignments + missing_exercises
+
+		topic_scores = {}
+		for qs in quiz_subs:
+			chapter = None
+			for q in outline_data["quizzes"]:
+				if q["quiz"] == qs.quiz_title or q["title"] == qs.quiz_title:
+					chapter = q["chapter"]
+					break
+			if chapter:
+				topic_scores.setdefault(chapter, []).append(qs.percentage)
+
+		asg_subs = frappe.get_all("LMS Assignment Submission", filters={"member": student, "course": course_name}, fields=["assignment_title", "score"])
+		for as_doc in asg_subs:
+			chapter = None
+			for a in outline_data["assignments"]:
+				if a["assignment"] == as_doc.assignment_title or a["title"] == as_doc.assignment_title:
+					chapter = a["chapter"]
+					break
+			if chapter:
+				topic_scores.setdefault(chapter, []).append(as_doc.score)
+
+		topic_averages = []
+		for t, scs in topic_scores.items():
+			chapter_title = frappe.db.get_value("Course Chapter", t, "title") or t
+			topic_averages.append({
+				"topic": chapter_title,
+				"avg_score": round(sum(scs) / len(scs), 2)
+			})
+
+		topic_averages.sort(key=lambda x: x["avg_score"], reverse=True)
+		strongest_topics = topic_averages[:2]
+		weakest_topics = sorted(topic_averages, key=lambda x: x["avg_score"])[:2]
+
+		recommendations = []
+		for wt in weakest_topics:
+			chapter_id = wt["topic"]
+			lessons_in_chapter = [l for l in outline_data["lessons"] if l["chapter"] == chapter_id or frappe.db.get_value("Course Chapter", l["chapter"], "title") == chapter_id]
+			for lic in lessons_in_chapter:
+				is_comp = frappe.db.exists("LMS Course Progress", {"member": student, "lesson": lic["name"], "status": "Complete"})
+				if not is_comp:
+					recommendations.append({
+						"type": "review_lesson",
+						"title": lic["title"],
+						"reason": f"This lesson is in your weaker topic '{wt['topic']}'. Reviewing it will strengthen your understanding.",
+						"course": course_name,
+						"lesson": lic["name"]
+					})
+					break
+
+		failed_subs = frappe.get_all(
+			"LMS Quiz Submission",
+			filters={"member": student, "course": course_name, "percentage": ["<", 60]},
+			fields=["quiz", "quiz_title", "percentage"]
+		)
+		for fs in failed_subs:
+			recommendations.append({
+				"type": "retake_quiz",
+				"title": fs.quiz_title,
+				"reason": f"You scored {fs.percentage}% which is below the passing criteria. Consider retaking this quiz.",
+				"quiz": fs.quiz
+			})
+
+		courses_data.append({
+			"course": course_name,
+			"title": course_title,
+			"progress": env.progress,
+			"current_grade": current_grade,
+			"grade_label": grade_label,
+			"time_spent": time_spent,
+			"lesson_completion_rate": lesson_completion_rate,
+			"quiz_trend": quiz_trend,
+			"passed_exercises": passed_ex,
+			"failed_exercises": failed_ex,
+			"missing_activities": missing_activities,
+			"strongest_topics": strongest_topics,
+			"weakest_topics": weakest_topics,
+			"recommendations": recommendations[:4],
+			"at_risk": get_at_risk_details(student, course_name),
+			"predictions": get_predictive_analytics(student, course_name)
+		})
+
+	streak = get_student_streak(student)
+	total_time = sum(c["time_spent"] for c in courses_data)
+	completed_courses = len([c for c in courses_data if c["progress"] == 100])
+
+	return {
+		"student": student,
+		"streak": streak,
+		"total_time_spent": total_time,
+		"completed_courses_count": completed_courses,
+		"courses": courses_data
+	}
+
+
+def get_instructor_dashboard_metrics(course: str) -> dict:
+	title = frappe.db.get_value("LMS Course", course, "title") or course
+
+	enrollment_docs = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": course, "member_type": "Student"},
+		fields=["member", "progress", "creation"]
+	)
+	enrollment_count = len(enrollment_docs)
+
+	if not enrollment_count:
+		return {
+			"course": course,
+			"title": title,
+			"enrollment_count": 0,
+			"active_students": 0,
+			"inactive_students": 0,
+			"completion_rate": 0.0,
+			"average_grade": 0.0,
+			"quizzes_stats": [],
+			"at_risk_students": [],
+			"difficult_lessons": [],
+			"difficult_quizzes": [],
+			"high_failure_questions": []
+		}
+
+	from frappe.utils import add_days, now_datetime
+	seven_days_ago = add_days(now_datetime(), -7)
+
+	active_pvs = {p.member for p in frappe.get_all("LMS Page View Log", filters={"course": course, "creation": [">=", seven_days_ago]}, fields=["member"])}
+	active_subs = {s.member for s in frappe.get_all("LMS Quiz Submission", filters={"course": course, "creation": [">=", seven_days_ago]}, fields=["member"])}
+	active_members = active_pvs.union(active_subs)
+
+	active_count = len([e for e in enrollment_docs if e.member in active_members])
+	inactive_count = enrollment_count - active_count
+
+	completed_count = len([e for e in enrollment_docs if e.progress >= 100.0])
+	completion_rate = round((completed_count / enrollment_count * 100), 2)
+
+	student_scores = []
+	for e in enrollment_docs:
+		score = get_student_score_fallback(course, e.member)
+		if score > 0:
+			student_scores.append(score)
+	avg_grade = round(sum(student_scores) / len(student_scores), 2) if student_scores else 0.0
+
+	at_risk_students = []
+	for e in enrollment_docs:
+		risk_details = get_at_risk_details(e.member, course)
+		if risk_details["risk_score"] >= 35:
+			member_name = frappe.db.get_value("User", e.member, "full_name") or e.member
+			at_risk_students.append({
+				"username": e.member,
+				"name": member_name,
+				"progress": e.progress,
+				"risk_score": risk_details["risk_score"],
+				"risk_level": risk_details["risk_level"],
+				"reasons": risk_details["reasons"]
+			})
+	at_risk_students.sort(key=lambda x: x["risk_score"], reverse=True)
+
+	outline_data = get_course_assessments_and_content(course)
+	difficult_lessons = []
+
+	for lesson in outline_data["lessons"]:
+		views = frappe.db.count("LMS Page View Log", {"course": course, "lesson": lesson["name"]})
+		avg_time = frappe.db.get_value("LMS Page View Log", {"course": course, "lesson": lesson["name"]}, "avg(time_spent)") or 0.0
+		comp_count = frappe.db.count("LMS Course Progress", {"course": course, "lesson": lesson["name"], "status": "Complete"})
+		comp_rate = round((comp_count / enrollment_count * 100), 2) if enrollment_count > 0 else 0.0
+
+		if (avg_time > 300 or comp_rate < 70) and views > 0:
+			difficult_lessons.append({
+				"lesson_name": lesson["name"],
+				"title": lesson["title"],
+				"views": views,
+				"avg_time_spent": round(avg_time, 1),
+				"completion_rate": comp_rate,
+				"reason": _("Completion rate is {0}% (below 70%) with average study time of {1} mins.").format(round(comp_rate, 1), round(avg_time/60, 1))
+			})
+
+	difficult_quizzes = []
+	for quiz in outline_data["quizzes"]:
+		avg_score = frappe.db.get_value("LMS Quiz Submission", {"course": course, "quiz": quiz["quiz"]}, "avg(percentage)") or 0.0
+		subs_count = frappe.db.count("LMS Quiz Submission", {"course": course, "quiz": quiz["quiz"]})
+		failed_count = frappe.db.count("LMS Quiz Submission", {"course": course, "quiz": quiz["quiz"], "percentage": ["<", 60]})
+		failure_rate = round((failed_count / subs_count * 100), 2) if subs_count > 0 else 0.0
+
+		if (avg_score > 0 and avg_score < 65) or failure_rate > 30:
+			difficult_quizzes.append({
+				"quiz": quiz["title"],
+				"avg_score": round(avg_score, 1),
+				"attempts": subs_count,
+				"failure_rate": failure_rate,
+				"reason": _("Average score is low ({0}%) and failure rate is {1}%.").format(round(avg_score, 1), round(failure_rate, 1))
+			})
+
+	high_failure_questions = []
+	q_stats = frappe.db.sql("""
+		select qr.question_name, qr.question, count(*) as attempts, sum(qr.is_correct) as correct_count
+		from `tabLMS Quiz Result` qr
+		join `tabLMS Quiz Submission` qs on qr.parent = qs.name
+		where qs.course = %s
+		group by qr.question_name, qr.question
+	""", (course,), as_dict=True)
+
+	for qs in q_stats:
+		if qs.attempts >= 2:
+			correct_rate = round((qs.correct_count / qs.attempts * 100), 2)
+			if correct_rate < 40:
+				high_failure_questions.append({
+					"question_name": qs.question_name,
+					"question_text": qs.question,
+					"correct_rate": correct_rate,
+					"attempts": qs.attempts,
+					"reason": _("Correct answer rate is critically low at {0}% over {1} attempts.").format(correct_rate, qs.attempts)
+				})
+
+	quizzes_stats = []
+	for quiz in outline_data["quizzes"]:
+		avg_q = frappe.db.get_value("LMS Quiz Submission", {"course": course, "quiz": quiz["quiz"]}, "avg(percentage)") or 0.0
+		quizzes_stats.append({
+			"title": quiz["title"],
+			"average": round(avg_q, 1)
+		})
+
+	return {
+		"course": course,
+		"title": title,
+		"enrollment_count": enrollment_count,
+		"active_students": active_count,
+		"inactive_students": inactive_count,
+		"completion_rate": completion_rate,
+		"average_grade": avg_grade,
+		"quizzes_stats": quizzes_stats,
+		"at_risk_students": at_risk_students,
+		"difficult_lessons": difficult_lessons,
+		"difficult_quizzes": difficult_quizzes,
+		"high_failure_questions": high_failure_questions
+	}
+
+
+def get_batch_dashboard_metrics(batch: str) -> dict:
+	batch_title = frappe.db.get_value("LMS Batch", batch, "title") or batch
+
+	students = [s.member for s in frappe.get_all("LMS Batch Enrollment", filters={"batch": batch}, fields=["member"])]
+	courses = [c.course for c in frappe.get_all("Batch Course", filters={"parent": batch}, fields=["course"])]
+
+	if not students or not courses:
+		return {
+			"batch": batch,
+			"title": batch_title,
+			"completion_rate": 0.0,
+			"average_grade": 0.0,
+			"progress_distribution": {"0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0},
+			"top_performers": [],
+			"at_risk_learners": [],
+			"comparisons": []
+		}
+
+	total_progress = 0
+	total_grades = []
+	student_metrics = []
+
+	buckets = {"0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0}
+
+	for std in students:
+		std_name = frappe.db.get_value("User", std, "full_name") or std
+		std_progress = []
+		std_grades = []
+
+		for crs in courses:
+			prog = frappe.db.get_value("LMS Enrollment", {"member": std, "course": crs}, "progress") or 0.0
+			std_progress.append(prog)
+
+			grade = get_student_score_fallback(crs, std)
+			if grade > 0:
+				std_grades.append(grade)
+
+		avg_prog = sum(std_progress) / len(std_progress) if std_progress else 0.0
+		avg_grd = sum(std_grades) / len(std_grades) if std_grades else 0.0
+
+		total_progress += avg_prog
+		if avg_grd > 0:
+			total_grades.append(avg_grd)
+
+		if avg_prog <= 20:
+			buckets["0-20"] += 1
+		elif avg_prog <= 40:
+			buckets["21-40"] += 1
+		elif avg_prog <= 60:
+			buckets["41-60"] += 1
+		elif avg_prog <= 80:
+			buckets["61-80"] += 1
+		else:
+			buckets["81-100"] += 1
+
+		student_metrics.append({
+			"username": std,
+			"name": std_name,
+			"progress": round(avg_prog, 2),
+			"grade": round(avg_grd, 2)
+		})
+
+	batch_avg_progress = round(total_progress / len(students), 2)
+	batch_avg_grade = round(sum(total_grades) / len(total_grades), 2) if total_grades else 0.0
+
+	student_metrics.sort(key=lambda x: (x["progress"], x["grade"]), reverse=True)
+	top_performers = student_metrics[:5]
+
+	at_risk_learners = []
+	for std in students:
+		max_risk = {"risk_score": 0, "risk_level": "Low Risk", "reasons": []}
+		for crs in courses:
+			risk = get_at_risk_details(std, crs)
+			if risk["risk_score"] > max_risk["risk_score"]:
+				max_risk = risk
+
+		if max_risk["risk_score"] >= 35:
+			std_name = frappe.db.get_value("User", std, "full_name") or std
+			at_risk_learners.append({
+				"username": std,
+				"name": std_name,
+				"risk_score": max_risk["risk_score"],
+				"risk_level": max_risk["risk_level"],
+				"reasons": max_risk["reasons"]
+			})
+	at_risk_learners.sort(key=lambda x: x["risk_score"], reverse=True)
+
+	comparisons = []
+	for crs in courses:
+		current_batch_prog_list = [frappe.db.get_value("LMS Enrollment", {"member": s, "course": crs}, "progress") or 0.0 for s in students]
+		current_batch_crs_prog = sum(current_batch_prog_list) / len(students) if students else 0.0
+
+		other_batches = frappe.get_all(
+			"Batch Course",
+			filters={"course": crs, "parent": ["!=", batch]},
+			fields=["parent"]
+		)
+		other_batches_data = []
+		for ob in other_batches[:2]:
+			ob_name = ob.parent
+			ob_title = frappe.db.get_value("LMS Batch", ob_name, "title") or ob_name
+			ob_stds = [s.member for s in frappe.get_all("LMS Batch Enrollment", filters={"batch": ob_name}, fields=["member"])]
+			if ob_stds:
+				ob_prog_list = [frappe.db.get_value("LMS Enrollment", {"member": s, "course": crs}, "progress") or 0.0 for s in ob_stds]
+				ob_avg_prog = sum(ob_prog_list) / len(ob_prog_list)
+				other_batches_data.append({
+					"batch_title": ob_title,
+					"average_progress": round(ob_avg_prog, 2)
+				})
+
+		comparisons.append({
+			"course_title": frappe.db.get_value("LMS Course", crs, "title") or crs,
+			"current_batch_title": batch_title,
+			"current_batch_progress": round(current_batch_crs_prog, 2),
+			"comparison_batches": other_batches_data
+		})
+
+	return {
+		"batch": batch,
+		"title": batch_title,
+		"completion_rate": batch_avg_progress,
+		"average_grade": batch_avg_grade,
+		"progress_distribution": buckets,
+		"top_performers": top_performers,
+		"at_risk_learners": at_risk_learners,
+		"comparisons": comparisons
+	}
+
+
+def get_department_dashboard_metrics(department: str) -> dict:
+	courses = frappe.get_all(
+		"LMS Course",
+		filters={"category": department, "published": 1},
+		fields=["name", "title"]
+	)
+
+	if not courses:
+		return {
+			"department": department,
+			"course_completion_rates": [],
+			"average_performance": [],
+			"faculty_performance": [],
+			"student_engagement_trends": []
+		}
+
+	course_completion_rates = []
+	average_performance = []
+	faculty_performance = {}
+
+	for course in courses:
+		cname = course.name
+		ctitle = course.title
+
+		enrollments = frappe.get_all("LMS Enrollment", filters={"course": cname, "member_type": "Student"}, fields=["member", "progress"])
+		ecount = len(enrollments)
+		if ecount > 0:
+			completed = len([e for e in enrollments if e.progress >= 100.0])
+			comp_rate = round((completed / ecount * 100), 2)
+			course_completion_rates.append({"course": ctitle, "completion_rate": comp_rate, "enrollments": ecount})
+
+			grades = [get_student_score_fallback(cname, e.member) for e in enrollments]
+			grades = [g for g in grades if g > 0]
+			avg_grade = round(sum(grades) / len(grades), 2) if grades else 0.0
+			average_performance.append({"course": ctitle, "average_grade": avg_grade})
+		else:
+			course_completion_rates.append({"course": ctitle, "completion_rate": 0.0, "enrollments": 0})
+			average_performance.append({"course": ctitle, "average_grade": 0.0})
+
+		instructors = get_instructors("LMS Course", cname)
+		for inst in instructors:
+			inst_name = frappe.db.get_value("User", inst, "full_name") or inst
+			faculty_performance.setdefault(inst, {"name": inst_name, "courses": 0, "total_enrollments": 0})
+			faculty_performance[inst]["courses"] += 1
+			faculty_performance[inst]["total_enrollments"] += ecount
+
+	faculty_list = []
+	for f_id, f_data in faculty_performance.items():
+		faculty_list.append({
+			"instructor": f_data["name"],
+			"courses_count": f_data["courses"],
+			"enrollments": f_data["total_enrollments"]
+		})
+
+	from frappe.utils import add_days, now_datetime
+	activity_trends = []
+	course_names = [c.name for c in courses]
+	
+	if course_names:
+		for i in range(6, -1, -1):
+			target_date = add_days(now_datetime().date(), -i)
+			active_users = frappe.db.sql("""
+				select count(distinct member) from `tabLMS Page View Log`
+				where course in %s and date(creation) = %s
+			""", (tuple(course_names), target_date))[0][0] or 0
+
+			activity_trends.append({
+				"date": frappe.utils.format_date(target_date),
+				"active_users": active_users
+			})
+
+	return {
+		"department": department,
+		"course_completion_rates": course_completion_rates,
+		"average_performance": average_performance,
+		"faculty_performance": faculty_list,
+		"student_engagement_trends": activity_trends
+	}
+
+
+def get_admin_dashboard_metrics() -> dict:
+	total_enrollments = frappe.db.count("LMS Enrollment")
+
+	from frappe.utils import add_days, now_datetime
+	thirty_days_ago = add_days(now_datetime(), -30)
+
+	active_learners = frappe.db.sql("""
+		select count(distinct member) from (
+			select member from `tabLMS Page View Log` where creation >= %s
+			union
+			select member from `tabLMS Quiz Submission` where creation >= %s
+		) as active_members
+	""", (thirty_days_ago, thirty_days_ago))[0][0] or 0
+
+	completed_enrollments = frappe.db.count("LMS Enrollment", {"progress": [">=", 100.0]})
+	overall_completion_rate = round((completed_enrollments / total_enrollments * 100), 2) if total_enrollments > 0 else 0.0
+
+	popular_courses = frappe.db.sql("""
+		select course, count(*) as count
+		from `tabLMS Enrollment`
+		group by course
+		order by count desc
+		limit 5
+	""", as_dict=True)
+
+	popular_list = []
+	for pc in popular_courses:
+		ctitle = frappe.db.get_value("LMS Course", pc.course, "title") or pc.course
+		popular_list.append({"course": ctitle, "enrollments": pc.count})
+
+	lowest_completion_courses = frappe.db.sql("""
+		select course, avg(progress) as avg_prog, count(*) as ecount
+		from `tabLMS Enrollment`
+		group by course
+		having ecount >= 5
+		order by avg_prog asc
+		limit 5
+	""", as_dict=True)
+
+	lowest_list = []
+	for lc in lowest_completion_courses:
+		ctitle = frappe.db.get_value("LMS Course", lc.course, "title") or lc.course
+		lowest_list.append({"course": ctitle, "completion_rate": round(lc.avg_prog, 2), "enrollments": lc.ecount})
+
+	courses = frappe.get_all("LMS Course", filters={"published": 1}, fields=["name", "title"])
+	perf_list = []
+	for c in courses:
+		enrollments = frappe.get_all("LMS Enrollment", filters={"course": c.name}, fields=["member"])
+		scores = []
+		for e in enrollments:
+			sc = get_student_score_fallback(c.name, e.member)
+			if sc > 0:
+				scores.append(sc)
+		if scores:
+			avg_sc = sum(scores) / len(scores)
+			perf_list.append({"course": c.title, "average_grade": round(avg_sc, 2), "students_evaluated": len(scores)})
+
+	perf_list.sort(key=lambda x: x["average_grade"], reverse=True)
+	highest_perf_list = perf_list[:5]
+
+	risk_list = []
+	for c in courses:
+		enrollments = frappe.get_all("LMS Enrollment", filters={"course": c.name}, fields=["member"])
+		if len(enrollments) >= 3:
+			at_risk_cnt = 0
+			for e in enrollments:
+				risk = get_at_risk_details(e.member, c.name)
+				if risk["risk_score"] >= 35:
+					at_risk_cnt += 1
+			pct_risk = round((at_risk_cnt / len(enrollments) * 100), 2)
+			risk_list.append({"course": c.title, "risk_percentage": pct_risk, "at_risk_count": at_risk_cnt, "enrollments": len(enrollments)})
+
+	risk_list.sort(key=lambda x: x["risk_percentage"], reverse=True)
+	highest_risk_courses = risk_list[:5]
+
+	signup_trends = []
+	for i in range(6, -1, -1):
+		target_date = add_days(now_datetime().date(), -i)
+		signups = frappe.db.count("User", {"creation": ["like", f"{target_date}%"]})
+		signup_trends.append({
+			"date": frappe.utils.format_date(target_date),
+			"signups": signups
+		})
+
+	return {
+		"total_enrollments": total_enrollments,
+		"active_learners": active_learners,
+		"overall_completion_rate": overall_completion_rate,
+		"popular_courses": popular_list,
+		"lowest_completion_courses": lowest_list,
+		"highest_performing_courses": highest_perf_list,
+		"highest_risk_courses": highest_risk_courses,
+		"signup_trends": signup_trends
+	}
+
+
+def calculate_dashboard_data(dashboard_type: str, reference_name: str) -> dict:
+	if dashboard_type == "Student":
+		return get_student_dashboard_metrics(reference_name)
+	elif dashboard_type == "Instructor":
+		return get_instructor_dashboard_metrics(reference_name)
+	elif dashboard_type == "Batch":
+		return get_batch_dashboard_metrics(reference_name)
+	elif dashboard_type == "Department":
+		return get_department_dashboard_metrics(reference_name)
+	elif dashboard_type == "Administrative":
+		return get_admin_dashboard_metrics()
+	else:
+		frappe.throw(_("Invalid dashboard type."))
+
+
+def save_dashboard_to_cache(dashboard_type: str, reference_name: str, data: dict):
+	ref = reference_name or "global"
+	cache_name = frappe.db.get_value(
+		"LMS Analytics Cache",
+		{"cache_type": dashboard_type, "reference_name": ref},
+		"name"
+	)
+
+	serialized_data = json.dumps(data, default=str)
+
+	if cache_name:
+		frappe.db.set_value(
+			"LMS Analytics Cache",
+			cache_name,
+			{
+				"data": serialized_data,
+				"last_updated": frappe.utils.now_datetime()
+			},
+			update_modified=True
+		)
+	else:
+		cache_doc = frappe.new_doc("LMS Analytics Cache")
+		cache_doc.cache_type = dashboard_type
+		cache_doc.reference_name = ref
+		cache_doc.data = serialized_data
+		cache_doc.last_updated = frappe.utils.now_datetime()
+		cache_doc.insert(ignore_permissions=True)
+
+	frappe.db.commit()
+
+
+@frappe.whitelist()
+def get_analytics_dashboard(dashboard_type: str, reference_name: str = None) -> dict:
+	ref = reference_name or "global"
+
+	if dashboard_type == "Student":
+		roles = frappe.get_roles()
+		is_privileged = any(r in roles for r in ["System Manager", "Course Creator", "Moderator", "Batch Evaluator"])
+		if not is_privileged and ref != frappe.session.user:
+			ref = frappe.session.user
+
+	cache_doc = frappe.db.get_value(
+		"LMS Analytics Cache",
+		{"cache_type": dashboard_type, "reference_name": ref},
+		["data", "last_updated"],
+		as_dict=True
+	)
+
+	if cache_doc and cache_doc.data:
+		from frappe.utils import get_datetime, now_datetime
+		last_up = get_datetime(cache_doc.last_updated)
+		if (now_datetime() - last_up).total_seconds() < 3600:
+			return json.loads(cache_doc.data)
+
+	data = calculate_dashboard_data(dashboard_type, ref)
+	save_dashboard_to_cache(dashboard_type, ref, data)
+	return data
+
+
+@frappe.whitelist()
+def update_analytics_cache():
+	from frappe.utils import add_days, now_datetime
+	thirty_days_ago = add_days(now_datetime(), -30)
+	ninety_days_ago = add_days(now_datetime(), -90)
+
+	admin_data = get_admin_dashboard_metrics()
+	save_dashboard_to_cache("Administrative", "global", admin_data)
+
+	categories = frappe.get_all("LMS Category", fields=["name"])
+	for cat in categories:
+		try:
+			dep_data = get_department_dashboard_metrics(cat.name)
+			save_dashboard_to_cache("Department", cat.name, dep_data)
+		except Exception:
+			pass
+
+	active_courses = [c.course for c in frappe.get_all(
+		"LMS Enrollment",
+		filters={"modified": [">=", ninety_days_ago]},
+		fields=["course"],
+		distinct=True
+	)]
+	for ac in active_courses:
+		if ac:
+			try:
+				course_data = get_instructor_dashboard_metrics(ac)
+				save_dashboard_to_cache("Instructor", ac, course_data)
+			except Exception:
+				pass
+
+	active_batches = [b.batch for b in frappe.get_all(
+		"LMS Batch Enrollment",
+		filters={"creation": [">=", ninety_days_ago]},
+		fields=["batch"],
+		distinct=True
+	)]
+	for ab in active_batches:
+		if ab:
+			try:
+				batch_data = get_batch_dashboard_metrics(ab)
+				save_dashboard_to_cache("Batch", ab, batch_data)
+			except Exception:
+				pass
+
+	pvs = {p.member for p in frappe.get_all("LMS Page View Log", filters={"creation": [">=", thirty_days_ago]}, fields=["member"])}
+	subs = {s.member for s in frappe.get_all("LMS Quiz Submission", filters={"creation": [">=", thirty_days_ago]}, fields=["member"])}
+	active_students = pvs.union(subs)
+	for ast in active_students:
+		if ast:
+			try:
+				student_data = get_student_dashboard_metrics(ast)
+				save_dashboard_to_cache("Student", ast, student_data)
+			except Exception:
+				pass
+

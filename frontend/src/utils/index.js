@@ -522,10 +522,10 @@ const getSidebarItems = () => {
 					activeFor: ['Jobs', 'JobDetail'],
 				},
 				{
-					label: 'Statistics',
+					label: 'Analytics',
 					icon: 'TrendingUp',
-					to: 'Statistics',
-					activeFor: ['Statistics'],
+					to: 'Analytics',
+					activeFor: ['Analytics'],
 				},
 				{
 					label: 'Contact Us',

@@ -64,8 +64,12 @@ const routes = [
 	},
 	{
 		path: '/statistics',
-		name: 'Statistics',
-		component: () => import('@/pages/Statistics.vue'),
+		redirect: '/analytics',
+	},
+	{
+		path: '/analytics',
+		name: 'Analytics',
+		component: () => import('@/pages/Analytics.vue'),
 	},
 	{
 		path: '/user/:username',

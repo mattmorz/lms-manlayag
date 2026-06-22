@@ -1434,6 +1434,38 @@ const cleanYouTubeUrl = (url) => {
 	return urlObj.toString()
 }
 
+let heartbeatInterval = null
+
+const startTelemetry = () => {
+	if (heartbeatInterval) {
+		clearInterval(heartbeatInterval)
+		heartbeatInterval = null
+	}
+	const session = sessionStore()
+	if (!session.isLoggedIn) return
+
+	call('lms.lms.api.log_learning_activity', {
+		course: props.courseName,
+		chapter: props.chapterNumber,
+		lesson: props.lessonNumber
+	})
+
+	heartbeatInterval = setInterval(() => {
+		call('lms.lms.api.log_learning_heartbeat', {
+			course: props.courseName,
+			chapter: props.chapterNumber,
+			lesson: props.lessonNumber
+		})
+	}, 15000)
+}
+
+const stopTelemetry = () => {
+	if (heartbeatInterval) {
+		clearInterval(heartbeatInterval)
+		heartbeatInterval = null
+	}
+}
+
 watch(
 	() => lesson.data,
 	async (data) => {
@@ -1450,6 +1482,11 @@ watch(
 		startTimer()
 		getPlyrSource()
 		updateNotes()
+		if (data) {
+			startTelemetry()
+		} else {
+			stopTelemetry()
+		}
 		if (data && data.icon == 'icon-youtube') clearInterval(timerInterval)
 	}
 )
@@ -1577,6 +1614,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
 	clearInterval(timerInterval)
+	stopTelemetry()
 	window.removeEventListener('lms-lesson-next-trigger', handleNextTrigger)
 	window.currentLessonNext = null
 	window.isAssessmentMode = false
