@@ -247,6 +247,12 @@
 											{{ __('Activity') }}
 										</Button>
 									</router-link>
+									<Button variant="outline" @click="triggerAddFromLibrary(chapter)">
+										<template #prefix>
+											<Plus class="size-4 stroke-1.5" />
+										</template>
+										{{ __('Add From Library') }}
+									</Button>
 								</div>
 							</DisclosurePanel>
 						</Disclosure>
@@ -261,6 +267,13 @@
 		v-model:outline="outline"
 		:course="courseName"
 		:chapterDetail="getCurrentChapter()"
+	/>
+	<AddFromLibraryModal
+		v-if="showLibraryModal"
+		v-model="showLibraryModal"
+		:course="courseName"
+		:chapter="activeChapterForLibrary"
+		@imported="outline.reload()"
 	/>
 </template>
 <script setup>
@@ -284,12 +297,19 @@ import {
 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import ChapterModal from '@/components/Modals/ChapterModal.vue'
+import AddFromLibraryModal from '@/components/Modals/AddFromLibraryModal.vue'
 import dayjs from '@/utils/dayjs'
 
 const route = useRoute()
 const router = useRouter()
 const user = inject('$user')
 const showChapterModal = ref(false)
+const showLibraryModal = ref(false)
+const activeChapterForLibrary = ref('')
+const triggerAddFromLibrary = (chapter) => {
+	activeChapterForLibrary.value = chapter.name
+	showLibraryModal.value = true
+}
 const currentChapter = ref(null)
 const app = getCurrentInstance()
 const { $dialog } = app.appContext.config.globalProperties

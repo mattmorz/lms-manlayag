@@ -121,6 +121,9 @@ doc_events = {
 		"validate": "lms.lms.user.validate_username_duplicates",
 		"after_insert": "lms.lms.user.after_insert",
 	},
+	"Course Lesson": {
+		"on_update": "lms.lms.api.propagate_lesson_update"
+	},
 }
 
 # Scheduled Tasks

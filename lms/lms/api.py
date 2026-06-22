@@ -4723,3 +4723,588 @@ def toggle_student_account(email, enabled):
 	frappe.db.set_value("User", email, "enabled", enabled_val)
 	frappe.db.commit()
 	return {"email": email, "enabled": enabled_val}
+
+
+def check_library_permission():
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Login required"), frappe.PermissionError)
+	roles = frappe.get_roles(frappe.session.user)
+	if not ("Course Creator" in roles or "Moderator" in roles or "System Manager" in roles):
+		frappe.throw(_("You do not have permission to access Content Libraries."), frappe.PermissionError)
+
+
+def clone_quiz(quiz_id):
+	if not frappe.db.exists("LMS Quiz", quiz_id):
+		return quiz_id
+	quiz_doc = frappe.get_doc("LMS Quiz", quiz_id)
+	cloned_quiz = frappe.copy_doc(quiz_doc)
+	cloned_quiz.name = None
+	cloned_quiz.title = f"{quiz_doc.title} (Copy)"
+	cloned_quiz.insert(ignore_permissions=True)
+	return cloned_quiz.name
+
+
+def clone_assignment(assignment_id):
+	if not frappe.db.exists("LMS Assignment", assignment_id):
+		return assignment_id
+	assignment_doc = frappe.get_doc("LMS Assignment", assignment_id)
+	cloned_assignment = frappe.copy_doc(assignment_doc)
+	cloned_assignment.name = None
+	cloned_assignment.title = f"{assignment_doc.title} (Copy)"
+	cloned_assignment.insert(ignore_permissions=True)
+	return cloned_assignment.name
+
+
+def clone_programming_exercise(exercise_id):
+	if not frappe.db.exists("LMS Programming Exercise", exercise_id):
+		return exercise_id
+	exercise_doc = frappe.get_doc("LMS Programming Exercise", exercise_id)
+	cloned_exercise = frappe.copy_doc(exercise_doc)
+	cloned_exercise.name = None
+	cloned_exercise.title = f"{exercise_doc.title} (Copy)"
+	cloned_exercise.insert(ignore_permissions=True)
+	return cloned_exercise.name
+
+
+def clone_lesson(lesson_id, target_chapter, target_course):
+	if not frappe.db.exists("Course Lesson", lesson_id):
+		return lesson_id
+	lesson_doc = frappe.get_doc("Course Lesson", lesson_id)
+	cloned_lesson = frappe.copy_doc(lesson_doc)
+	cloned_lesson.name = None
+	cloned_lesson.chapter = target_chapter
+	cloned_lesson.course = target_course
+	cloned_lesson.title = f"{lesson_doc.title} (Copy)"
+	
+	# Clone nested quizzes/assignments/programming exercises in content blocks
+	if cloned_lesson.content:
+		try:
+			content = json.loads(cloned_lesson.content)
+			blocks_updated = False
+			for block in content.get("blocks", []):
+				if block.get("type") == "quiz":
+					q_id = block.get("data", {}).get("quiz")
+					if q_id:
+						block["data"]["quiz"] = clone_quiz(q_id)
+						blocks_updated = True
+				elif block.get("type") == "assignment":
+					a_id = block.get("data", {}).get("assignment")
+					if a_id:
+						block["data"]["assignment"] = clone_assignment(a_id)
+						blocks_updated = True
+				elif block.get("type") == "program":
+					p_id = block.get("data", {}).get("exercise")
+					if p_id:
+						block["data"]["exercise"] = clone_programming_exercise(p_id)
+						blocks_updated = True
+			if blocks_updated:
+				cloned_lesson.content = json.dumps(content)
+		except Exception:
+			pass
+
+	# Clone nested quizzes/assignments/programming exercises in instructor_content blocks
+	if cloned_lesson.instructor_content:
+		try:
+			content = json.loads(cloned_lesson.instructor_content)
+			blocks_updated = False
+			for block in content.get("blocks", []):
+				if block.get("type") == "quiz":
+					q_id = block.get("data", {}).get("quiz")
+					if q_id:
+						block["data"]["quiz"] = clone_quiz(q_id)
+						blocks_updated = True
+				elif block.get("type") == "assignment":
+					a_id = block.get("data", {}).get("assignment")
+					if a_id:
+						block["data"]["assignment"] = clone_assignment(a_id)
+						blocks_updated = True
+				elif block.get("type") == "program":
+					p_id = block.get("data", {}).get("exercise")
+					if p_id:
+						block["data"]["exercise"] = clone_programming_exercise(p_id)
+						blocks_updated = True
+			if blocks_updated:
+				cloned_lesson.instructor_content = json.dumps(content)
+		except Exception:
+			pass
+
+	# Clone quizzes inside quiz_id
+	if cloned_lesson.quiz_id:
+		q_ids = [q.strip() for q in cloned_lesson.quiz_id.split(",") if q.strip()]
+		cloned_q_ids = [clone_quiz(qid) for qid in q_ids]
+		cloned_lesson.quiz_id = ", ".join(cloned_q_ids)
+
+	cloned_lesson.insert(ignore_permissions=True)
+	return cloned_lesson.name
+
+
+def create_wrapper_lesson(title, content_doctype, content_name, target_chapter, target_course):
+	lesson_doc = frappe.new_doc("Course Lesson")
+	lesson_doc.title = title
+	lesson_doc.chapter = target_chapter
+	lesson_doc.course = target_course
+	
+	if content_doctype == "LMS Quiz":
+		lesson_doc.icon = "icon-quiz"
+		lesson_doc.content = json.dumps({
+			"blocks": [
+				{
+					"id": frappe.generate_hash(length=10),
+					"type": "quiz",
+					"data": {
+						"quiz": content_name,
+						"include_in_grading": 1
+					}
+				}
+			]
+		})
+	elif content_doctype == "LMS Assignment":
+		lesson_doc.icon = "icon-assignment"
+		lesson_doc.content = json.dumps({
+			"blocks": [
+				{
+					"id": frappe.generate_hash(length=10),
+					"type": "assignment",
+					"data": {
+						"assignment": content_name,
+						"include_in_grading": 1
+					}
+				}
+			]
+		})
+	elif content_doctype == "LMS Programming Exercise":
+		lesson_doc.icon = "icon-code"
+		lesson_doc.content = json.dumps({
+			"blocks": [
+				{
+					"id": frappe.generate_hash(length=10),
+					"type": "program",
+					"data": {
+						"exercise": content_name,
+						"include_in_grading": 1
+					}
+				}
+			]
+		})
+	else:
+		lesson_doc.icon = "icon-list"
+		lesson_doc.content = json.dumps({
+			"blocks": [
+				{
+					"id": frappe.generate_hash(length=10),
+					"type": "paragraph",
+					"data": {
+						"text": f"Reference to {content_doctype} {content_name}"
+					}
+				}
+			]
+		})
+		
+	lesson_doc.insert(ignore_permissions=True)
+	return lesson_doc.name
+
+
+@frappe.whitelist()
+def create_content_library(title, description=None, department=None, shared=0, shared_instructors=None):
+	check_library_permission()
+	if frappe.db.exists("Content Library", title):
+		frappe.throw(_("A Content Library with the title '{0}' already exists.").format(title))
+		
+	lib = frappe.new_doc("Content Library")
+	lib.library_name = title
+	lib.description = description
+	lib.department = department
+	lib.shared = frappe.utils.cint(shared)
+	lib.owner = frappe.session.user
+	lib.status = "Draft"
+	lib.version = 1
+	
+	if shared_instructors:
+		if isinstance(shared_instructors, str):
+			shared_instructors = json.loads(shared_instructors)
+		for inst in shared_instructors:
+			lib.append("shared_instructors", {
+				"instructor": inst if isinstance(inst, str) else inst.get("instructor")
+			})
+			
+	lib.insert(ignore_permissions=True)
+	
+	# Create initial version snapshot
+	version_doc = frappe.new_doc("Content Library Version")
+	version_doc.library = lib.name
+	version_doc.version_number = 1
+	version_doc.change_log = _("Initial creation")
+	version_doc.timestamp = frappe.utils.now_datetime()
+	version_doc.items_snapshot = json.dumps([])
+	version_doc.insert(ignore_permissions=True)
+	
+	return lib.as_dict()
+
+
+@frappe.whitelist()
+def update_content_library(library_name, title=None, description=None, department=None, shared=0, shared_instructors=None, items=None, create_new_version=0, change_log=None):
+	check_library_permission()
+	if not frappe.db.exists("Content Library", library_name):
+		frappe.throw(_("Content Library '{0}' does not exist.").format(library_name))
+		
+	lib = frappe.get_doc("Content Library", library_name)
+	if title and title != lib.library_name:
+		if frappe.db.exists("Content Library", title):
+			frappe.throw(_("A Content Library with the title '{0}' already exists.").format(title))
+		lib.library_name = title
+		
+	lib.description = description
+	lib.department = department
+	lib.shared = frappe.utils.cint(shared)
+	
+	if shared_instructors is not None:
+		if isinstance(shared_instructors, str):
+			shared_instructors = json.loads(shared_instructors)
+		lib.shared_instructors = []
+		for inst in shared_instructors:
+			lib.append("shared_instructors", {
+				"instructor": inst if isinstance(inst, str) else inst.get("instructor")
+			})
+	
+	if items:
+		if isinstance(items, str):
+			items = json.loads(items)
+		lib.items = []
+		for item in items:
+			lib.append("items", {
+				"content_doctype": item.get("content_doctype"),
+				"content_name": item.get("content_name"),
+				"title": item.get("title")
+			})
+			
+	if frappe.utils.cint(create_new_version):
+		lib.version = (lib.version or 1) + 1
+		
+	lib.save(ignore_permissions=True)
+	
+	if frappe.utils.cint(create_new_version):
+		version_doc = frappe.new_doc("Content Library Version")
+		version_doc.library = lib.name
+		version_doc.version_number = lib.version
+		version_doc.change_log = change_log or _("Update version")
+		version_doc.timestamp = frappe.utils.now_datetime()
+		
+		items_list = []
+		for row in lib.items:
+			items_list.append({
+				"content_doctype": row.content_doctype,
+				"content_name": row.content_name,
+				"title": row.title
+			})
+		version_doc.items_snapshot = json.dumps(items_list)
+		version_doc.insert(ignore_permissions=True)
+		
+	return lib.as_dict()
+
+
+@frappe.whitelist()
+def get_content_libraries():
+	check_library_permission()
+	user = frappe.session.user
+	user_dept = None
+	if frappe.get_meta("User").has_field("department"):
+		user_dept = frappe.db.get_value("User", user, "department")
+	
+	my_libraries = frappe.get_all(
+		"Content Library",
+		filters={"owner": user},
+		fields=["name", "library_name", "status", "version", "owner", "shared", "department", "description", "modified"],
+		order_by="modified desc"
+	)
+	
+	dept_filters = {"shared": 1}
+	if user_dept:
+		dept_filters = {"department": user_dept}
+	department_libraries_raw = frappe.get_all(
+		"Content Library",
+		filters=dept_filters,
+		fields=["name", "library_name", "status", "version", "owner", "shared", "department", "description", "modified"],
+		order_by="modified desc"
+	)
+	department_libraries_raw = [l for l in department_libraries_raw if l.owner != user]
+	
+	shared_libraries_raw = frappe.get_all(
+		"Content Library",
+		filters={"shared": 1, "owner": ["!=", user]},
+		fields=["name", "library_name", "status", "version", "owner", "shared", "department", "description", "modified"],
+		order_by="modified desc"
+	)
+	
+	def has_library_access(lib_name):
+		# check if specific instructors list is set and user is inside
+		instructors = frappe.get_all("Course Instructor", filters={"parent": lib_name, "parenttype": "Content Library"}, pluck="instructor")
+		return not instructors or user in instructors
+
+	department_libraries = [l for l in department_libraries_raw if has_library_access(l.name)]
+	shared_libraries = [l for l in shared_libraries_raw if has_library_access(l.name)]
+	
+	usage_counts = frappe.db.sql("""
+		select library, count(*) as count
+		from `tabCourse Content Link`
+		group by library
+		order by count desc
+	""", as_dict=True)
+	
+	most_used_names = [r.library for r in usage_counts]
+	most_used_libraries = []
+	if most_used_names:
+		most_used_libraries_raw = frappe.get_all(
+			"Content Library",
+			filters={"name": ["in", most_used_names]},
+			fields=["name", "library_name", "status", "version", "owner", "shared", "department", "description", "modified"]
+		)
+		most_used_libraries = [l for l in most_used_libraries_raw if l.owner == user or has_library_access(l.name)]
+		most_used_libraries.sort(key=lambda x: most_used_names.index(x.name))
+		
+	return {
+		"my_libraries": my_libraries,
+		"department_libraries": department_libraries,
+		"shared_libraries": shared_libraries,
+		"most_used_libraries": most_used_libraries
+	}
+
+
+@frappe.whitelist()
+def add_library_content_to_course(course, chapter, library, items, mode):
+	if not can_modify_course(course):
+		frappe.throw(_("You do not have permission to modify this course."), frappe.PermissionError)
+		
+	if isinstance(items, str):
+		items = json.loads(items)
+		
+	lib_doc = frappe.get_doc("Content Library", library)
+	current_lib_version = lib_doc.version or 1
+	
+	existing_lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter}, pluck="lesson")
+	inserted_links = []
+	
+	for idx_offset, item in enumerate(items):
+		content_doctype = item.get("content_doctype")
+		content_name = item.get("content_name")
+		title = item.get("title") or content_name
+		
+		target_lesson_name = None
+		
+		if mode == "Linked":
+			if content_doctype == "Course Lesson":
+				target_lesson_name = content_name
+			else:
+				target_lesson_name = create_wrapper_lesson(title, content_doctype, content_name, chapter, course)
+		elif mode == "Copied":
+			if content_doctype == "Course Lesson":
+				target_lesson_name = clone_lesson(content_name, chapter, course)
+			elif content_doctype == "LMS Quiz":
+				cloned_quiz = clone_quiz(content_name)
+				target_lesson_name = create_wrapper_lesson(title, content_doctype, cloned_quiz, chapter, course)
+			elif content_doctype == "LMS Assignment":
+				cloned_assignment = clone_assignment(content_name)
+				target_lesson_name = create_wrapper_lesson(title, content_doctype, cloned_assignment, chapter, course)
+			elif content_doctype == "LMS Programming Exercise":
+				cloned_exercise = clone_programming_exercise(content_name)
+				target_lesson_name = create_wrapper_lesson(title, content_doctype, cloned_exercise, chapter, course)
+			else:
+				cloned_doc = frappe.copy_doc(frappe.get_doc(content_doctype, content_name))
+				cloned_doc.name = None
+				cloned_doc.insert(ignore_permissions=True)
+				target_lesson_name = create_wrapper_lesson(title, content_doctype, cloned_doc.name, chapter, course)
+		
+		if target_lesson_name:
+			ref_idx = len(existing_lessons) + idx_offset + 1
+			new_ref = frappe.new_doc("Lesson Reference")
+			new_ref.parent = chapter
+			new_ref.parenttype = "Course Chapter"
+			new_ref.parentfield = "lessons"
+			new_ref.lesson = target_lesson_name
+			new_ref.idx = ref_idx
+			new_ref.insert(ignore_permissions=True)
+			
+			link_doc = frappe.new_doc("Course Content Link")
+			link_doc.course = course
+			link_doc.chapter = chapter
+			link_doc.content_doctype = content_doctype
+			link_doc.content_name = content_name
+			link_doc.library = library
+			link_doc.library_item = content_name
+			link_doc.mode = mode
+			link_doc.source_version = current_lib_version
+			link_doc.insert(ignore_permissions=True)
+			inserted_links.append(link_doc)
+			
+	from lms.lms.utils import calculate_course_completion_time
+	frappe.db.set_value(
+		"LMS Course",
+		course,
+		"estimated_completion_time",
+		calculate_course_completion_time(course)
+	)
+	
+	frappe.db.commit()
+	return {"success": True, "inserted_count": len(inserted_links)}
+
+
+@frappe.whitelist()
+def convert_course_to_library(course_name, library_title):
+	check_library_permission()
+	if not can_modify_course(course_name):
+		frappe.throw(_("You do not have permission to modify this course."), frappe.PermissionError)
+		
+	if frappe.db.exists("Content Library", library_title):
+		frappe.throw(_("A Content Library with the title '{0}' already exists.").format(library_title))
+		
+	lib = frappe.new_doc("Content Library")
+	lib.library_name = library_title
+	lib.owner = frappe.session.user
+	lib.status = "Published"
+	lib.version = 1
+	
+	chapters = frappe.get_all("Course Chapter", filters={"course": course_name}, fields=["name", "title"], order_by="idx")
+	
+	for chapter in chapters:
+		lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter.name}, fields=["lesson", "idx"], order_by="idx")
+		for lesson_ref in lessons:
+			lesson_name = lesson_ref.lesson
+			lesson_title = frappe.db.get_value("Course Lesson", lesson_name, "title")
+			
+			lib.append("items", {
+				"content_doctype": "Course Lesson",
+				"content_name": lesson_name,
+				"title": lesson_title
+			})
+			
+	lib.insert(ignore_permissions=True)
+	
+	version_doc = frappe.new_doc("Content Library Version")
+	version_doc.library = lib.name
+	version_doc.version_number = 1
+	version_doc.change_log = _("Conversion from Course {0}").format(course_name)
+	version_doc.timestamp = frappe.utils.now_datetime()
+	
+	items_list = []
+	for row in lib.items:
+		items_list.append({
+			"content_doctype": row.content_doctype,
+			"content_name": row.content_name,
+			"title": row.title
+		})
+	version_doc.items_snapshot = json.dumps(items_list)
+	version_doc.insert(ignore_permissions=True)
+	
+	for chapter in chapters:
+		lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter.name}, fields=["lesson"], order_by="idx")
+		for lesson_ref in lessons:
+			link_doc = frappe.new_doc("Course Content Link")
+			link_doc.course = course_name
+			link_doc.chapter = chapter.name
+			link_doc.content_doctype = "Course Lesson"
+			link_doc.content_name = lesson_ref.lesson
+			link_doc.library = lib.name
+			link_doc.library_item = lesson_ref.lesson
+			link_doc.mode = "Linked"
+			link_doc.source_version = 1
+			link_doc.insert(ignore_permissions=True)
+			
+	frappe.db.commit()
+	return lib.as_dict()
+
+
+@frappe.whitelist()
+def get_library_usage(library_name):
+	check_library_permission()
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={"library": library_name},
+		fields=["course", "mode"]
+	)
+	
+	linked_count = sum(1 for l in links if l.mode == "Linked")
+	copied_count = sum(1 for l in links if l.mode == "Copied")
+	
+	distinct_course_names = list(set(l.course for l in links))
+	courses = []
+	for cname in distinct_course_names:
+		title = frappe.db.get_value("LMS Course", cname, "title") or cname
+		courses.append({
+			"name": cname,
+			"title": title
+		})
+		
+	return {
+		"linked_count": linked_count,
+		"copied_count": copied_count,
+		"courses": courses
+	}
+
+
+@frappe.whitelist()
+def get_library_versions(library_name):
+	check_library_permission()
+	versions = frappe.get_all(
+		"Content Library Version",
+		filters={"library": library_name},
+		fields=["name", "version_number", "change_log", "timestamp", "items_snapshot"],
+		order_by="version_number desc"
+	)
+	return versions
+
+
+@frappe.whitelist()
+def restore_library_version(library_name, version_number):
+	check_library_permission()
+	version_doc_name = frappe.db.exists("Content Library Version", {"library": library_name, "version_number": version_number})
+	if not version_doc_name:
+		frappe.throw(_("Version {0} for Content Library '{1}' not found.").format(version_number, library_name))
+		
+	version_doc = frappe.get_doc("Content Library Version", version_doc_name)
+	items = json.loads(version_doc.items_snapshot)
+	
+	lib = frappe.get_doc("Content Library", library_name)
+	lib.items = []
+	for item in items:
+		lib.append("items", {
+			"content_doctype": item.get("content_doctype"),
+			"content_name": item.get("content_name"),
+			"title": item.get("title")
+		})
+		
+	lib.version = (lib.version or 1) + 1
+	lib.save(ignore_permissions=True)
+	
+	new_version_doc = frappe.new_doc("Content Library Version")
+	new_version_doc.library = lib.name
+	new_version_doc.version_number = lib.version
+	new_version_doc.change_log = _("Restored version {0}").format(version_number)
+	new_version_doc.timestamp = frappe.utils.now_datetime()
+	new_version_doc.items_snapshot = version_doc.items_snapshot
+	new_version_doc.insert(ignore_permissions=True)
+	
+	frappe.db.commit()
+	return lib.as_dict()
+
+
+def propagate_lesson_update(doc, method=None):
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={"content_doctype": "Course Lesson", "content_name": doc.name, "mode": "Linked"},
+		fields=["course"]
+	)
+	courses_to_update = set(l.course for l in links)
+	if doc.course:
+		courses_to_update.add(doc.course)
+		
+	from lms.lms.utils import calculate_course_completion_time
+	for course in courses_to_update:
+		try:
+			frappe.db.set_value(
+				"LMS Course",
+				course,
+				"estimated_completion_time",
+				calculate_course_completion_time(course)
+			)
+		except Exception:
+			pass
+

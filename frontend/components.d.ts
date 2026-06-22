@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AddFromLibraryModal: typeof import('./src/components/Modals/AddFromLibraryModal.vue')['default']
     AdminBatchDashboard: typeof import('./src/components/AdminBatchDashboard.vue')['default']
     Annoucements: typeof import('./src/components/Annoucements.vue')['default']
     AnnouncementModal: typeof import('./src/components/Modals/AnnouncementModal.vue')['default']

@@ -588,6 +588,18 @@ const getSidebarItems = () => {
 						'ProgrammingExerciseSubmission',
 					],
 				},
+				{
+					label: 'Content Library',
+					icon: 'Library',
+					to: 'ContentLibrary',
+					condition: () => {
+						return isAdmin()
+					},
+					activeFor: [
+						'ContentLibrary',
+						'ContentLibraryDetail',
+					],
+				},
 			],
 		},
 	]

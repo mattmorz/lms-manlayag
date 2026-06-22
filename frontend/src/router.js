@@ -256,6 +256,17 @@ const routes = [
 		component: () => import('@/pages/DataImport.vue'),
 		props: true,
 	},
+	{
+		path: '/libraries',
+		name: 'ContentLibrary',
+		component: () => import('@/pages/ContentLibrary/ContentLibrary.vue'),
+	},
+	{
+		path: '/libraries/:libraryName',
+		name: 'ContentLibraryDetail',
+		component: () => import('@/pages/ContentLibrary/ContentLibraryDetail.vue'),
+		props: true,
+	},
 ]
 
 let router = createRouter({
