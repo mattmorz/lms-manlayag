@@ -30,74 +30,223 @@
 			</FormControl>
 		</div>
 
-		<!-- Loading State -->
-		<div v-if="loading" class="flex justify-center items-center py-24">
-			<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-indigo"></div>
-		</div>
+		<!-- Content Views -->
+		<div>
+			<!-- Library Lists (My/Dept/Shared/Most Used) -->
+			<div v-if="currentTab !== 'upgrades' && currentTab !== 'most_reused'">
+				<!-- Loading State -->
+				<div v-if="librariesLoading" class="flex justify-center items-center py-24">
+					<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-indigo"></div>
+				</div>
 
-		<!-- Library Cards Grid -->
-		<div v-else-if="filteredLibraries.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-			<div
-				v-for="lib in filteredLibraries"
-				:key="lib.name"
-				@click="openLibrary(lib.name)"
-				class="cursor-pointer bg-white border border-outline-gray-2 rounded-md p-5 flex flex-col justify-between"
-			>
-				<div>
-					<div class="flex items-start justify-between gap-4 mb-4">
-						<div class="bg-surface-gray-2 text-ink-gray-7 p-2 rounded-md">
-							<Library class="w-5 h-5 stroke-1.5" />
-						</div>
-						<span
-							class="text-xs font-semibold px-2.5 py-1 rounded-md border"
-							:class="statusClass(lib.status)"
+				<template v-else>
+					<!-- Library Cards Grid -->
+					<div v-if="filteredLibraries.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+						<div
+							v-for="lib in filteredLibraries"
+							:key="lib.name"
+							@click="openLibrary(lib.name)"
+							class="cursor-pointer bg-white border border-outline-gray-2 rounded-md p-5 flex flex-col justify-between"
 						>
-							{{ lib.status }}
-						</span>
+							<div>
+								<div class="flex items-start justify-between gap-4 mb-4">
+									<div class="bg-surface-gray-2 text-ink-gray-7 p-2 rounded-md">
+										<Library class="w-5 h-5 stroke-1.5" />
+									</div>
+									<span
+										class="text-xs font-semibold px-2.5 py-1 rounded-md border"
+										:class="statusClass(lib.status)"
+									>
+										{{ lib.status }}
+									</span>
+								</div>
+
+								<h3 class="font-semibold text-ink-gray-9 text-base line-clamp-1 mb-1">
+									{{ lib.library_name }}
+								</h3>
+								
+								<p class="text-sm text-ink-gray-5 line-clamp-2 min-h-[2.5rem] mb-4">
+									{{ lib.description || __('No description provided.') }}
+								</p>
+							</div>
+
+							<div class="border-t border-gray-100 pt-4 mt-2 flex items-center justify-between text-xs text-ink-gray-4">
+								<div class="flex items-center gap-2">
+									<UserAvatar
+										:user="lib.owner_info"
+										size="xs"
+									/>
+									<span class="truncate max-w-[120px] font-medium text-ink-gray-7">{{ lib.owner_info?.full_name }}</span>
+								</div>
+								<div class="flex items-center gap-3">
+									<span v-if="lib.department" class="bg-gray-100 px-2 py-0.5 rounded text-ink-gray-6">
+										{{ lib.department }}
+									</span>
+									<span class="font-medium">
+										v{{ lib.version || 1 }}
+									</span>
+								</div>
+							</div>
+						</div>
 					</div>
 
-					<h3 class="font-semibold text-ink-gray-9 text-base line-clamp-1 mb-1">
-						{{ lib.library_name }}
-					</h3>
-					
-					<p class="text-sm text-ink-gray-5 line-clamp-2 min-h-[2.5rem] mb-4">
-						{{ lib.description || __('No description provided.') }}
-					</p>
+					<!-- Empty State -->
+					<div v-else class="flex flex-col items-center justify-center py-20 bg-white rounded-md">
+						<div class="bg-surface-gray-2 p-4 rounded-full border border-outline-gray-2 mb-4 text-ink-gray-4">
+							<Library class="w-12 h-12 stroke-1" />
+						</div>
+						<h3 class="text-ink-gray-7 font-bold text-lg mb-1">{{ __('No Content Libraries') }}</h3>
+						<p class="text-ink-gray-5 text-sm text-center max-w-md px-4">
+							{{ __('Create a new content library to build reusable lessons, quizzes, and exercises that can be easily shared across multiple courses.') }}
+						</p>
+						<div class="mt-6 flex gap-3">
+							<Button variant="outline" @click="showConvertModal = true">
+								{{ __('Convert Course') }}
+							</Button>
+							<Button variant="solid" @click="showCreateModal = true">
+								{{ __('Create New') }}
+							</Button>
+						</div>
+					</div>
+				</template>
+			</div>
+
+			<!-- Upgrade Candidates View -->
+			<div v-else-if="currentTab === 'upgrades'" class="space-y-4">
+				<!-- Loading State -->
+				<div v-if="upgradesLoading" class="flex justify-center items-center py-24">
+					<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-indigo"></div>
 				</div>
 
-				<div class="border-t border-gray-100 pt-4 mt-2 flex items-center justify-between text-xs text-ink-gray-4">
-					<div class="flex items-center gap-1.5">
-						<User class="w-3.5 h-3.5" />
-						<span class="truncate max-w-[100px]">{{ lib.owner }}</span>
+				<template v-else>
+					<div v-if="filteredUpgradeCandidates.length" class="border border-outline-gray-2 rounded-md bg-white divide-y">
+						<div
+							v-for="candidate in filteredUpgradeCandidates"
+							:key="candidate.link_name"
+							class="p-5 flex items-center justify-between text-sm hover:bg-surface-gray-1 bg-white"
+						>
+							<div class="text-left space-y-1">
+								<h4 class="font-bold text-ink-gray-9 text-base">
+									{{ candidate.title }}
+								</h4>
+								<div class="text-xs text-ink-gray-5 flex items-center gap-2">
+									<span class="font-semibold text-indigo-600">{{ candidate.content_doctype }}</span>
+									<span>•</span>
+									<span>{{ candidate.course_title }}</span>
+									<span>•</span>
+									<span>{{ __('Chapter ID: ') }}{{ candidate.chapter }}</span>
+								</div>
+							</div>
+							<div class="flex items-center gap-4">
+								<div class="text-xs text-right">
+									<div>
+										<span class="text-ink-gray-5">{{ __('Current: ') }}</span>
+										<span class="font-bold text-amber-600">v{{ candidate.current_version }}.0</span>
+									</div>
+									<div>
+										<span class="text-ink-gray-5">{{ __('Latest: ') }}</span>
+										<span class="font-bold text-emerald-600">v{{ candidate.latest_version }}.0</span>
+									</div>
+								</div>
+								<Button
+									variant="solid"
+									size="sm"
+									@click="upgradeCandidateItem(candidate)"
+								>
+									{{ __('Upgrade Link') }}
+								</Button>
+							</div>
+						</div>
 					</div>
-					<div class="flex items-center gap-3">
-						<span v-if="lib.department" class="bg-gray-100 px-2 py-0.5 rounded text-ink-gray-6">
-							{{ lib.department }}
-						</span>
-						<span class="font-medium">
-							v{{ lib.version || 1 }}
-						</span>
+					<div v-else class="text-center py-20 bg-white rounded-md">
+						<div class="text-ink-gray-5 font-semibold text-lg">{{ __('No Upgrade Candidates') }}</div>
+						<p class="text-xs text-ink-gray-4 mt-1">{{ __('All course content links are pointing to the latest available versions.') }}</p>
 					</div>
-				</div>
+				</template>
 			</div>
-		</div>
 
-		<!-- Empty State -->
-		<div v-else class="flex flex-col items-center justify-center py-20 bg-surface-gray-2 rounded-md border border-dashed border-outline-gray-3">
-			<div class="bg-white p-4 rounded-full border border-outline-gray-2 mb-4 text-ink-gray-4">
-				<Library class="w-12 h-12 stroke-1" />
-			</div>
-			<h3 class="text-ink-gray-7 font-bold text-lg mb-1">{{ __('No Content Libraries') }}</h3>
-			<p class="text-ink-gray-5 text-sm text-center max-w-md px-4">
-				{{ __('Create a new content library to build reusable lessons, quizzes, and exercises that can be easily shared across multiple courses.') }}
-			</p>
-			<div class="mt-6 flex gap-3">
-				<Button variant="outline" @click="showConvertModal = true">
-					{{ __('Convert Course') }}
-				</Button>
-				<Button variant="solid" @click="showCreateModal = true">
-					{{ __('Create New') }}
-				</Button>
+			<!-- Most Reused Content View -->
+			<div v-else-if="currentTab === 'most_reused'" class="space-y-4">
+				<!-- Loading State -->
+				<div v-if="reusedLoading" class="flex justify-center items-center py-24">
+					<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-indigo"></div>
+				</div>
+
+				<template v-else>
+					<ListView
+						v-if="sortedReusedContent.length"
+						:columns="reusedColumns"
+						:rows="sortedReusedContent"
+						row-key="root_name"
+						:options="{ showTooltip: false, selectable: false }"
+					>
+						<ListHeader
+							class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
+						>
+							<ListHeaderItem
+								v-for="col in reusedColumns"
+								:key="col.key"
+								:item="col"
+								@click="toggleSort(col.key)"
+								class="cursor-pointer hover:bg-surface-gray-3/50 px-2 py-1 rounded transition-colors select-none"
+							>
+								<div class="flex items-center space-x-1.5" :class="col.align === 'right' ? 'justify-end w-full' : ''">
+									<FeatherIcon v-if="col.icon" :name="col.icon" class="h-3.5 w-3.5 text-ink-gray-5 stroke-1.5" />
+									<span>{{ col.label }}</span>
+									<span class="text-xs text-ink-gray-5 ml-1" v-if="sortBy === col.key">
+										{{ sortOrder === 'desc' ? ' ↓' : ' ↑' }}
+									</span>
+								</div>
+							</ListHeaderItem>
+						</ListHeader>
+						<ListRows>
+							<ListRow
+								v-for="row in sortedReusedContent"
+								:key="row.root_name"
+								:row="row"
+								class="hover:bg-surface-gray-1"
+							>
+								<template #default="{ column }">
+									<ListRowItem :item="row[column.key]" :align="column.align">
+										<div v-if="column.key === 'title'" class="font-semibold text-ink-gray-9">
+											{{ row.title }}
+										</div>
+										<div v-else-if="column.key === 'content_doctype'">
+											<Badge :theme="doctypeTheme(row.content_doctype)">
+												{{ formatItemType(row.content_doctype) }}
+											</Badge>
+										</div>
+										<div v-else-if="column.key === 'courses'">
+											<div class="flex flex-wrap gap-1">
+												<Badge v-for="c in (row.courses || []).slice(0, 2)" :key="c" theme="gray">
+													{{ c }}
+												</Badge>
+												<Badge v-if="(row.courses || []).length > 2" theme="gray" :title="row.courses.slice(2).join(', ')">
+													+{{ row.courses.length - 2 }} more
+												</Badge>
+												<span v-if="!(row.courses || []).length" class="text-ink-gray-4 text-xs italic">
+													-
+												</span>
+											</div>
+										</div>
+										<div v-else-if="column.key === 'course_count'" class="flex justify-end w-full">
+											<span class="bg-indigo-50 border border-indigo-100 rounded-md px-2 py-0.5 font-bold text-indigo-600 text-xs">
+												{{ row.course_count }} {{ row.course_count === 1 ? __('Use') : __('Uses') }}
+											</span>
+										</div>
+										<div v-else class="text-ink-gray-5 font-mono text-xs">
+											{{ row[column.key] }}
+										</div>
+									</ListRowItem>
+								</template>
+							</ListRow>
+						</ListRows>
+					</ListView>
+					<div v-else class="text-center py-20 bg-white rounded-md">
+						<div class="text-ink-gray-5 font-semibold text-lg">{{ __('No Reused Content') }}</div>
+						<p class="text-xs text-ink-gray-4 mt-1">{{ __('Add library content to courses to see reuse statistics.') }}</p>
+					</div>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -207,19 +356,30 @@ import {
 	toast,
 	usePageMeta,
 	call,
+	Badge,
+	ListView,
+	ListRows,
+	ListRow,
+	ListRowItem,
+	ListHeader,
+	ListHeaderItem,
+	FeatherIcon,
 } from 'frappe-ui'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '@/stores/session'
 import { Library, Plus, Shuffle, Search as SearchIcon, User } from 'lucide-vue-next'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const { brand } = sessionStore()
 const router = useRouter()
 
 const search = ref('')
 const currentTab = ref('my')
-const loading = ref(false)
+const librariesLoading = ref(true)
+const upgradesLoading = ref(false)
+const reusedLoading = ref(false)
 const librariesData = ref({
 	my_libraries: [],
 	department_libraries: [],
@@ -232,6 +392,8 @@ const libraryTabs = computed(() => [
 	{ label: __('Department'), value: 'department' },
 	{ label: __('Shared'), value: 'shared' },
 	{ label: __('Most Used'), value: 'most_used' },
+	{ label: __('Upgrade Candidates'), value: 'upgrades' },
+	{ label: __('Most Reused Content'), value: 'most_reused' },
 ])
 
 // Create library states
@@ -260,7 +422,7 @@ onMounted(() => {
 })
 
 const fetchLibraries = () => {
-	loading.value = true
+	librariesLoading.value = true
 	call('lms.lms.api.get_content_libraries')
 		.then((res) => {
 			if (res) {
@@ -271,7 +433,7 @@ const fetchLibraries = () => {
 			toast.error(err.messages?.[0] || err.message || __('Failed to fetch content libraries'))
 		})
 		.finally(() => {
-			loading.value = false
+			librariesLoading.value = false
 		})
 }
 
@@ -385,6 +547,174 @@ const statusClass = (status) => {
 	if (status === 'Published') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
 	return 'bg-gray-50 text-gray-700 border-gray-200'
 }
+
+const upgradeCandidates = ref([])
+const mostReusedContent = ref([])
+
+const sortBy = ref('course_count')
+const sortOrder = ref('desc')
+
+const reusedColumns = computed(() => {
+	return [
+		{
+			label: __('Title'),
+			key: 'title',
+			width: 3,
+			align: 'left',
+			icon: 'file-text',
+		},
+		{
+			label: __('Content Type'),
+			key: 'content_doctype',
+			width: 2,
+			align: 'left',
+			icon: 'layers',
+		},
+		{
+			label: __('Linked Courses'),
+			key: 'courses',
+			width: 3,
+			align: 'left',
+			icon: 'book',
+		},
+		{
+			label: __('Course Uses'),
+			key: 'course_count',
+			width: 1,
+			align: 'right',
+			icon: 'hash',
+		},
+	]
+})
+
+const formatItemType = (doctype) => {
+	if (doctype === 'Course Lesson') return __('Lesson')
+	if (doctype === 'LMS Quiz') return __('Quiz')
+	if (doctype === 'LMS Assignment') return __('Assignment')
+	if (doctype === 'LMS Programming Exercise') return __('Programming Exercise')
+	if (doctype === 'LMS Assessment') return __('Assessment')
+	return __(doctype)
+}
+
+const doctypeTheme = (doctype) => {
+	if (doctype === 'Course Lesson') return 'blue'
+	if (doctype === 'LMS Quiz') return 'amber'
+	if (doctype === 'LMS Assignment') return 'red'
+	if (doctype === 'LMS Programming Exercise') return 'emerald'
+	if (doctype === 'LMS Assessment') return 'purple'
+	return 'gray'
+}
+
+const toggleSort = (columnKey) => {
+	if (sortBy.value === columnKey) {
+		sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+	} else {
+		sortBy.value = columnKey
+		sortOrder.value = 'desc'
+	}
+}
+
+const filteredUpgradeCandidates = computed(() => {
+	const list = upgradeCandidates.value || []
+	const q = search.value.toLowerCase().trim()
+	if (!q) return list
+	return list.filter(
+		(c) =>
+			(c.title && c.title.toLowerCase().includes(q)) ||
+			(c.content_doctype && c.content_doctype.toLowerCase().includes(q)) ||
+			(c.course_title && c.course_title.toLowerCase().includes(q)) ||
+			(c.chapter && String(c.chapter).toLowerCase().includes(q))
+	)
+})
+
+const sortedReusedContent = computed(() => {
+	let list = (mostReusedContent.value || []).map((item) => ({
+		...item,
+	}))
+
+	const q = search.value.toLowerCase().trim()
+	if (q) {
+		list = list.filter(
+			(item) =>
+				(item.title && item.title.toLowerCase().includes(q)) ||
+				(item.content_doctype && item.content_doctype.toLowerCase().includes(q)) ||
+				((item.courses || []).some(c => c.toLowerCase().includes(q)))
+		)
+	}
+
+	const key = sortBy.value
+	const order = sortOrder.value === 'asc' ? 1 : -1
+
+	list.sort((a, b) => {
+		let valA = a[key]
+		let valB = b[key]
+
+		if (key === 'courses') {
+			valA = (a.courses || []).join(', ')
+			valB = (b.courses || []).join(', ')
+		}
+
+		if (typeof valA === 'string') {
+			return valA.localeCompare(valB) * order
+		}
+		if (typeof valA === 'number') {
+			return (valA - valB) * order
+		}
+		return 0
+	})
+
+	return list
+})
+
+const fetchUpgradeCandidates = () => {
+	upgradesLoading.value = true
+	call('lms.lms.api.get_upgrade_candidates').then(res => {
+		if (res) {
+			upgradeCandidates.value = res
+		}
+	}).finally(() => {
+		upgradesLoading.value = false
+	})
+}
+
+const fetchMostReusedContent = () => {
+	reusedLoading.value = true
+	call('lms.lms.api.get_most_reused_content').then(res => {
+		if (res) {
+			mostReusedContent.value = res
+		}
+	}).finally(() => {
+		reusedLoading.value = false
+	})
+}
+
+const upgradeCandidateItem = (candidate) => {
+	call('lms.lms.api.upgrade_course_content', {
+		course: candidate.course,
+		chapter: candidate.chapter,
+		content_doctype: candidate.content_doctype,
+		old_name: candidate.content_name,
+		new_name: candidate.latest_name
+	}).then(() => {
+		toast.success(__('Link upgraded successfully'))
+		fetchUpgradeCandidates()
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to upgrade link'))
+	})
+}
+
+watch(currentTab, (newTab) => {
+	if (newTab === 'upgrades') {
+		upgradesLoading.value = true
+		fetchUpgradeCandidates()
+	} else if (newTab === 'most_reused') {
+		reusedLoading.value = true
+		fetchMostReusedContent()
+	} else {
+		librariesLoading.value = true
+		fetchLibraries()
+	}
+})
 
 const breadcrumbs = computed(() => [
 	{

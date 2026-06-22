@@ -12,7 +12,13 @@
   "section_break_tjwv",
   "problem_statement",
   "section_break_ftkh",
-  "test_cases"
+  "test_cases",
+  "version_number",
+  "parent_version",
+  "created_from_version",
+  "version_notes",
+  "is_current_version",
+  "published_status"
  ],
  "fields": [
   {
@@ -54,6 +60,47 @@
    "fieldtype": "Table",
    "label": "Test Cases",
    "options": "LMS Test Case"
+  },
+  {
+   "default": "1",
+   "fieldname": "version_number",
+   "fieldtype": "Int",
+   "label": "Version Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "parent_version",
+   "fieldtype": "Link",
+   "label": "Parent Version",
+   "options": "LMS Programming Exercise",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_from_version",
+   "fieldtype": "Link",
+   "label": "Created From Version",
+   "options": "LMS Programming Exercise",
+   "read_only": 1
+  },
+  {
+   "fieldname": "version_notes",
+   "fieldtype": "Small Text",
+   "label": "Version Notes",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_version",
+   "fieldtype": "Check",
+   "label": "Is Current Version",
+   "read_only": 1
+  },
+  {
+   "default": "Published",
+   "fieldname": "published_status",
+   "fieldtype": "Select",
+   "label": "Published Status",
+   "options": "Draft\nPublished\nArchived"
   }
  ],
  "grid_page_length": 50,

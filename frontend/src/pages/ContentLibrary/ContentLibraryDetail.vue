@@ -70,6 +70,17 @@
 									</div>
 									<div class="flex items-center gap-2">
 										<Button
+											variant="outline"
+											size="sm"
+											class="text-xs text-indigo-600 border-indigo-200"
+											@click="openUpgradeManagement(item)"
+										>
+											<template #prefix>
+												<GitBranch class="w-3.5 h-3.5" />
+											</template>
+											{{ __('Versions') }}
+										</Button>
+										<Button
 											variant="ghost"
 											class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1.5 rounded"
 											@click="removeItem(index)"
@@ -312,6 +323,105 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<!-- Upgrade / Version Management Modal -->
+	<Dialog
+		v-model="showUpgradeModal"
+		:options="{
+			title: __('Manage Versions & Upgrades'),
+			size: 'lg',
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-6" v-if="activeManageItem">
+				<div>
+					<h4 class="text-sm font-semibold text-ink-gray-9 mb-1 flex items-center gap-2">
+						<component :is="itemTypeIcon(activeManageItem.content_doctype)" class="w-4 h-4 text-indigo-600" />
+						{{ activeManageItem.title || activeManageItem.content_name }}
+					</h4>
+					<p class="text-xs text-ink-gray-5">
+						{{ formatItemType(activeManageItem.content_doctype) }} • {{ activeManageItem.content_name }}
+					</p>
+				</div>
+
+				<!-- Available Versions -->
+				<div class="space-y-2">
+					<label class="block text-xs font-bold text-ink-gray-6 uppercase tracking-wider">{{ __('Available Versions') }}</label>
+					<div class="border border-outline-gray-2 rounded-md bg-surface-gray-2 divide-y">
+						<div
+							v-for="ver in manageItemVersions"
+							:key="ver.name"
+							class="p-3 flex items-center justify-between text-sm bg-white"
+						>
+							<div class="flex items-center gap-2">
+								<span class="font-bold text-ink-gray-9">v{{ ver.version_number }}.0</span>
+								<span class="text-xs text-ink-gray-4">({{ ver.name }})</span>
+								<Badge v-if="ver.is_current_version" theme="green">{{ __('Current Library') }}</Badge>
+							</div>
+							<span class="text-xs text-ink-gray-5 italic">
+								{{ ver.version_notes || __('No details.') }}
+							</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Course Upgrade Management -->
+				<div class="space-y-3">
+					<div class="flex items-center justify-between">
+						<label class="block text-xs font-bold text-ink-gray-6 uppercase tracking-wider">{{ __('Course Placements & Upgrades') }}</label>
+						<div class="flex gap-2" v-if="manageItemUsage.courses && manageItemUsage.courses.length">
+							<Button
+								variant="solid"
+								size="sm"
+								class="text-xs"
+								@click="upgradeAllCoursesToLatest()"
+							>
+								{{ __('Upgrade All to Latest') }}
+							</Button>
+						</div>
+					</div>
+
+					<div v-if="loadingManageUsage" class="flex justify-center py-6">
+						<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+					</div>
+
+					<div v-else-if="manageItemUsage.courses && manageItemUsage.courses.length" class="space-y-2 max-h-52 overflow-y-auto">
+						<div
+							v-for="usage in manageItemUsage.courses"
+							:key="usage.course + '-' + usage.chapter"
+							class="flex items-center justify-between p-3.5 bg-surface-white rounded-md border"
+						>
+							<div class="min-w-0 text-left">
+								<span class="font-semibold text-sm text-ink-gray-9 block truncate">{{ usage.course_title }}</span>
+								<span class="text-[10px] text-ink-gray-4">{{ __('Chapter ID: ') }}{{ usage.chapter }}</span>
+							</div>
+							<div class="flex items-center gap-3">
+								<div class="text-xs">
+									<span class="text-ink-gray-5">{{ __('Using: ') }}</span>
+									<span class="font-bold text-indigo-600">v{{ usage.active_version }}.0</span>
+								</div>
+								
+								<Button
+									v-if="hasNewerVersion(usage.active_version)"
+									variant="outline"
+									size="sm"
+									class="text-xs"
+									@click="upgradeCourseItem(usage)"
+								>
+									{{ __('Upgrade') }}
+								</Button>
+								<Badge v-else theme="green">{{ __('Latest') }}</Badge>
+							</div>
+						</div>
+					</div>
+
+					<div v-else class="text-center text-xs text-ink-gray-4 py-6 border border-dashed rounded-md bg-surface-gray-1">
+						{{ __('This library item is not currently linked in any active courses.') }}
+					</div>
+				</div>
+			</div>
+		</template>
+	</Dialog>
 </template>
 
 <script setup>
@@ -322,6 +432,7 @@ import {
 	FormControl,
 	toast,
 	call,
+	Badge,
 } from 'frappe-ui'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
 import Link from '@/components/Controls/Link.vue'
@@ -365,6 +476,11 @@ const showAddModal = ref(false)
 const showVersionModal = ref(false)
 const versionChangeLog = ref('')
 const selectedInstructors = ref([])
+const showUpgradeModal = ref(false)
+const activeManageItem = ref(null)
+const manageItemVersions = ref([])
+const manageItemUsage = ref({ courses: [] })
+const loadingManageUsage = ref(false)
 
 const newItem = ref({
 	doctype: 'Course Lesson',
@@ -490,6 +606,79 @@ const restoreVersion = (versionNumber) => {
 		.catch((err) => {
 			toast.error(err.messages?.[0] || err.message || __('Failed to restore version'))
 		})
+}
+
+const openUpgradeManagement = (item) => {
+	activeManageItem.value = item
+	showUpgradeModal.value = true
+	loadingManageUsage.value = true
+	
+	call('lms.lms.api.list_versions', {
+		content_doctype: item.content_doctype,
+		content_name: item.content_name
+	}).then(res => {
+		if (res) {
+			manageItemVersions.value = res
+		}
+	})
+
+	call('lms.lms.api.retrieve_usage_information', {
+		content_doctype: item.content_doctype,
+		name: item.content_name
+	}).then(res => {
+		if (res) {
+			manageItemUsage.value = res
+		}
+	}).finally(() => {
+		loadingManageUsage.value = false
+	})
+}
+
+const hasNewerVersion = (currentVer) => {
+	return manageItemVersions.value.some(v => v.version_number > currentVer)
+}
+
+const getLatestVersionDoc = () => {
+	if (!manageItemVersions.value.length) return null
+	return manageItemVersions.value.reduce((prev, current) => (prev.version_number > current.version_number) ? prev : current)
+}
+
+const upgradeCourseItem = (usage) => {
+	const latest = getLatestVersionDoc()
+	if (!latest) return
+	
+	call('lms.lms.api.upgrade_course_content', {
+		course: usage.course,
+		chapter: usage.chapter,
+		content_doctype: activeManageItem.value.content_doctype,
+		old_name: usage.content_name,
+		new_name: latest.name
+	}).then(() => {
+		toast.success(__('Course upgraded successfully'))
+		openUpgradeManagement(activeManageItem.value)
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to upgrade course'))
+	})
+}
+
+const upgradeAllCoursesToLatest = () => {
+	const latest = getLatestVersionDoc()
+	if (!latest) return
+	
+	const outdated = manageItemUsage.value.courses.filter(c => c.active_version < latest.version_number)
+	if (!outdated.length) return
+	
+	call('lms.lms.api.upgrade_multiple_courses', {
+		courses: JSON.stringify(outdated),
+		content_doctype: activeManageItem.value.content_doctype,
+		old_name: outdated[0].content_name,
+		new_name: latest.name
+	}).then(() => {
+		toast.success(__('All courses upgraded successfully'))
+		openUpgradeManagement(activeManageItem.value)
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to upgrade courses'))
+	})
 }
 
 const openAddItemModal = () => {

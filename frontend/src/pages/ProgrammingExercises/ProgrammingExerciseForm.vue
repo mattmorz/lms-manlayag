@@ -107,6 +107,52 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<!-- Programming Exercise Save Warning Modal -->
+	<Dialog
+		v-model="showExerciseSaveWarningModal"
+		:options="{
+			size: 'md',
+			actions: [
+				{
+					label: __('Create New Version'),
+					variant: 'solid',
+					onClick: () => handleCreateNewExerciseVersion(() => show = false)
+				},
+				{
+					label: __('Update Current Version'),
+					variant: 'outline',
+					onClick: () => {
+						showExerciseSaveWarningModal = false
+						updateExercise(() => show = false)
+					}
+				}
+			]
+		}"
+	>
+		<template #body-title>
+			<div class="flex items-center gap-2">
+				<AlertTriangle class="h-6 w-6 text-amber-500 flex-shrink-0" />
+				<h3 class="text-lg font-semibold text-amber-900">
+					{{ __('Submissions Found Warning') }}
+				</h3>
+			</div>
+		</template>
+		<template #body-content>
+			<div class="space-y-4">
+				<p class="text-sm text-ink-gray-6">
+					{{ __('This programming exercise already contains learner submissions or grading records. Creating a new version is highly recommended to preserve student records and grades.') }}
+				</p>
+				<FormControl
+					v-model="exerciseVersionChangeLog"
+					:label="__('Change Log Description')"
+					type="textarea"
+					placeholder="Describe the changes in this version..."
+					:required="true"
+				/>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUpdated } from 'vue'
@@ -119,19 +165,22 @@ import {
 	FormControl,
 	TextEditor,
 	toast,
+	call,
 } from 'frappe-ui'
 import {
 	ProgrammingExercise,
 	ProgrammingExercises,
 	TestCase,
 } from '@/types/programming-exercise'
-import { ClipboardList, Play, Trash2 } from 'lucide-vue-next'
+import { AlertTriangle, ClipboardList, Play, Trash2 } from 'lucide-vue-next'
 import ChildTable from '@/components/Controls/ChildTable.vue'
 
 const show = defineModel()
 const exercises = defineModel<ProgrammingExercises>('exercises')
 const isDirty = ref(false)
 const originalTestCaseCount = ref(0)
+const showExerciseSaveWarningModal = ref(false)
+const exerciseVersionChangeLog = ref('')
 
 const exercise = ref<ProgrammingExercise>({
 	title: '',
@@ -255,8 +304,45 @@ const updateTestCasesInExercise = () => {
 const saveExercise = (close: () => void) => {
 	validateTitle()
 	updateTestCasesInExercise()
-	if (props.exerciseID == 'new') createNewExercise(close)
-	else updateExercise(close)
+	if (props.exerciseID == 'new') {
+		createNewExercise(close)
+	} else {
+		call('lms.lms.api.check_content_before_save', {
+			content_doctype: 'LMS Programming Exercise',
+			content_name: props.exerciseID
+		}).then(res => {
+			if (res && res.has_submissions) {
+				showExerciseSaveWarningModal.value = true
+			} else {
+				updateExercise(close)
+			}
+		}).catch(() => {
+			updateExercise(close)
+		})
+	}
+}
+
+const handleCreateNewExerciseVersion = (close: () => void) => {
+	const log = exerciseVersionChangeLog.value.trim()
+	if (!log) {
+		toast.error(__('Please enter a change log description'))
+		return
+	}
+	showExerciseSaveWarningModal.value = false
+	
+	call('lms.lms.api.create_new_content_version', {
+		content_doctype: 'LMS Programming Exercise',
+		content_name: props.exerciseID,
+		change_log: log,
+		doc_data: JSON.stringify(exercise.value)
+	}).then(res => {
+		toast.success(__('New version created successfully'))
+		exerciseVersionChangeLog.value = ''
+		close()
+		exercises.value?.reload()
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to create new version'))
+	})
 }
 
 const createNewExercise = (close: () => void) => {

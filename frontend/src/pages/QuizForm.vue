@@ -39,7 +39,7 @@
 					{{ __('Check Submissions') }}
 				</Button>
 			</router-link>
-			<Button variant="solid" @click="submitQuiz()">
+			<Button variant="solid" @click="saveQuiz()">
 				{{ __('Save') }}
 			</Button>
 		</div>
@@ -373,6 +373,52 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<!-- Quiz Save Warning Modal -->
+	<Dialog
+		v-model="showQuizSaveWarningModal"
+		:options="{
+			size: 'md',
+			actions: [
+				{
+					label: __('Create New Version'),
+					variant: 'solid',
+					onClick: () => handleCreateNewQuizVersion()
+				},
+				{
+					label: __('Update Current Version'),
+					variant: 'outline',
+					onClick: () => {
+						showQuizSaveWarningModal = false
+						submitQuiz()
+					}
+				}
+			]
+		}"
+	>
+		<template #body-title>
+			<div class="flex items-center gap-2">
+				<AlertTriangle class="h-6 w-6 text-amber-500 flex-shrink-0" />
+				<h3 class="text-lg font-semibold text-amber-900">
+					{{ __('Attempts Found Warning') }}
+				</h3>
+			</div>
+		</template>
+		<template #body-content>
+			<div class="space-y-4">
+				<p class="text-sm text-ink-gray-6">
+					{{ __('This quiz already contains student attempts. Creating a new version is highly recommended to preserve student records and grades.') }}
+				</p>
+				<FormControl
+					v-model="quizVersionChangeLog"
+					:label="__('Change Log Description')"
+					type="textarea"
+					placeholder="Describe the changes in this version..."
+					:required="true"
+				/>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup>
 import {
@@ -408,7 +454,7 @@ import {
 	onUpdated,
 } from 'vue'
 import { sessionStore } from '../stores/session'
-import { ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
+import { AlertTriangle, ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { escapeHTML } from '@/utils'
 
@@ -430,6 +476,9 @@ const currentQuestion = reactive({
 const user = inject('$user')
 const router = useRouter()
 const readOnlyMode = window.read_only_mode
+
+const showQuizSaveWarningModal = ref(false)
+const quizVersionChangeLog = ref('')
 
 // Question Banks State
 const showBankImportModal = ref(false)
@@ -620,6 +669,60 @@ const quizDetails = createDocumentResource({
 
 const validateTitle = () => {
 	quizDetails.doc.title = escapeHTML(quizDetails.doc.title.trim())
+}
+
+const saveQuiz = () => {
+	if (!quizDetails.doc?.name) return
+	if (props.quizID === 'new') {
+		submitQuiz()
+		return
+	}
+	
+	call('lms.lms.api.check_content_before_save', {
+		content_doctype: 'LMS Quiz',
+		content_name: props.quizID
+	}).then(res => {
+		if (res && res.has_submissions) {
+			showQuizSaveWarningModal.value = true
+		} else {
+			submitQuiz()
+		}
+	}).catch(() => {
+		submitQuiz()
+	})
+}
+
+const handleCreateNewQuizVersion = () => {
+	const log = quizVersionChangeLog.value.trim()
+	if (!log) {
+		toast.error(__('Please enter a change log description'))
+		return
+	}
+	showQuizSaveWarningModal.value = false
+	
+	validateTitle()
+	
+	call('lms.lms.api.create_new_content_version', {
+		content_doctype: 'LMS Quiz',
+		content_name: props.quizID,
+		change_log: log,
+		doc_data: JSON.stringify({
+			...quizDetails.doc,
+			total_marks: calculateTotalMarks()
+		})
+	}).then(res => {
+		toast.success(__('New version created successfully'))
+		quizVersionChangeLog.value = ''
+		
+		router.push({
+			name: 'QuizForm',
+			params: { quizID: res.new_name }
+		}).then(() => {
+			window.location.reload()
+		})
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to create new version'))
+	})
 }
 
 const submitQuiz = () => {

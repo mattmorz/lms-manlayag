@@ -128,6 +128,52 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Lesson Save Warning Modal -->
+	<Dialog
+		v-model="showLessonSaveWarningModal"
+		:options="{
+			size: 'md',
+			actions: [
+				{
+					label: __('Create New Version'),
+					variant: 'solid',
+					onClick: () => handleCreateNewLessonVersion()
+				},
+				{
+					label: __('Update Current Version'),
+					variant: 'outline',
+					onClick: () => {
+						showLessonSaveWarningModal = false
+						editCurrentLesson()
+					}
+				}
+			]
+		}"
+	>
+		<template #body-title>
+			<div class="flex items-center gap-2">
+				<AlertTriangle class="h-6 w-6 text-amber-500 flex-shrink-0" />
+				<h3 class="text-lg font-semibold text-amber-900">
+					{{ __('Shared Content Warning') }}
+				</h3>
+			</div>
+		</template>
+		<template #body-content>
+			<div class="space-y-4">
+				<p class="text-sm text-ink-gray-6">
+					{{ __('This lesson is currently used in {0} courses. Modifying it directly will affect all linked courses. Creating a new version is highly recommended.', [sharedCoursesCount]) }}
+				</p>
+				<FormControl
+					v-model="lessonVersionChangeLog"
+					:label="__('Change Log Description')"
+					type="textarea"
+					placeholder="Describe the changes in this version..."
+					:required="true"
+				/>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup>
 import {
@@ -151,7 +197,7 @@ import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
 import LessonHelp from '@/components/LessonHelp.vue'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
-import { ChevronRight } from 'lucide-vue-next'
+import { AlertTriangle, ChevronRight } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr } from '@/utils'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
 import { useRoute } from 'vue-router'
@@ -165,6 +211,9 @@ const openInstructorEditor = ref(false)
 const requiredQuizzes = ref([])
 const { capture } = useTelemetry()
 const { updateOnboardingStep } = useOnboarding('learning')
+const showLessonSaveWarningModal = ref(false)
+const sharedCoursesCount = ref(0)
+const lessonVersionChangeLog = ref('')
 let autoSaveInterval
 let showSuccessMessage = false
 
@@ -542,11 +591,51 @@ const saveLesson = (e) => {
 			outputData = removeEmptyBlocks(outputData)
 			lesson.instructor_content = JSON.stringify(outputData)
 			if (lessonDetails.data?.lesson) {
-				editCurrentLesson()
+				checkAndSaveLesson()
 			} else {
 				createNewLesson()
 			}
 		})
+	})
+}
+
+const checkAndSaveLesson = () => {
+	call('lms.lms.api.check_content_before_save', {
+		content_doctype: 'Course Lesson',
+		content_name: lessonDetails.data.lesson.name
+	}).then(res => {
+		if (res && res.is_shared) {
+			sharedCoursesCount.value = res.usage_count
+			showLessonSaveWarningModal.value = true
+		} else {
+			editCurrentLesson()
+		}
+	}).catch(() => {
+		editCurrentLesson()
+	})
+}
+
+const handleCreateNewLessonVersion = () => {
+	const log = lessonVersionChangeLog.value.trim()
+	if (!log) {
+		toast.error(__('Please enter a change log description'))
+		return
+	}
+	showLessonSaveWarningModal.value = false
+	
+	call('lms.lms.api.create_new_content_version', {
+		content_doctype: 'Course Lesson',
+		content_name: lessonDetails.data.lesson.name,
+		change_log: log,
+		doc_data: JSON.stringify(lesson),
+		course: props.courseName,
+		chapter: lessonDetails.data.chapter.name
+	}).then(res => {
+		toast.success(__('New version created and linked successfully'))
+		lessonVersionChangeLog.value = ''
+		lessonDetails.reload()
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to create new version'))
 	})
 }
 

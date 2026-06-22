@@ -318,4 +318,131 @@ This is vtt test.
 		
 		self.switch_user("Administrator")
 
+	def test_version_creation(self):
+		self.switch_user("Administrator")
+		# Create initial quiz version
+		quiz = frappe.new_doc("LMS Quiz")
+		quiz.title = "Test Version Quiz"
+		quiz.passing_percentage = 80
+		quiz.version_number = 1
+		quiz.is_current_version = 1
+		quiz.insert(ignore_permissions=True)
+		
+		# Create new version
+		from lms.lms.api import create_new_content_version, list_versions
+		res = create_new_content_version(
+			content_doctype="LMS Quiz",
+			content_name=quiz.name,
+			change_log="Updated quiz settings",
+			doc_data='{"passing_percentage": 90}'
+		)
+		
+		new_quiz_name = res["new_name"]
+		self.assertNotEqual(new_quiz_name, quiz.name)
+		self.assertEqual(res["version_number"], 2)
+		
+		# Verify is_current_version states
+		self.assertEqual(frappe.db.get_value("LMS Quiz", quiz.name, "is_current_version"), 0)
+		self.assertEqual(frappe.db.get_value("LMS Quiz", new_quiz_name, "is_current_version"), 1)
+		self.assertEqual(frappe.db.get_value("LMS Quiz", new_quiz_name, "passing_percentage"), 90)
+		
+		# Verify version listing
+		versions = list_versions("LMS Quiz", quiz.name)
+		self.assertEqual(len(versions), 2)
+		
+		# Clean up
+		frappe.delete_doc("LMS Quiz", quiz.name, force=True)
+		frappe.delete_doc("LMS Quiz", new_quiz_name, force=True)
+
+	def test_content_save_check(self):
+		self.switch_user("Administrator")
+		quiz = frappe.new_doc("LMS Quiz")
+		quiz.title = "Check attempts quiz"
+		quiz.passing_percentage = 80
+		quiz.insert(ignore_permissions=True)
+		
+		from lms.lms.api import check_content_before_save
+		res = check_content_before_save("LMS Quiz", quiz.name)
+		self.assertFalse(res["has_submissions"])
+		
+		# Insert mock attempt
+		sub = frappe.new_doc("LMS Quiz Submission")
+		sub.quiz = quiz.name
+		sub.member = self.student1.email
+		sub.score = 5
+		sub.percentage = 50
+		sub.passing_percentage = 80
+		sub.score_out_of = 10
+		sub.insert(ignore_permissions=True)
+		
+		res2 = check_content_before_save("LMS Quiz", quiz.name)
+		self.assertTrue(res2["has_submissions"])
+		
+		# Clean up
+		frappe.delete_doc("LMS Quiz Submission", sub.name, force=True)
+		frappe.delete_doc("LMS Quiz", quiz.name, force=True)
+
+	def test_course_upgrade(self):
+		self.switch_user("Administrator")
+		# Setup mock Course Content Link and Lesson Reference
+		course = self.course.name
+		chapter = self.course.chapters[0].chapter
+		
+		lesson = frappe.new_doc("Course Lesson")
+		lesson.title = "Upgrade test lesson"
+		lesson.course = course
+		lesson.chapter = chapter
+		lesson.version_number = 1
+		lesson.is_current_version = 1
+		lesson.insert(ignore_permissions=True)
+		
+		ref = frappe.new_doc("Lesson Reference")
+		ref.parent = chapter
+		ref.parenttype = "Course Chapter"
+		ref.parentfield = "lessons"
+		ref.lesson = lesson.name
+		ref.idx = 10
+		ref.insert(ignore_permissions=True)
+		
+		link = frappe.new_doc("Course Content Link")
+		link.course = course
+		link.chapter = chapter
+		link.content_doctype = "Course Lesson"
+		link.content_name = lesson.name
+		link.library = "Test Library"
+		link.mode = "Linked"
+		link.source_version = 1
+		link.insert(ignore_permissions=True)
+		
+		# Create new version
+		from lms.lms.api import create_new_content_version, upgrade_course_content, get_upgrade_candidates
+		res = create_new_content_version(
+			content_doctype="Course Lesson",
+			content_name=lesson.name,
+			change_log="v2 upgrade",
+			doc_data='{"title": "Upgrade test lesson v2"}'
+		)
+		
+		new_lesson_name = res["new_name"]
+		
+		# Check upgrade candidates
+		candidates = get_upgrade_candidates()
+		c_links = [c["link_name"] for c in candidates]
+		self.assertIn(link.name, c_links)
+		
+		# Upgrade course
+		upgrade_course_content(course, chapter, "Course Lesson", lesson.name, new_lesson_name)
+		
+		# Verify updated references
+		self.assertEqual(frappe.db.get_value("Lesson Reference", ref.name, "lesson"), new_lesson_name)
+		self.assertEqual(frappe.db.get_value("Course Content Link", link.name, "content_name"), new_lesson_name)
+		self.assertEqual(frappe.db.get_value("Course Content Link", link.name, "source_version"), 2)
+		
+		# Clean up
+		frappe.delete_doc("Lesson Reference", ref.name, force=True)
+		frappe.delete_doc("Course Content Link", link.name, force=True)
+		frappe.delete_doc("Course Lesson", lesson.name, force=True)
+		frappe.delete_doc("Course Lesson", new_lesson_name, force=True)
+
+
 

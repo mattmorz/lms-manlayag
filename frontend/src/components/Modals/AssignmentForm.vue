@@ -69,12 +69,59 @@
 			</div>
 		</template>
 	</Dialog>
+
+	<!-- Assignment Save Warning Modal -->
+	<Dialog
+		v-model="showAssignmentSaveWarningModal"
+		:options="{
+			size: 'md',
+			actions: [
+				{
+					label: __('Create New Version'),
+					variant: 'solid',
+					onClick: () => handleCreateNewAssignmentVersion()
+				},
+				{
+					label: __('Update Current Version'),
+					variant: 'outline',
+					onClick: () => {
+						showAssignmentSaveWarningModal = false
+						updateAssignment()
+					}
+				}
+			]
+		}"
+	>
+		<template #body-title>
+			<div class="flex items-center gap-2">
+				<AlertTriangle class="h-6 w-6 text-amber-500 flex-shrink-0" />
+				<h3 class="text-lg font-semibold text-amber-900">
+					{{ __('Submissions Found Warning') }}
+				</h3>
+			</div>
+		</template>
+		<template #body-content>
+			<div class="space-y-4">
+				<p class="text-sm text-ink-gray-6">
+					{{ __('This assignment already contains student submissions. Creating a new version is highly recommended to preserve student records and grades.') }}
+				</p>
+				<FormControl
+					v-model="assignmentVersionChangeLog"
+					:label="__('Change Log Description')"
+					type="textarea"
+					placeholder="Describe the changes in this version..."
+					:required="true"
+				/>
+			</div>
+		</template>
+	</Dialog>
 </template>
 <script setup lang="ts">
-import { Button, Dialog, FormControl, TextEditor, toast, createResource } from 'frappe-ui'
-import { computed, reactive, watch } from 'vue'
+import { Button, Dialog, FormControl, TextEditor, toast, createResource, call } from 'frappe-ui'
+import { computed, reactive, watch, ref } from 'vue'
 import { escapeHTML, sanitizeHTML } from '@/utils'
 import { Link } from 'frappe-ui/frappe'
+import { AlertTriangle } from 'lucide-vue-next'
 
 const show = defineModel()
 const assignments = defineModel<Assignments>('assignments')
@@ -107,6 +154,9 @@ const props = defineProps({
 		default: 'new',
 	},
 })
+
+const showAssignmentSaveWarningModal = ref(false)
+const assignmentVersionChangeLog = ref('')
 
 watch(
 	() => props.assignmentID,
@@ -144,8 +194,42 @@ const saveAssignment = () => {
 	if (props.assignmentID == 'new') {
 		createAssignment()
 	} else {
-		updateAssignment()
+		call('lms.lms.api.check_content_before_save', {
+			content_doctype: 'LMS Assignment',
+			content_name: props.assignmentID
+		}).then(res => {
+			if (res && res.has_submissions) {
+				showAssignmentSaveWarningModal.value = true
+			} else {
+				updateAssignment()
+			}
+		}).catch(() => {
+			updateAssignment()
+		})
 	}
+}
+
+const handleCreateNewAssignmentVersion = () => {
+	const log = assignmentVersionChangeLog.value.trim()
+	if (!log) {
+		toast.error(__('Please enter a change log description'))
+		return
+	}
+	showAssignmentSaveWarningModal.value = false
+	
+	call('lms.lms.api.create_new_content_version', {
+		content_doctype: 'LMS Assignment',
+		content_name: props.assignmentID,
+		change_log: log,
+		doc_data: JSON.stringify(assignment)
+	}).then(res => {
+		toast.success(__('New version created successfully'))
+		assignmentVersionChangeLog.value = ''
+		show.value = false
+		assignments.value?.reload()
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to create new version'))
+	})
 }
 
 const createAssignment = () => {

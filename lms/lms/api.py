@@ -5062,12 +5062,42 @@ def get_content_libraries():
 		most_used_libraries = [l for l in most_used_libraries_raw if l.owner == user or has_library_access(l.name)]
 		most_used_libraries.sort(key=lambda x: most_used_names.index(x.name))
 		
+	# Enrich libraries with owner details (avatars and full names)
+	owners = set()
+	for lib in my_libraries + department_libraries + shared_libraries + most_used_libraries:
+		if lib.owner:
+			owners.add(lib.owner)
+	
+	owner_details = {}
+	if owners:
+		users_data = frappe.get_all(
+			"User",
+			filters={"name": ["in", list(owners)]},
+			fields=["name", "full_name", "user_image", "open_to", "username"]
+		)
+		for u in users_data:
+			owner_details[u.name] = {
+				"name": u.name,
+				"full_name": u.full_name or u.name,
+				"user_image": u.user_image,
+				"open_to": u.open_to,
+				"username": u.username or u.name
+			}
+			
+	for lib in my_libraries + department_libraries + shared_libraries + most_used_libraries:
+		lib["owner_info"] = owner_details.get(lib.owner) or {
+			"name": lib.owner,
+			"full_name": lib.owner,
+			"username": lib.owner
+		}
+
 	return {
 		"my_libraries": my_libraries,
 		"department_libraries": department_libraries,
 		"shared_libraries": shared_libraries,
 		"most_used_libraries": most_used_libraries
 	}
+
 
 
 @frappe.whitelist()
@@ -6351,33 +6381,37 @@ def calculate_dashboard_data(dashboard_type: str, reference_name: str) -> dict:
 
 def save_dashboard_to_cache(dashboard_type: str, reference_name: str, data: dict):
 	ref = reference_name or "global"
-	cache_name = frappe.db.get_value(
-		"LMS Analytics Cache",
-		{"cache_type": dashboard_type, "reference_name": ref},
-		"name"
-	)
-
-	serialized_data = json.dumps(data, default=str)
-
-	if cache_name:
-		frappe.db.set_value(
+	try:
+		cache_name = frappe.db.get_value(
 			"LMS Analytics Cache",
-			cache_name,
-			{
-				"data": serialized_data,
-				"last_updated": frappe.utils.now_datetime()
-			},
-			update_modified=True
+			{"cache_type": dashboard_type, "reference_name": ref},
+			"name"
 		)
-	else:
-		cache_doc = frappe.new_doc("LMS Analytics Cache")
-		cache_doc.cache_type = dashboard_type
-		cache_doc.reference_name = ref
-		cache_doc.data = serialized_data
-		cache_doc.last_updated = frappe.utils.now_datetime()
-		cache_doc.insert(ignore_permissions=True)
 
-	frappe.db.commit()
+		serialized_data = json.dumps(data, default=str)
+
+		if cache_name:
+			frappe.db.set_value(
+				"LMS Analytics Cache",
+				cache_name,
+				{
+					"data": serialized_data,
+					"last_updated": frappe.utils.now_datetime()
+				},
+				update_modified=True
+			)
+		else:
+			cache_doc = frappe.new_doc("LMS Analytics Cache")
+			cache_doc.cache_type = dashboard_type
+			cache_doc.reference_name = ref
+			cache_doc.data = serialized_data
+			cache_doc.last_updated = frappe.utils.now_datetime()
+			cache_doc.insert(ignore_permissions=True)
+
+		frappe.db.commit()
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(title="LMS Analytics Cache Deadlock", message=frappe.get_traceback())
 
 
 @frappe.whitelist(allow_guest=True)
@@ -6530,3 +6564,382 @@ def get_instructor_analytics_batches():
 		)
 	return batches
 
+
+@frappe.whitelist()
+def check_content_before_save(content_doctype: str, content_name: str) -> dict:
+	check_library_permission()
+	is_shared = False
+	usage_count = 0
+	has_submissions = False
+
+	# Check Linked Course Content Links count
+	usage_count = frappe.db.count("Course Content Link", {
+		"content_doctype": content_doctype,
+		"content_name": content_name,
+		"mode": "Linked"
+	})
+	if usage_count > 0:
+		is_shared = True
+
+	# Also check submissions/attempts
+	if content_doctype == "LMS Quiz":
+		has_submissions = frappe.db.count("LMS Quiz Submission", {"quiz": content_name}) > 0
+	elif content_doctype == "LMS Assignment":
+		has_submissions = frappe.db.count("LMS Assignment Submission", {"assignment": content_name}) > 0
+	elif content_doctype == "LMS Programming Exercise":
+		has_submissions = frappe.db.count("LMS Programming Exercise Submission", {"exercise": content_name}) > 0
+
+	return {
+		"is_shared": is_shared,
+		"usage_count": usage_count,
+		"has_submissions": has_submissions
+	}
+
+
+def update_lesson_blocks_content(lesson_doc, doctype, old_name, new_name):
+	import json
+	updated = False
+	if lesson_doc.content:
+		try:
+			content = json.loads(lesson_doc.content)
+			for block in content.get("blocks", []):
+				btype = block.get("type")
+				bdata = block.get("data", {})
+				if doctype == "LMS Quiz" and btype == "quiz" and bdata.get("quiz") == old_name:
+					block["data"]["quiz"] = new_name
+					updated = True
+				elif doctype == "LMS Assignment" and btype == "assignment" and bdata.get("assignment") == old_name:
+					block["data"]["assignment"] = new_name
+					updated = True
+				elif doctype == "LMS Programming Exercise" and btype == "program" and bdata.get("exercise") == old_name:
+					block["data"]["exercise"] = new_name
+					updated = True
+			if updated:
+				lesson_doc.content = json.dumps(content)
+		except Exception:
+			pass
+	return updated
+
+
+@frappe.whitelist()
+def create_new_content_version(content_doctype: str, content_name: str, change_log: str = None, doc_data: str = None) -> dict:
+	check_library_permission()
+	original_doc = frappe.get_doc(content_doctype, content_name)
+	root_parent = original_doc.get("parent_version") or original_doc.name
+	
+	new_doc = frappe.copy_doc(original_doc)
+	new_doc.version_number = frappe.utils.cint(original_doc.get("version_number") or 1) + 1
+	new_doc.parent_version = root_parent
+	new_doc.created_from_version = original_doc.name
+	new_doc.version_notes = change_log
+	new_doc.is_current_version = 1
+	
+	if doc_data:
+		import json
+		data = json.loads(doc_data)
+		for k, v in data.items():
+			new_doc.set(k, v)
+			
+	# Deactivate older versions in the family
+	frappe.db.set_value(content_doctype, {"parent_version": root_parent}, "is_current_version", 0)
+	frappe.db.set_value(content_doctype, root_parent, "is_current_version", 0)
+	
+	new_doc.insert(ignore_permissions=True)
+	
+	return {
+		"new_name": new_doc.name,
+		"version_number": new_doc.version_number
+	}
+
+
+@frappe.whitelist()
+def list_versions(content_doctype: str, content_name: str) -> list:
+	check_library_permission()
+	if not frappe.db.exists(content_doctype, content_name):
+		return []
+	doc = frappe.get_doc(content_doctype, content_name)
+	root_parent = doc.get("parent_version") or doc.name
+	
+	# Safer two-step lookup to avoid complex OR conditions in get_all
+	v1 = frappe.get_all(
+		content_doctype,
+		filters={"parent_version": root_parent},
+		fields=["name", "version_number", "version_notes", "is_current_version", "modified", "owner"]
+	)
+	v2 = frappe.get_all(
+		content_doctype,
+		filters={"name": root_parent},
+		fields=["name", "version_number", "version_notes", "is_current_version", "modified", "owner"]
+	)
+	
+	seen = set()
+	merged = []
+	for v in (v2 + v1):
+		if v.name not in seen:
+			seen.add(v.name)
+			merged.append(v)
+			
+	merged.sort(key=lambda x: x.get("version_number") or 1)
+	return merged
+
+
+@frappe.whitelist()
+def compare_versions(content_doctype: str, version1: str, version2: str) -> dict:
+	check_library_permission()
+	doc1 = frappe.get_doc(content_doctype, version1)
+	doc2 = frappe.get_doc(content_doctype, version2)
+	
+	diff = {}
+	exclude_fields = {
+		"name", "creation", "modified", "modified_by", "owner", 
+		"docstatus", "idx", "version_number", "parent_version", 
+		"created_from_version", "version_notes", "is_current_version"
+	}
+	
+	for field in doc1.meta.fields:
+		fname = field.fieldname
+		if fname in exclude_fields:
+			continue
+		val1 = doc1.get(fname)
+		val2 = doc2.get(fname)
+		if val1 != val2:
+			diff[fname] = {
+				"label": field.label or fname,
+				"v1": val1,
+				"v2": val2
+			}
+	return diff
+
+
+@frappe.whitelist()
+def upgrade_course_content(course: str, chapter: str, content_doctype: str, old_name: str, new_name: str) -> dict:
+	check_library_permission()
+	new_ver = frappe.db.get_value(content_doctype, new_name, "version_number") or 1
+	
+	if content_doctype == "Course Lesson":
+		frappe.db.set_value(
+			"Lesson Reference",
+			{"parent": chapter, "parenttype": "Course Chapter", "lesson": old_name},
+			"lesson",
+			new_name
+		)
+		frappe.db.set_value(
+			"Course Content Link",
+			{
+				"course": course,
+				"chapter": chapter,
+				"content_doctype": content_doctype,
+				"content_name": old_name
+			},
+			{
+				"content_name": new_name,
+				"source_version": new_ver
+			}
+		)
+	else:
+		lessons = frappe.get_all(
+			"Course Lesson",
+			filters={"course": course, "chapter": chapter},
+			fields=["name", "content"]
+		)
+		for lesson in lessons:
+			lesson_doc = frappe.get_doc("Course Lesson", lesson.name)
+			if update_lesson_blocks_content(lesson_doc, content_doctype, old_name, new_name):
+				is_shared = check_content_before_save("Course Lesson", lesson.name)["is_shared"]
+				if is_shared:
+					cloned_lesson = frappe.copy_doc(lesson_doc)
+					cloned_lesson.title = f"{lesson_doc.title} (Cloned)"
+					cloned_lesson.insert(ignore_permissions=True)
+					
+					frappe.db.set_value(
+						"Lesson Reference",
+						{"parent": chapter, "parenttype": "Course Chapter", "lesson": lesson.name},
+						"lesson",
+						cloned_lesson.name
+					)
+					
+					frappe.db.set_value(
+						"Course Content Link",
+						{
+							"course": course,
+							"chapter": chapter,
+							"content_doctype": "Course Lesson",
+							"content_name": lesson.name
+						},
+						"content_name",
+						cloned_lesson.name
+					)
+				else:
+					lesson_doc.save(ignore_permissions=True)
+					
+		frappe.db.set_value(
+			"Course Content Link",
+			{
+				"course": course,
+				"chapter": chapter,
+				"content_doctype": content_doctype,
+				"content_name": old_name
+			},
+			{
+				"content_name": new_name,
+				"source_version": new_ver
+			}
+		)
+	return {"status": "success"}
+
+
+@frappe.whitelist()
+def upgrade_multiple_courses(courses: str, content_doctype: str, old_name: str, new_name: str) -> dict:
+	check_library_permission()
+	import json
+	courses_list = json.loads(courses)
+	for c in courses_list:
+		course = c.get("course")
+		chapter = c.get("chapter")
+		upgrade_course_content(
+			course=course,
+			chapter=chapter,
+			content_doctype=content_doctype,
+			old_name=c.get("content_name") or old_name,
+			new_name=new_name
+		)
+	return {"status": "success"}
+
+
+@frappe.whitelist()
+def retrieve_usage_information(content_doctype: str, name: str) -> dict:
+	check_library_permission()
+	if not frappe.db.exists(content_doctype, name):
+		return {"courses": []}
+	doc = frappe.get_doc(content_doctype, name)
+	root_parent = doc.get("parent_version") or doc.name
+	
+	v1 = frappe.get_all(content_doctype, filters={"parent_version": root_parent}, fields=["name"])
+	v2 = frappe.get_all(content_doctype, filters={"name": root_parent}, fields=["name"])
+	all_names = list(set([v.name for v in v1 + v2]))
+	
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={
+			"content_doctype": content_doctype,
+			"content_name": ["in", all_names]
+		},
+		fields=["name", "course", "chapter", "content_name", "source_version"]
+	)
+	
+	courses_usage = []
+	for link in links:
+		course_title = frappe.db.get_value("LMS Course", link.course, "title") or link.course
+		active_ver = link.source_version
+		if not active_ver:
+			active_ver = frappe.db.get_value(content_doctype, link.content_name, "version_number") or 1
+			
+		courses_usage.append({
+			"course": link.course,
+			"course_title": course_title,
+			"chapter": link.chapter,
+			"content_name": link.content_name,
+			"active_version": frappe.utils.cint(active_ver)
+		})
+	return {"courses": courses_usage}
+
+
+@frappe.whitelist()
+def retrieve_version_history(content_doctype: str, name: str) -> list:
+	return list_versions(content_doctype, name)
+
+
+@frappe.whitelist()
+def get_upgrade_candidates() -> list:
+	check_library_permission()
+	
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={"mode": "Linked"},
+		fields=["name", "course", "chapter", "content_doctype", "content_name", "source_version", "library"]
+	)
+	
+	candidates = []
+	for link in links:
+		if not frappe.db.exists(link.content_doctype, link.content_name):
+			continue
+		doc = frappe.get_doc(link.content_doctype, link.content_name)
+		root_parent = doc.get("parent_version") or link.content_name
+		
+		latest_docs = frappe.get_all(
+			link.content_doctype,
+			filters={"parent_version": root_parent, "is_current_version": 1},
+			fields=["name", "version_number", "title" if link.content_doctype != "LMS Assessment" else "name"],
+			limit=1
+		)
+		if not latest_docs:
+			latest_docs = frappe.get_all(
+				link.content_doctype,
+				filters={"name": root_parent, "is_current_version": 1},
+				fields=["name", "version_number", "title" if link.content_doctype != "LMS Assessment" else "name"],
+				limit=1
+			)
+			
+		if latest_docs:
+			latest = latest_docs[0]
+			current_ver = frappe.utils.cint(link.source_version or doc.get("version_number") or 1)
+			latest_ver = frappe.utils.cint(latest.version_number)
+			
+			if latest_ver > current_ver:
+				course_title = frappe.db.get_value("LMS Course", link.course, "title") or link.course
+				title_field = "title" if link.content_doctype != "LMS Assessment" else "name"
+				item_title = doc.get(title_field) or link.content_name
+				candidates.append({
+					"link_name": link.name,
+					"course": link.course,
+					"course_title": course_title,
+					"chapter": link.chapter,
+					"content_doctype": link.content_doctype,
+					"content_name": link.content_name,
+					"current_version": current_ver,
+					"latest_version": latest_ver,
+					"latest_name": latest.name,
+					"title": item_title
+				})
+	return candidates
+
+
+@frappe.whitelist()
+def get_most_reused_content() -> list:
+	check_library_permission()
+	
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={"mode": "Linked"},
+		fields=["course", "content_doctype", "content_name"]
+	)
+	
+	reuse_map = {}
+	for link in links:
+		if not frappe.db.exists(link.content_doctype, link.content_name):
+			continue
+			
+		root_parent = frappe.db.get_value(link.content_doctype, link.content_name, "parent_version") or link.content_name
+		
+		group_key = (link.content_doctype, root_parent)
+		if group_key not in reuse_map:
+			title_field = "title" if link.content_doctype != "LMS Assessment" else "name"
+			title = frappe.db.get_value(link.content_doctype, root_parent, title_field) or root_parent
+			reuse_map[group_key] = {
+				"root_name": root_parent,
+				"title": title,
+				"content_doctype": link.content_doctype,
+				"courses": set()
+			}
+			
+		course_title = frappe.db.get_value("LMS Course", link.course, "title") or link.course
+		reuse_map[group_key]["courses"].add(course_title)
+
+	res = []
+	for key, val in reuse_map.items():
+		val["courses"] = list(val["courses"])
+		val["course_count"] = len(val["courses"])
+		res.append(val)
+		
+	res.sort(key=lambda x: x["course_count"], reverse=True)
+	return res

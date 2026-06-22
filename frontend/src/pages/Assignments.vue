@@ -20,7 +20,7 @@
 		</Button>
 	</header>
 
-	<div class="md:w-3/4 md:mx-auto py-5 mx-5">
+	<div class="py-5 mx-5">
 		<div class="flex items-center justify-between mb-5">
 			<div v-if="assignmentCount" class="text-lg font-semibold text-ink-gray-9">
 				{{ __('{0} Assignments').format(assignmentCount) }}
@@ -48,14 +48,59 @@
 			row-key="name"
 			:options="{
 				showTooltip: false,
-				selectable: false,
-				onRowClick: (row) => {
-					if (readOnlyMode) return
-					assignmentID = row.name
-					showAssignmentForm = true
-				},
+				selectable: !readOnlyMode,
 			}"
 		>
+			<ListHeader
+				class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
+			>
+				<ListHeaderItem :item="item" v-for="item in assignmentColumns">
+					<template #prefix="{ item }">
+						<FeatherIcon :name="item.icon?.toString()" class="h-4 w-4" />
+					</template>
+				</ListHeaderItem>
+			</ListHeader>
+			<ListRows>
+				<ListRow
+					v-for="row in assignments.data"
+					:key="row.name"
+					:row="row"
+					class="hover:bg-surface-gray-1"
+					@click="
+						() => {
+							if (readOnlyMode) return
+							assignmentID = row.name
+							showAssignmentForm = true
+						}
+					"
+				>
+					<template #default="{ column }">
+						<ListRowItem :item="row[column.key]" :align="column.align">
+							<div
+								v-if="column.key == 'creation'"
+								class="text-xs text-ink-gray-5"
+							>
+								{{ row[column.key] }}
+							</div>
+							<div v-else>
+								{{ row[column.key] }}
+							</div>
+						</ListRowItem>
+					</template>
+				</ListRow>
+			</ListRows>
+			<ListSelectBanner>
+				<template #actions="{ unselectAll, selections }">
+					<div class="flex gap-2">
+						<Button
+							variant="ghost"
+							@click="deleteAssignment(selections, unselectAll)"
+						>
+							<FeatherIcon name="trash-2" class="h-4 w-4 stroke-1.5" />
+						</Button>
+					</div>
+				</template>
+			</ListSelectBanner>
 		</ListView>
 		<EmptyState v-else type="Assignments" />
 		<div
@@ -82,6 +127,14 @@ import {
 	FormControl,
 	ListView,
 	usePageMeta,
+	ListHeader,
+	ListHeaderItem,
+	ListRows,
+	ListRow,
+	ListRowItem,
+	ListSelectBanner,
+	FeatherIcon,
+	toast,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { Plus } from 'lucide-vue-next'
@@ -164,21 +217,32 @@ const assignmentColumns = computed(() => {
 			label: __('Title'),
 			key: 'title',
 			width: 2,
+			icon: 'file-text',
 		},
 		{
 			label: __('Type'),
 			key: 'type',
 			width: 1,
 			align: 'left',
+			icon: 'layers',
 		},
 		{
 			label: __('Created'),
 			key: 'creation',
 			width: 1,
 			align: 'right',
+			icon: 'calendar',
 		},
 	]
 })
+
+const deleteAssignment = (selections, unselectAll) => {
+	Array.from(selections).forEach(async (assignmentName) => {
+		await assignments.delete.submit(assignmentName)
+	})
+	unselectAll()
+	toast.success(__('Assignments deleted successfully'))
+}
 
 const getAssignmentCount = () => {
 	call('frappe.client.get_count', {

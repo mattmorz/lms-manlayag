@@ -34,7 +34,13 @@
   "column_break_15",
   "file_type",
   "column_break_syza",
-  "help"
+  "help",
+  "version_number",
+  "parent_version",
+  "created_from_version",
+  "version_notes",
+  "is_current_version",
+  "published_status"
  ],
  "fields": [
   {
@@ -192,6 +198,47 @@
    "fieldname": "exclude_from_course",
    "fieldtype": "Check",
    "label": "Exclude From Course"
+  },
+  {
+   "default": "1",
+   "fieldname": "version_number",
+   "fieldtype": "Int",
+   "label": "Version Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "parent_version",
+   "fieldtype": "Link",
+   "label": "Parent Version",
+   "options": "Course Lesson",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_from_version",
+   "fieldtype": "Link",
+   "label": "Created From Version",
+   "options": "Course Lesson",
+   "read_only": 1
+  },
+  {
+   "fieldname": "version_notes",
+   "fieldtype": "Small Text",
+   "label": "Version Notes",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_version",
+   "fieldtype": "Check",
+   "label": "Is Current Version",
+   "read_only": 1
+  },
+  {
+   "default": "Published",
+   "fieldname": "published_status",
+   "fieldtype": "Select",
+   "label": "Published Status",
+   "options": "Draft\nPublished\nArchived"
   }
  ],
  "index_web_pages_for_search": 1,
