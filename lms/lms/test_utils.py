@@ -400,3 +400,8 @@ class TestLMSUtils(BaseTestUtils):
 			self.assertNotIn(self.batch.name, [batch.name for batch in batches])
 		finally:
 			frappe.session.user = "Administrator"
+
+	def test_calculate_course_completion_time(self):
+		from lms.lms.utils import calculate_course_completion_time
+		est_time = calculate_course_completion_time(self.course.name)
+		self.assertGreaterEqual(est_time, 0)

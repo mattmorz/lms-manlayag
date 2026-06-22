@@ -181,6 +181,14 @@ class CourseLesson(Document):
 
 	def on_update(self):
 		self.validate_quiz_id()
+		if self.course:
+			from lms.lms.utils import calculate_course_completion_time
+			frappe.db.set_value(
+				"LMS Course",
+				self.course,
+				"estimated_completion_time",
+				calculate_course_completion_time(self.course)
+			)
 
 	def validate_quiz_id(self):
 		for quiz in get_quiz_ids(self.quiz_id):

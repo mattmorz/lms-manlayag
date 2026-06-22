@@ -125,6 +125,12 @@
 									:label="__('Enable Sequential Lessons')"
 									@change="makeFormDirty()"
 								/>
+								<FormControl
+									type="checkbox"
+									v-model="courseResource.doc.show_estimated_completion_time"
+									:label="__('Show Estimated Completion Time')"
+									@change="makeFormDirty()"
+								/>
 							</div>
 						</div>
 					</div>
@@ -567,6 +573,7 @@ const updateCourseData = () => {
 		'featured',
 		'enable_certification',
 		'enable_sequential_lessons',
+		'show_estimated_completion_time',
 		'paid_certificate',
 		'enable_grading_policy',
 	]

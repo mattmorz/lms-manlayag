@@ -58,6 +58,15 @@
 					</Tooltip>
 				</div>
 
+				<div v-if="course.estimated_completion_time && course.show_estimated_completion_time">
+					<Tooltip :text="__('Estimated completion time')">
+						<span class="flex items-center">
+							<Clock class="h-4 w-4 stroke-1.5 mr-1" />
+							{{ formatTime(course.estimated_completion_time) }}
+						</span>
+					</Tooltip>
+				</div>
+
 				<div v-if="course.enrollments">
 					<Tooltip :text="__('Enrolled Students')">
 						<span class="flex items-center">
@@ -133,7 +142,7 @@
 	</div>
 </template>
 <script setup>
-import { Award, BookOpen, GraduationCap, Star, Users } from 'lucide-vue-next'
+import { Award, BookOpen, Clock, GraduationCap, Star, Users } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { Tooltip } from 'frappe-ui'
 import { formatAmount } from '@/utils'
@@ -156,6 +165,15 @@ const getGradientColor = () => {
 	let color = props.course.card_gradient?.toLowerCase() || 'blue'
 	let colorMap = colors[theme][color]
 	return `linear-gradient(to top right, black, ${colorMap[400]})`
+}
+const formatTime = (minutes) => {
+	if (!minutes) return ''
+	const hrs = Math.floor(minutes / 60)
+	const mins = Math.round(minutes % 60)
+	if (hrs > 0) {
+		return `${hrs}h ${mins}m`
+	}
+	return `${mins}m`
 }
 </script>
 <style>

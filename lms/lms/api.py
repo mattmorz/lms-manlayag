@@ -790,10 +790,18 @@ def update_course_statistics():
 		avg_rating = get_average_rating(course.name) or 0
 		avg_rating = flt(avg_rating, frappe.get_system_settings("float_precision") or 3)
 
+		from lms.lms.utils import calculate_course_completion_time
+		est_time = calculate_course_completion_time(course.name)
+
 		frappe.db.set_value(
 			"LMS Course",
 			course.name,
-			{"lessons": lessons, "enrollments": enrollments, "rating": avg_rating},
+			{
+				"lessons": lessons,
+				"enrollments": enrollments,
+				"rating": avg_rating,
+				"estimated_completion_time": est_time
+			},
 		)
 
 

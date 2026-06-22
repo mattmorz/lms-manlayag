@@ -103,6 +103,12 @@
 						{{ course.data.lessons }} {{ __('Lessons') }}
 					</span>
 				</div>
+				<div v-if="course.data.estimated_completion_time && course.data.show_estimated_completion_time" class="flex items-center text-ink-gray-9">
+					<Clock class="h-4 w-4 stroke-1.5" />
+					<span class="ml-2">
+						{{ formatTime(course.data.estimated_completion_time) }} {{ __('Estimated time') }}
+					</span>
+				</div>
 				<div class="flex items-center text-ink-gray-9">
 					<Users class="h-4 w-4 stroke-1.5" />
 					<span class="ml-2">
@@ -145,6 +151,7 @@
 import {
 	BookOpen,
 	BookText,
+	Clock,
 	CreditCard,
 	GraduationCap,
 	Pencil,
@@ -262,4 +269,14 @@ const fetchCertificate = () => {
 const isAdmin = computed(() => {
 	return user.data?.is_moderator || is_instructor()
 })
+
+const formatTime = (minutes) => {
+	if (!minutes) return ''
+	const hrs = Math.floor(minutes / 60)
+	const mins = Math.round(minutes % 60)
+	if (hrs > 0) {
+		return `${hrs}h ${mins}m`
+	}
+	return `${mins}m`
+}
 </script>

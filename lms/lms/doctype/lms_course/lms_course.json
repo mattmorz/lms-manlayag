@@ -25,6 +25,7 @@
   "featured",
   "disable_self_learning",
   "enable_sequential_lessons",
+  "show_estimated_completion_time",
   "section_break_18",
   "short_introduction",
   "column_break_viqw",
@@ -49,6 +50,7 @@
   "statistics_section",
   "enrollments",
   "lessons",
+  "estimated_completion_time",
   "rating",
   "notification_sent",
   "grading_policy_tab",
@@ -107,6 +109,12 @@
    "fieldname": "enable_sequential_lessons",
    "fieldtype": "Check",
    "label": "Enable Sequential Lessons"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_estimated_completion_time",
+   "fieldtype": "Check",
+   "label": "Show Estimated Completion Time"
   },
   {
    "fieldname": "image",
@@ -261,6 +269,13 @@
    "fieldname": "lessons",
    "fieldtype": "Int",
    "label": "Lessons",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "estimated_completion_time",
+   "fieldtype": "Int",
+   "label": "Estimated Completion Time (in minutes)",
    "read_only": 1
   },
   {

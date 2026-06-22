@@ -29,6 +29,8 @@ class LMSCourse(Document):
 		self.validate_amount_and_currency()
 		self.image = validate_image(self.image)
 		self.validate_card_gradient()
+		from lms.lms.utils import calculate_course_completion_time
+		self.estimated_completion_time = calculate_course_completion_time(self.name)
 
 	def validate_published(self):
 		if self.published and not self.published_on:

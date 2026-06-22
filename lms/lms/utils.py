@@ -620,6 +620,231 @@ def get_lesson_count(course: str) -> int:
 	return lesson_count
 
 
+def calculate_course_completion_time(course: str) -> int:
+	"""Calculate the estimated course completion time in minutes."""
+	if not course:
+		return 0
+
+	total_time = 0.0
+	
+	# Get all chapters of the course
+	chapters = get_chapters(course)
+	for chapter in chapters:
+		# If the chapter is a SCORM package, it doesn't have regular lessons.
+		# Let's check if the chapter has is_scorm_package enabled.
+		if chapter.get("is_scorm_package"):
+			# Assume a default of 30 minutes for SCORM chapters
+			total_time += 30.0
+			continue
+
+		# Get all lessons of the chapter
+		lessons_in_chapter = frappe.get_all(
+			"Lesson Reference",
+			{"parent": chapter.name},
+			["lesson", "idx"],
+			order_by="idx"
+		)
+		for ref in lessons_in_chapter:
+			# Get lesson details
+			lesson_details = frappe.db.get_value(
+				"Course Lesson",
+				ref.lesson,
+				["name", "youtube", "video_transcript", "body", "content", "quiz_id", "question", "exclude_from_course"],
+				as_dict=True
+			)
+			if not lesson_details or lesson_details.get("exclude_from_course"):
+				continue
+
+			total_time += calculate_lesson_completion_time(lesson_details)
+
+	rounded_time = int(5 * round(total_time / 5.0))
+	if total_time > 0 and rounded_time == 0:
+		return 5
+	return rounded_time
+
+
+def calculate_lesson_completion_time(lesson) -> float:
+	"""
+	Calculates the estimated completion time of a single lesson in minutes.
+	Accepts either a Course Lesson name or document/dict.
+	"""
+	if isinstance(lesson, str):
+		lesson = frappe.db.get_value(
+			"Course Lesson",
+			lesson,
+			["name", "youtube", "video_transcript", "body", "content", "quiz_id", "question", "exclude_from_course"],
+			as_dict=True
+		)
+
+	if not lesson or lesson.get("exclude_from_course"):
+		return 0.0
+
+	video_dur = 0.0
+	# 1. Video duration estimation
+	# Try to get duration from video_transcript segments
+	if lesson.get("video_transcript"):
+		try:
+			vt_data = json.loads(lesson["video_transcript"])
+			if isinstance(vt_data, dict):
+				for vid_id, segments in vt_data.items():
+					if isinstance(segments, list) and segments:
+						max_time = max((float(s.get("start") or 0) + float(s.get("duration") or 0)) for s in segments)
+						video_dur += max_time
+			elif isinstance(vt_data, list) and vt_data:
+				max_time = max((float(s.get("start") or 0) + float(s.get("duration") or 0)) for s in vt_data)
+				video_dur = max_time
+		except Exception:
+			pass
+
+	# Convert video transcript duration from seconds to minutes
+	if video_dur > 0:
+		video_dur = video_dur / 60.0
+
+	# If video_dur is 0, check if we have any historical watched records with duration
+	if video_dur == 0.0:
+		watched = frappe.db.get_all(
+			"LMS Video Watch Duration",
+			filters={"lesson": lesson.name},
+			fields=["duration"]
+		)
+		watched_durations = [float(w.duration) for w in watched if w.get("duration")]
+		if watched_durations:
+			video_dur = max(watched_durations) / 60.0
+
+	# If video_dur is still 0, check if the lesson has any video content
+	if video_dur == 0.0:
+		has_video = bool(lesson.get("youtube"))
+		if not has_video and lesson.get("content"):
+			try:
+				content = json.loads(lesson["content"])
+				for block in content.get("blocks", []):
+					btype = block.get("type")
+					data = block.get("data") or {}
+					if btype == "video":
+						has_video = True
+						break
+					elif btype == "upload" and data.get("file_type", "").lower() in ["mp4", "webm", "ogg", "mov"]:
+						has_video = True
+						break
+					elif btype == "embed" and data.get("service") in ["youtube", "vimeo", "cloudflareStream", "bunnyStream"]:
+						has_video = True
+						break
+			except Exception:
+				pass
+		if has_video:
+			video_dur = 10.0 # default video duration in minutes
+
+	# 2. Reading duration estimation
+	word_count = 0
+	# Count words in body (markdown)
+	if lesson.get("body"):
+		word_count += len(lesson["body"].split())
+
+	# Count words in content blocks
+	if lesson.get("content"):
+		try:
+			content = json.loads(lesson["content"])
+			texts = []
+			for block in content.get("blocks", []):
+				btype = block.get("type")
+				data = block.get("data") or {}
+				if btype in ["paragraph", "header", "quote"]:
+					text = data.get("text")
+					if text:
+						texts.append(text)
+				elif btype == "list":
+					items = data.get("items") or []
+					for item in items:
+						if isinstance(item, str):
+							texts.append(item)
+						elif isinstance(item, dict) and item.get("content"):
+							texts.append(item.get("content"))
+				elif btype == "table":
+					table_content = data.get("content") or []
+					for row in table_content:
+						for cell in row:
+							if cell:
+								texts.append(cell)
+				elif btype == "markdown":
+					md = data.get("markdown")
+					if md:
+						texts.append(md)
+				elif btype == "html":
+					html_text = data.get("html")
+					if html_text:
+						texts.append(html_text)
+				elif btype == "code":
+					code = data.get("code")
+					if code:
+						texts.append(code)
+			
+			if texts:
+				full_text = " ".join(texts)
+				# clean HTML tags
+				cleaned_text = re.sub(r'<[^>]*>', '', full_text)
+				word_count += len(cleaned_text.split())
+		except Exception:
+			pass
+
+	reading_dur = word_count / 200.0 # 200 words per minute average reading speed
+
+	# 3. Quiz duration estimation
+	quizzes_dur = 0.0
+	quiz_ids = set()
+	# Extract from quiz_id field
+	if lesson.get("quiz_id"):
+		for q in lesson["quiz_id"].split(","):
+			if q.strip():
+				quiz_ids.add(q.strip())
+	# Extract from content blocks
+	if lesson.get("content"):
+		try:
+			content = json.loads(lesson["content"])
+			for block in content.get("blocks", []):
+				if block.get("type") == "quiz":
+					qid = block.get("data", {}).get("quiz")
+					if qid:
+						quiz_ids.add(qid)
+		except Exception:
+			pass
+
+	for qid in quiz_ids:
+		q_duration = frappe.db.get_value("LMS Quiz", qid, "duration")
+		try:
+			parsed_dur = float(q_duration) if q_duration else 0.0
+		except ValueError:
+			parsed_dur = 0.0
+
+		if parsed_dur > 0:
+			quizzes_dur += parsed_dur
+		else:
+			# Fallback: 2 minutes per question
+			num_questions = frappe.db.count("LMS Quiz Question", {"parent": qid})
+			quizzes_dur += max(2.0, num_questions * 2.0)
+
+	# 4. Assignment duration estimation
+	assignment_dur = 0.0
+	has_assignment = bool(lesson.get("question"))
+	if not has_assignment and lesson.get("content"):
+		try:
+			content = json.loads(lesson["content"])
+			for block in content.get("blocks", []):
+				if block.get("type") == "assignment":
+					has_assignment = True
+					break
+		except Exception:
+			pass
+	if has_assignment:
+		assignment_dur = 15.0 # default assignment duration in minutes
+
+	total_lesson_time = video_dur + reading_dur + quizzes_dur + assignment_dur
+	# Ensure a non-empty lesson has at least 1 minute estimated time
+	if total_lesson_time == 0.0 and (lesson.get("body") or lesson.get("content") or has_video or quiz_ids or has_assignment):
+		total_lesson_time = 1.0
+
+	return total_lesson_time
+
+
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=15000, seconds=60 * 60)
 def get_chart_data(
@@ -938,6 +1163,8 @@ def get_course_fields():
 		"amount_usd",
 		"enable_certification",
 		"lessons",
+		"estimated_completion_time",
+		"show_estimated_completion_time",
 		"enrollments",
 		"rating",
 	]

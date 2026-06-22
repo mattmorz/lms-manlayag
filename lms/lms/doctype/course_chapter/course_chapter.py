@@ -26,4 +26,12 @@ class CourseChapter(Document):
 
 	def update_lesson_count(self):
 		"""Update lesson count in the course"""
-		frappe.db.set_value("LMS Course", self.course, "lessons", get_lesson_count(self.course))
+		from lms.lms.utils import calculate_course_completion_time
+		frappe.db.set_value(
+			"LMS Course",
+			self.course,
+			{
+				"lessons": get_lesson_count(self.course),
+				"estimated_completion_time": calculate_course_completion_time(self.course)
+			}
+		)
