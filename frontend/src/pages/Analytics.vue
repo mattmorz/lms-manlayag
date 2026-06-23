@@ -279,7 +279,7 @@
 									<span class="font-extrabold text-indigo-600">{{ activeCourseData.predictions?.completion_probability }}%</span>
 								</div>
 								<div class="w-full bg-gray-100 rounded-full h-1.5 mb-2">
-									<div class="bg-indigo-600 h-1.5 rounded-full" :style="{ width: activeCourseData.predictions?.completion_probability + '%' }"></div>
+									<div class="bg-indigo-600 h-1.5 rounded-full" :style="{ width: activeCourseData.predictions?.completion_probability + '%', backgroundColor: '#4f46e5' }"></div>
 								</div>
 								<div class="space-y-1">
 									<p

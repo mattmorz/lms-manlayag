@@ -5596,14 +5596,24 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 	from frappe.utils import get_datetime, now_datetime
 	progress = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "progress") or 0.0
 
+	last_pv = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
+	last_sub = frappe.db.get_value("LMS Quiz Submission", {"member": member, "course": course}, "max(creation)")
+	last_asg = frappe.db.get_value("LMS Assignment Submission", {"member": member, "course": course}, "max(creation)")
+
+	last_act = None
+	for dt in [last_pv, last_sub, last_asg]:
+		if dt:
+			dt_val = get_datetime(dt)
+			if not last_act or dt_val > last_act:
+				last_act = dt_val
+
 	if progress >= 100.0:
 		comp_prob = 100.0
 		factors_comp = [_("Course is already 100% completed.")]
 	else:
-		last_active = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
 		active_days_ago = 99
-		if last_active:
-			active_days_ago = (now_datetime() - get_datetime(last_active)).days
+		if last_act:
+			active_days_ago = (now_datetime() - last_act).days
 
 		eng_factor = 1.0
 		if active_days_ago > 14:
@@ -5651,9 +5661,8 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 	dropout_prob = 10.0
 	factors_drop = []
 
-	last_active = frappe.db.get_value("LMS Page View Log", {"member": member, "course": course}, "max(creation)")
-	if last_active:
-		days_inactive = (now_datetime() - get_datetime(last_active)).days
+	if last_act:
+		days_inactive = (now_datetime() - last_act).days
 		if days_inactive >= 14:
 			dropout_prob += 60.0
 			factors_drop.append(_("Critically inactive for {0} days.").format(days_inactive))
