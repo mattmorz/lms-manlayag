@@ -80,9 +80,62 @@
 				</div>
 			</div>
 
-			<!-- Loading State -->
-			<div v-if="loading" class="flex justify-center items-center py-24">
-				<div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+			<!-- Skeleton Loader State -->
+			<div v-if="loading" class="space-y-6 animate-pulse">
+				<!-- KPI Cards Skeletons -->
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+					<div v-for="i in 3" :key="i" class="bg-surface-gray-2 border border-outline-gray-2 rounded-md p-5 h-24 flex items-center justify-between">
+						<div class="space-y-2 w-2/3">
+							<div class="h-3 bg-gray-200 rounded w-1/2"></div>
+							<div class="h-6 bg-gray-300 rounded w-3/4"></div>
+						</div>
+						<div class="bg-gray-200 h-10 w-10 rounded"></div>
+					</div>
+				</div>
+
+				<!-- Main Content & Sidebar Skeletons -->
+				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+					<!-- Main Section Skeleton -->
+					<div class="lg:col-span-2 space-y-6">
+						<!-- Card 1 (Overview / Chart Box) -->
+						<div class="bg-surface-white border border-outline-gray-2 rounded-md p-6 space-y-4">
+							<div class="h-4 bg-gray-300 rounded w-1/4 mb-4"></div>
+							<div class="h-64 bg-surface-gray-2 rounded w-full"></div>
+						</div>
+						<!-- Card 2 (Recommendations) -->
+						<div class="bg-surface-white border border-outline-gray-2 rounded-md p-6 space-y-4">
+							<div class="h-4 bg-gray-300 rounded w-1/3 mb-4"></div>
+							<div class="space-y-3">
+								<div v-for="i in 2" :key="i" class="bg-surface-gray-2 p-4 rounded-lg flex items-center space-x-3">
+									<div class="bg-gray-300 h-8 w-8 rounded"></div>
+									<div class="flex-1 space-y-2">
+										<div class="h-3 bg-gray-300 rounded w-1/4"></div>
+										<div class="h-2.5 bg-gray-200 rounded w-3/4"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Sidebar Section Skeleton -->
+					<div class="space-y-6">
+						<!-- Sidebar Card 1 -->
+						<div class="bg-surface-white border border-outline-gray-2 rounded-md p-5 space-y-4">
+							<div class="h-4 bg-gray-300 rounded w-1/2 mb-4"></div>
+							<div class="flex justify-center py-4">
+								<div class="rounded-full bg-gray-200 h-28 w-28"></div>
+							</div>
+							<div class="h-3 bg-gray-200 rounded w-3/4 mx-auto"></div>
+						</div>
+						<!-- Sidebar Card 2 -->
+						<div class="bg-surface-white border border-outline-gray-2 rounded-md p-5 space-y-4">
+							<div class="h-4 bg-gray-300 rounded w-1/3 mb-4"></div>
+							<div class="space-y-3">
+								<div v-for="i in 3" :key="i" class="h-10 bg-surface-gray-2 rounded w-full"></div>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<div v-else class="space-y-6">
