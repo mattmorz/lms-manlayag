@@ -247,11 +247,11 @@
 				<FormControl
 					type="select"
 					:options="[
-						{ label: 'Course Lesson', value: 'Course Lesson' },
-						{ label: 'LMS Quiz', value: 'LMS Quiz' },
-						{ label: 'LMS Assignment', value: 'LMS Assignment' },
-						{ label: 'LMS Programming Exercise', value: 'LMS Programming Exercise' },
-						{ label: 'LMS Assessment', value: 'LMS Assessment' },
+						{ label: __('Course Lesson'), value: 'Course Lesson' },
+						{ label: __('Quiz'), value: 'LMS Quiz' },
+						{ label: __('Assignment'), value: 'LMS Assignment' },
+						{ label: __('Programming Exercise'), value: 'LMS Programming Exercise' },
+						{ label: __('Assessment'), value: 'LMS Assessment' },
 					]"
 					v-model="newItem.doctype"
 					:label="__('Content Type')"
@@ -782,7 +782,7 @@ const itemTypeIcon = (doctype) => {
 }
 
 const formatItemType = (doctype) => {
-	if (doctype === 'Course Lesson') return __('Lesson')
+	if (doctype === 'Course Lesson') return __('Course Lesson')
 	if (doctype === 'LMS Quiz') return __('Quiz')
 	if (doctype === 'LMS Assignment') return __('Assignment')
 	if (doctype === 'LMS Programming Exercise') return __('Programming Exercise')

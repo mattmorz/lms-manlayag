@@ -130,7 +130,7 @@
 									{{ candidate.title }}
 								</h4>
 								<div class="text-xs text-ink-gray-5 flex items-center gap-2">
-									<span class="font-semibold text-indigo-600">{{ candidate.content_doctype }}</span>
+									<span class="font-semibold text-indigo-600">{{ formatItemType(candidate.content_doctype) }}</span>
 									<span>•</span>
 									<span>{{ candidate.course_title }}</span>
 									<span>•</span>
@@ -588,7 +588,7 @@ const reusedColumns = computed(() => {
 })
 
 const formatItemType = (doctype) => {
-	if (doctype === 'Course Lesson') return __('Lesson')
+	if (doctype === 'Course Lesson') return __('Course Lesson')
 	if (doctype === 'LMS Quiz') return __('Quiz')
 	if (doctype === 'LMS Assignment') return __('Assignment')
 	if (doctype === 'LMS Programming Exercise') return __('Programming Exercise')

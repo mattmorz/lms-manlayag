@@ -76,7 +76,7 @@
 								<!-- Text -->
 								<div class="min-w-0 text-left">
 									<span class="font-medium text-sm text-ink-gray-9 block truncate">{{ item.title || item.content_name }}</span>
-									<span class="text-[10px] text-ink-gray-4">{{ item.content_doctype }}</span>
+									<span class="text-[10px] text-ink-gray-4">{{ formatItemType(item.content_doctype) }}</span>
 								</div>
 							</div>
 						</div>
@@ -286,5 +286,14 @@ const itemTypeIcon = (doctype) => {
 	if (doctype === 'LMS Assignment') return NotebookPen
 	if (doctype === 'LMS Programming Exercise') return SquareCode
 	return GitCommit
+}
+
+const formatItemType = (doctype) => {
+	if (doctype === 'Course Lesson') return __('Course Lesson')
+	if (doctype === 'LMS Quiz') return __('Quiz')
+	if (doctype === 'LMS Assignment') return __('Assignment')
+	if (doctype === 'LMS Programming Exercise') return __('Programming Exercise')
+	if (doctype === 'LMS Assessment') return __('Assessment')
+	return __(doctype)
 }
 </script>
