@@ -4,8 +4,8 @@
 	>
 		<Breadcrumbs :items="breadcrumbs" />
 	</header>
-	<div class="p-6">
-		<div class="flex items-center justify-between space-x-32 mb-5">
+	<div class="md:w-3/4 md:mx-auto py-5 mx-5">
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-5 w-full">
 			<div class="text-lg font-semibold text-ink-gray-9">
 				{{
 					submissions.data?.length
@@ -13,7 +13,7 @@
 						: __('No Submissions')
 				}}
 			</div>
-			<div v-if="submissions.data?.length" class="grid grid-cols-3 gap-5">
+			<div v-if="submissions.data?.length" class="flex flex-wrap items-center gap-5 justify-end ml-auto w-full sm:w-auto">
 				<Link
 					doctype="LMS Programming Exercise"
 					v-model="filters.exercise"
@@ -36,7 +36,7 @@
 						{ label: __('Failed'), value: 'Failed' },
 					]"
 					:placeholder="__('Filter by Status')"
-					class="w-40"
+					class="w-100"
 				/>
 			</div>
 		</div>
@@ -46,7 +46,7 @@
 			:rows="submissions.data"
 			rowKey="name"
 			:options="{
-				selectable: true,
+				selectable: false,
 				showTooltip: false,
 			}"
 		>
@@ -108,18 +108,6 @@
 					</ListRow>
 				</router-link>
 			</ListRows>
-			<ListSelectBanner>
-				<template #actions="{ unselectAll, selections }">
-					<div class="flex gap-2">
-						<Button
-							variant="ghost"
-							@click="deleteExercises(selections, unselectAll)"
-						>
-							<Trash2 class="h-4 w-4 stroke-1.5" />
-						</Button>
-					</div>
-				</template>
-			</ListSelectBanner>
 		</ListView>
 		<EmptyState v-else type="Programming Exercise Submissions" />
 		<div
@@ -147,9 +135,7 @@ import {
 	ListRows,
 	ListRow,
 	ListRowItem,
-	ListSelectBanner,
 	usePageMeta,
-	toast,
 } from 'frappe-ui'
 import type {
 	ProgrammingExerciseSubmission,
@@ -158,7 +144,6 @@ import type {
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
-import { Trash2 } from 'lucide-vue-next'
 import Link from '@/components/Controls/Link.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -247,14 +232,6 @@ watch(filters.value, () => {
 	submissions.reload()
 })
 
-const deleteExercises = (selections: Set<string>, unselectAll: () => void) => {
-	Array.from(selections).forEach(async (submission: string) => {
-		await submissions.delete.submit(submission)
-	})
-	unselectAll()
-	toast.success(__('Submissions deleted successfully'))
-}
-
 const isStudent = computed(() => {
 	return (
 		!user.data?.is_instructor &&
@@ -268,25 +245,25 @@ const submissionColumns = computed(() => {
 		{
 			label: __('Member'),
 			key: 'member_name',
-			width: '30%',
+			width: 2,
 			icon: 'user',
 		},
 		{
 			label: __('Exercise'),
 			key: 'exercise_title',
-			width: '30%',
+			width: 2,
 			icon: 'code',
 		},
 		{
 			label: __('Status'),
 			key: 'status',
-			width: '20%',
+			width: 1,
 			icon: 'check-circle',
 		},
 		{
 			label: __('Modified'),
 			key: 'modified',
-			width: '15%',
+			width: 1,
 			icon: 'clock',
 			align: 'right',
 		},

@@ -153,6 +153,138 @@
 					/>
 				</div>
 
+				<!-- Peer Review Panel -->
+				<div v-if="assignment.data?.enable_peer_review">
+					<!-- Tasks for student reviewer -->
+					<div v-if="assignedReviews.data?.length && submissionName !== 'new'" class="border rounded-lg p-4 bg-surface-gray-2 space-y-3 mt-4">
+						<h4 class="font-bold text-ink-gray-9 text-sm">
+							{{ __('Peer Review Tasks') }}
+						</h4>
+						<p class="text-xs text-ink-gray-6">
+							{{ __('Evaluate the following peers to complete your assignment requirement.') }}
+						</p>
+						<div class="space-y-2">
+							<div
+								v-for="task in assignedReviews.data"
+								:key="task.name"
+								class="flex items-center justify-between p-3 rounded-lg bg-surface-white border border-outline-gray-2 hover:border-indigo-200 transition-colors"
+							>
+								<div>
+									<span class="text-xs text-ink-gray-6">
+										{{ __('Reviewee') }}:
+									</span>
+									<span class="text-xs font-semibold text-ink-gray-9 ml-1">
+										{{ task.reviewee_name }}
+									</span>
+									<div class="text-[10px] text-ink-gray-5">
+										{{ __('Due') }}: {{ task.due_date ? dayjs(task.due_date).format('MMMM D, YYYY') : __('No due date') }}
+									</div>
+								</div>
+								<div>
+									<Badge v-if="task.status === 'Completed'" theme="green">
+										{{ __('Completed') }}
+									</Badge>
+									<Button
+										v-else
+										variant="solid"
+										size="sm"
+										class="rounded-md shadow-none"
+										@click="openReviewModal(task)"
+									>
+										<template #prefix>
+											<Edit class="size-4 stroke-1.5" />
+										</template>
+										{{ __('Evaluate') }}
+									</Button>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Received feedback -->
+					<div v-if="receivedReviews.data?.length && submissionName !== 'new'" class="border rounded-lg p-4 space-y-4 mt-6 bg-surface-gray-1">
+						<div class="flex items-center justify-between border-b pb-2">
+							<h4 class="font-bold text-ink-gray-9 text-sm">
+								{{ __('Peer Feedback Received') }}
+							</h4>
+							<div class="text-right">
+								<span class="text-xs text-ink-gray-5">{{ __('Aggregated Score') }}:</span>
+								<span class="text-sm font-black text-indigo-700 ml-1">
+									{{ submissionResource.doc?.peer_review_score?.toFixed(1) || 0 }}%
+								</span>
+							</div>
+						</div>
+						<div class="space-y-4">
+							<div
+								v-for="(rev, rIdx) in receivedReviews.data"
+								:key="rIdx"
+								class="space-y-2 border-b pb-3 last:border-b-0 last:pb-0"
+							>
+								<div class="flex justify-between items-center text-xs">
+									<span class="font-bold text-ink-gray-8">
+										{{ rev.reviewer_name }}
+									</span>
+									<Badge theme="indigo">
+										{{ __('Score') }}: {{ rev.score }}%
+									</Badge>
+								</div>
+
+								<div class="grid grid-cols-2 gap-2 text-xs">
+									<div v-if="rev.strengths" class="p-2 bg-green-50 rounded">
+										<span class="font-semibold text-green-900">{{ __('Strengths') }}:</span>
+										<p class="text-green-800 mt-1">{{ rev.strengths }}</p>
+									</div>
+									<div v-if="rev.areas_for_improvement" class="p-2 bg-amber-50 rounded">
+										<span class="font-semibold text-amber-900">{{ __('Areas for Improvement') }}:</span>
+										<p class="text-amber-800 mt-1">{{ rev.areas_for_improvement }}</p>
+									</div>
+								</div>
+
+								<div v-if="rev.recommendations || rev.general_feedback" class="text-xs space-y-1">
+									<div v-if="rev.recommendations">
+										<span class="font-semibold text-ink-gray-6">{{ __('Recommendations') }}:</span>
+										<p class="text-ink-gray-8 ml-1">{{ rev.recommendations }}</p>
+									</div>
+									<div v-if="rev.general_feedback">
+										<span class="font-semibold text-ink-gray-6">{{ __('General Feedback') }}:</span>
+										<p class="text-ink-gray-8 ml-1">{{ rev.general_feedback }}</p>
+									</div>
+								</div>
+
+								<div v-if="rev.criteria_feedback?.length" class="text-xs mt-2 pl-2 border-l-2 border-indigo-200 space-y-1">
+									<div v-for="cf in rev.criteria_feedback" :key="cf.criterion" class="flex justify-between items-start">
+										<div>
+											<span class="font-semibold text-ink-gray-7">{{ cf.criterion }}</span>:
+											<span class="text-ink-gray-6 ml-1">{{ cf.comments || __('No comment') }}</span>
+										</div>
+										<span class="text-ink-gray-5 font-semibold">
+											{{ cf.score }}
+										</span>
+									</div>
+								</div>
+
+								<div class="flex items-center space-x-2 mt-2 pt-2 border-t border-outline-gray-2" v-if="user.data?.is_moderator || user.data?.is_evaluator || user.data?.is_instructor">
+									<Button
+										variant="outline"
+										size="xs"
+										theme="red"
+										@click="removeReview(rev.name)"
+									>
+										{{ __('Remove') }}
+									</Button>
+									<Button
+										variant="outline"
+										size="xs"
+										@click="requestRevision(rev.review_assignment)"
+									>
+										{{ __('Request Revision') }}
+									</Button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<div
 					v-if="
 						user.data?.name == submissionResource.doc?.owner &&
@@ -168,6 +300,15 @@
 						v-html="submissionResource.doc.comments"
 					></div>
 				</div>
+
+				<!-- Peer Review Evaluation Modal -->
+				<PeerReviewModal
+					v-if="showReviewModal"
+					v-model="showReviewModal"
+					:assignmentName="activeReviewTask.assignment"
+					:peerAssignmentName="activeReviewTask.name"
+					@success="handleReviewSuccess"
+				/>
 
 				<!-- Grading -->
 				<div v-if="canGradeSubmission" class="mt-8 space-y-4">
@@ -226,16 +367,57 @@ import {
 	FormControl,
 	TextEditor,
 	toast,
+	dayjs,
 } from 'frappe-ui'
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch, onUpdated } from 'vue'
-import { FileText, X } from 'lucide-vue-next'
+import { FileText, X, Edit } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
+import PeerReviewModal from '@/components/Modals/PeerReviewModal.vue'
 
 const answer = ref(null)
 const comments = ref(null)
 const router = useRouter()
 const user = inject('$user')
 const isDirty = ref(false)
+
+const showReviewModal = ref(false)
+const activeReviewTask = ref(null)
+
+const assignedReviews = createResource({
+	url: 'lms.lms.api.get_assigned_peer_reviews',
+	auto: true,
+})
+
+const receivedReviews = createResource({
+	url: 'lms.lms.api.get_peer_reviews_for_submission',
+	makeParams() {
+		return {
+			submission_name: props.submissionName,
+		}
+	},
+	auto: false,
+})
+
+watch(
+	() => props.submissionName,
+	(val) => {
+		if (val && val !== 'new') {
+			receivedReviews.reload()
+		}
+	},
+	{ immediate: true }
+)
+
+const openReviewModal = (task) => {
+	activeReviewTask.value = task
+	showReviewModal.value = true
+}
+
+const handleReviewSuccess = () => {
+	assignedReviews.reload()
+	receivedReviews.reload()
+	submissionResource.reload()
+}
 
 const props = defineProps({
 	assignmentID: {
@@ -359,6 +541,11 @@ const submitAssignment = () => {
 				? user.data?.name
 				: null
 
+		if (assignment.data?.enable_peer_review && canGradeSubmission.value) {
+			submissionResource.doc.peer_review_overridden = 1
+			submissionResource.doc.peer_review_override_score = submissionResource.doc.score
+		}
+
 		submissionResource.setValue.submit(
 			{
 				...submissionResource.doc,
@@ -375,6 +562,30 @@ const submitAssignment = () => {
 		)
 	} else {
 		addNewSubmission()
+	}
+}
+
+const removeReview = async (reviewName) => {
+	if (!confirm(__('Are you sure you want to remove this peer review?'))) return
+	try {
+		await call('lms.lms.api.remove_peer_review', { review_name: reviewName })
+		toast.success(__('Peer review removed successfully'))
+		receivedReviews.reload()
+		submissionResource.reload()
+	} catch (e) {
+		toast.error(e.messages?.[0] || e.message || __('Failed to remove review'))
+	}
+}
+
+const requestRevision = async (assignmentName) => {
+	if (!confirm(__('Are you sure you want to request a revision for this peer review?'))) return
+	try {
+		await call('lms.lms.api.request_peer_review_revision', { review_assignment_name: assignmentName })
+		toast.success(__('Revision requested successfully'))
+		receivedReviews.reload()
+		submissionResource.reload()
+	} catch (e) {
+		toast.error(e.messages?.[0] || e.message || __('Failed to request revision'))
 	}
 }
 

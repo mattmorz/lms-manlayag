@@ -5388,6 +5388,16 @@ def log_learning_activity(course: str, chapter: str = None, lesson: str = None):
 	if frappe.session.user == "Guest":
 		return {"status": "ignored", "reason": "guest_user"}
 
+	if chapter and (chapter.isdigit() or len(chapter) <= 3):
+		chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course, "idx": chapter}, "chapter")
+		if chapter_name:
+			chapter = chapter_name
+	
+	if lesson and (lesson.isdigit() or len(lesson) <= 3) and chapter:
+		lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter, "idx": lesson}, "lesson")
+		if lesson_name:
+			lesson = lesson_name
+
 	log = frappe.new_doc("LMS Page View Log")
 	log.member = frappe.session.user
 	log.course = course
@@ -5404,6 +5414,16 @@ def log_learning_activity(course: str, chapter: str = None, lesson: str = None):
 def log_learning_heartbeat(course: str, chapter: str = None, lesson: str = None):
 	if frappe.session.user == "Guest":
 		return {"status": "ignored", "reason": "guest_user"}
+
+	if chapter and (chapter.isdigit() or len(chapter) <= 3):
+		chapter_name = frappe.db.get_value("Chapter Reference", {"parent": course, "idx": chapter}, "chapter")
+		if chapter_name:
+			chapter = chapter_name
+	
+	if lesson and (lesson.isdigit() or len(lesson) <= 3) and chapter:
+		lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter, "idx": lesson}, "lesson")
+		if lesson_name:
+			lesson = lesson_name
 
 	filters = {
 		"member": frappe.session.user,
@@ -7000,3 +7020,434 @@ def get_most_reused_content() -> list:
 		
 	res.sort(key=lambda x: x["course_count"], reverse=True)
 	return res
+
+
+@frappe.whitelist()
+def get_peer_review_rubrics() -> list:
+	user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+		return frappe.get_all("Peer Review Rubric", fields=["name", "title", "description", "is_public", "owner"])
+	
+	return frappe.get_all(
+		"Peer Review Rubric",
+		filters=[
+			["is_public", "=", 1],
+			"or",
+			["owner", "=", user]
+		],
+		fields=["name", "title", "description", "is_public", "owner"]
+	)
+
+
+def get_rubric_permission_query_conditions(user) -> str:
+	if not user:
+		user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+		return ""
+	return f"(is_public = 1 or owner = {frappe.db.escape(user)})"
+
+
+def has_rubric_permission(doc, ptype=None, user=None) -> bool:
+	if not user:
+		user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+		return True
+	
+	if ptype == "read":
+		return doc.is_public == 1 or doc.owner == user
+	
+	# For write/delete/create, only the owner can modify their rubrics
+	return doc.owner == user
+
+
+def _assign_for_submission(submission, assignment):
+	if not assignment.enable_peer_review:
+		return
+
+	existing_count = frappe.db.count("Peer Review Assignment", {"submission": submission.name, "status": ["!=", "Cancelled"]})
+	needed = (assignment.reviews_required or 3) - existing_count
+	if needed <= 0:
+		return
+
+	course = assignment.course
+	member = submission.member
+
+	enrolled_students = frappe.get_all("LMS Enrollment", {"course": course}, pluck="member")
+
+	reviewer_pool = []
+	if assignment.reviewer_assignment_method == "Group-Based":
+		batches = frappe.get_all("Batch Course", {"course": course}, pluck="parent")
+		if batches:
+			member_batch = frappe.db.get_value("LMS Batch Enrollment", {"member": member, "batch": ["in", batches]}, "batch")
+			if member_batch:
+				reviewer_pool = frappe.get_all("LMS Batch Enrollment", {"batch": member_batch}, pluck="member")
+
+	if not reviewer_pool:
+		reviewer_pool = enrolled_students
+
+	reviewer_pool = [r for r in reviewer_pool if r != member]
+
+	already_assigned = frappe.get_all("Peer Review Assignment", {"submission": submission.name, "status": ["!=", "Cancelled"]}, pluck="reviewer")
+	reviewer_pool = [r for r in reviewer_pool if r not in already_assigned]
+
+	if not reviewer_pool:
+		return
+
+	assigned_counts = {}
+	for r in reviewer_pool:
+		assigned_counts[r] = frappe.db.count("Peer Review Assignment", {"reviewer": r, "assignment": assignment.name})
+
+	reviewer_pool.sort(key=lambda r: assigned_counts.get(r, 0))
+
+	selected_reviewers = reviewer_pool[:needed]
+
+	for reviewer in selected_reviewers:
+		pr_asg = frappe.new_doc("Peer Review Assignment")
+		pr_asg.update({
+			"assignment": assignment.name,
+			"submission": submission.name,
+			"reviewer": reviewer,
+			"reviewee": member,
+			"status": "Pending",
+			"due_date": frappe.utils.add_days(frappe.utils.nowdate(), 7)
+		})
+		pr_asg.insert(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def assign_peer_reviewers_for_submission(submission_name):
+	sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+	assignment_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+	_assign_for_submission(sub_doc, assignment_doc)
+
+
+@frappe.whitelist()
+def assign_peer_reviewers(submission_name=None, assignment_name=None):
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	user = frappe.session.user
+
+	if submission_name:
+		sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+		asg_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+		if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+			frappe.throw(_("Not authorized to assign peer reviewers."), frappe.PermissionError)
+		_assign_for_submission(sub_doc, asg_doc)
+		return "Success"
+
+	elif assignment_name:
+		asg_doc = frappe.get_doc("LMS Assignment", assignment_name)
+		if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+			frappe.throw(_("Not authorized to assign peer reviewers."), frappe.PermissionError)
+		submissions = frappe.get_all("LMS Assignment Submission", {"assignment": assignment_name})
+		for sub in submissions:
+			sub_doc = frappe.get_doc("LMS Assignment Submission", sub.name)
+			_assign_for_submission(sub_doc, asg_doc)
+		return "Success"
+
+
+@frappe.whitelist()
+def submit_peer_review(
+	assignment_id,
+	score,
+	strengths=None,
+	areas_for_improvement=None,
+	recommendations=None,
+	general_feedback=None,
+	criteria_feedback=None
+):
+	asg_doc = frappe.get_doc("Peer Review Assignment", assignment_id)
+	if asg_doc.reviewer != frappe.session.user:
+		frappe.throw(_("You are not authorized to submit this peer review."), frappe.PermissionError)
+
+	if asg_doc.status == "Completed":
+		frappe.throw(_("This review has already been submitted."))
+
+	if isinstance(criteria_feedback, str):
+		criteria_feedback = json.loads(criteria_feedback)
+
+	sub_doc = frappe.new_doc("Peer Review Submission")
+	sub_doc.update({
+		"review_assignment": assignment_id,
+		"reviewer": frappe.session.user,
+		"submission": asg_doc.submission,
+		"score": flt(score),
+		"strengths": strengths,
+		"areas_for_improvement": areas_for_improvement,
+		"recommendations": recommendations,
+		"general_feedback": general_feedback
+	})
+
+	for cf in (criteria_feedback or []):
+		sub_doc.append("criteria_feedback", {
+			"criterion": cf.get("criterion"),
+			"score": flt(cf.get("score")),
+			"comments": cf.get("comments")
+		})
+
+	sub_doc.insert(ignore_permissions=True)
+
+	asg_doc.status = "Completed"
+	asg_doc.save(ignore_permissions=True)
+
+	recalculate_assignment_submission_score(asg_doc.submission)
+
+	return sub_doc.name
+
+
+def recalculate_assignment_submission_score(submission_name):
+	sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+	assignment_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+
+	if sub_doc.peer_review_overridden:
+		sub_doc.is_peer_reviewed = 1
+		sub_doc.save(ignore_permissions=True)
+		return
+
+	reviews = frappe.get_all(
+		"Peer Review Submission",
+		{"submission": submission_name},
+		["score"]
+	)
+
+	if not reviews:
+		sub_doc.peer_review_score = 0
+		sub_doc.is_peer_reviewed = 0
+		sub_doc.save(ignore_permissions=True)
+		return
+
+	scores = [r.score for r in reviews]
+	agg_method = assignment_doc.grade_aggregation_method or "Average"
+
+	if agg_method == "Average":
+		final_score = sum(scores) / len(scores)
+	elif agg_method == "Median":
+		sorted_scores = sorted(scores)
+		n = len(sorted_scores)
+		if n % 2 == 1:
+			final_score = sorted_scores[n // 2]
+		else:
+			final_score = (sorted_scores[n // 2 - 1] + sorted_scores[n // 2]) / 2.0
+	elif agg_method == "Weighted":
+		final_score = sum(scores) / len(scores)
+	else:
+		final_score = sum(scores) / len(scores)
+
+	sub_doc.peer_review_score = final_score
+	sub_doc.is_peer_reviewed = 1
+
+	sub_doc.score = int(final_score)
+	sub_doc.status = "Pass" if final_score >= 50 else "Fail"
+
+	sub_doc.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def override_peer_review_score(submission_name, score):
+	sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+	asg_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+		frappe.throw(_("Not authorized to override score."), frappe.PermissionError)
+
+	sub_doc.peer_review_override_score = flt(score)
+	sub_doc.peer_review_overridden = 1
+	sub_doc.score = int(score)
+	sub_doc.status = "Pass" if score >= 50 else "Fail"
+	sub_doc.save(ignore_permissions=True)
+	return "Success"
+
+
+@frappe.whitelist()
+def remove_peer_review(review_name):
+	review_doc = frappe.get_doc("Peer Review Submission", review_name)
+	submission_name = review_doc.submission
+	asg_name = review_doc.review_assignment
+
+	sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+	asg_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+		frappe.throw(_("Not authorized to remove review."), frappe.PermissionError)
+
+	frappe.delete_doc("Peer Review Submission", review_name, force=True)
+
+	if frappe.db.exists("Peer Review Assignment", asg_name):
+		frappe.db.set_value("Peer Review Assignment", asg_name, "status", "Pending")
+
+	recalculate_assignment_submission_score(submission_name)
+	return "Success"
+
+
+@frappe.whitelist()
+def request_peer_review_revision(review_assignment_name):
+	asg_doc = frappe.get_doc("Peer Review Assignment", review_assignment_name)
+	sub_doc = frappe.get_doc("LMS Assignment Submission", asg_doc.submission)
+	asg_meta_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+		frappe.throw(_("Not authorized to request review revision."), frappe.PermissionError)
+
+	existing_sub = frappe.db.get_value("Peer Review Submission", {"review_assignment": review_assignment_name}, "name")
+	if existing_sub:
+		frappe.delete_doc("Peer Review Submission", existing_sub, force=True)
+
+	asg_doc.status = "Pending"
+	asg_doc.save(ignore_permissions=True)
+
+	from frappe.desk.doctype.notification_log.notification_log import make_notification_logs
+	notification = frappe._dict({
+		"subject": _("Instructor has requested a revision on your peer review for {0}").format(
+			frappe.bold(asg_meta_doc.title)
+		),
+		"document_type": "Peer Review Assignment",
+		"document_name": asg_doc.name,
+		"from_user": frappe.session.user,
+		"type": "Alert",
+		"link": get_lms_route(f"assignment-submission/{asg_meta_doc.name}/{asg_doc.submission}")
+	})
+	make_notification_logs(notification, [asg_doc.reviewer])
+
+	recalculate_assignment_submission_score(asg_doc.submission)
+	return "Success"
+
+
+@frappe.whitelist()
+def get_assigned_peer_reviews(user=None) -> list:
+	if not user:
+		user = frappe.session.user
+
+	assignments = frappe.get_all(
+		"Peer Review Assignment",
+		filters={"reviewer": user},
+		fields=["name", "assignment", "submission", "reviewee", "status", "due_date"]
+	)
+
+	for asg in assignments:
+		asg.assignment_title = frappe.db.get_value("LMS Assignment", asg.assignment, "title")
+		asg.reviewee_name = frappe.db.get_value("User", asg.reviewee, "full_name")
+
+		if asg.status == "Completed":
+			asg.review_submission = frappe.db.get_value(
+				"Peer Review Submission",
+				{"review_assignment": asg.name},
+				["name", "score"],
+				as_dict=True
+			)
+
+	return assignments
+
+
+@frappe.whitelist()
+def get_peer_reviews_for_submission(submission_name) -> list:
+	sub_doc = frappe.get_doc("LMS Assignment Submission", submission_name)
+	assignment_doc = frappe.get_doc("LMS Assignment", sub_doc.assignment)
+
+	is_instructor = False
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	if has_moderator_role() or has_evaluator_role() or has_course_instructor_role():
+		is_instructor = True
+
+	reviews = frappe.get_all(
+		"Peer Review Submission",
+		filters={"submission": submission_name},
+		fields=["name", "reviewer", "score", "strengths", "areas_for_improvement", "recommendations", "general_feedback", "review_assignment"]
+	)
+
+	idx = 1
+	for r in reviews:
+		r.criteria_feedback = frappe.get_all(
+			"Peer Review Submission Criterion",
+			filters={"parent": r.name},
+			fields=["criterion", "score", "comments"]
+		)
+
+		if assignment_doc.anonymous_reviews and not is_instructor and r.reviewer != frappe.session.user:
+			r.reviewer_name = f"Reviewer #{idx}"
+			r.reviewer = ""
+		else:
+			r.reviewer_name = frappe.db.get_value("User", r.reviewer, "full_name")
+
+		idx += 1
+
+	return reviews
+
+
+@frappe.whitelist()
+def get_reviewer_stats(assignment_name) -> list:
+	asg_doc = frappe.get_doc("LMS Assignment", assignment_name)
+	from lms.lms.utils import has_moderator_role, has_evaluator_role, has_course_instructor_role
+	if not (has_moderator_role() or has_evaluator_role() or has_course_instructor_role()):
+		frappe.throw(_("Not authorized to view reviewer statistics."), frappe.PermissionError)
+
+	all_assignments = frappe.get_all(
+		"Peer Review Assignment",
+		filters={"assignment": assignment_name},
+		fields=["name", "reviewer", "status", "due_date", "submission"]
+	)
+
+	stats = {}
+	for a in all_assignments:
+		rev = a.reviewer
+		if rev not in stats:
+			stats[rev] = {
+				"reviewer": rev,
+				"reviewer_name": frappe.db.get_value("User", rev, "full_name"),
+				"assigned": 0,
+				"completed": 0,
+				"pending": 0,
+				"timely": 0,
+				"late": 0,
+				"total_comment_length": 0,
+				"reviews": []
+			}
+
+		s = stats[rev]
+		s["assigned"] += 1
+
+		if a.status == "Completed":
+			s["completed"] += 1
+			rev_sub = frappe.get_all(
+				"Peer Review Submission",
+				filters={"review_assignment": a.name},
+				fields=["name", "creation", "score", "general_feedback", "strengths", "areas_for_improvement", "recommendations"]
+			)
+			if rev_sub:
+				sub = rev_sub[0]
+				s["reviews"].append(sub)
+
+				if a.due_date and sub.creation.date() <= a.due_date:
+					s["timely"] += 1
+				else:
+					s["late"] += 1
+
+				comment_text = (sub.general_feedback or "") + (sub.strengths or "") + (sub.areas_for_improvement or "") + (sub.recommendations or "")
+				s["total_comment_length"] += len(comment_text)
+		else:
+			s["pending"] += 1
+
+	sub_averages = {}
+	subs = frappe.get_all("Peer Review Submission", filters={"submission": ["in", [a.submission for a in all_assignments]]}, fields=["submission", "score"])
+	for sub in subs:
+		if sub.submission not in sub_averages:
+			sub_averages[sub.submission] = []
+		sub_averages[sub.submission].append(sub.score)
+
+	for k, v in sub_averages.items():
+		sub_averages[k] = sum(v) / len(v) if v else 0
+
+	result = []
+	for rev, s in stats.items():
+		deviations = []
+		completed_assignments = [a for a in all_assignments if a.reviewer == rev and a.status == "Completed"]
+		for a in completed_assignments:
+			rev_sub_score = frappe.db.get_value("Peer Review Submission", {"review_assignment": a.name}, "score")
+			avg_score = sub_averages.get(a.submission, 0)
+			if rev_sub_score is not None:
+				deviations.append(abs(rev_sub_score - avg_score))
+
+		s["avg_deviation"] = sum(deviations) / len(deviations) if deviations else 0
+		s["completion_rate"] = (s["completed"] / s["assigned"] * 100) if s["assigned"] > 0 else 0
+		s["avg_comment_length"] = (s["total_comment_length"] / s["completed"]) if s["completed"] > 0 else 0
+		result.append(s)
+
+	return result

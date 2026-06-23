@@ -12,6 +12,7 @@
 					:class="inputClasses"
 					type="text"
 					:value="selectedValue"
+					:placeholder="placeholder"
 					autocomplete="off"
 					@click="onFocus"
 				/>

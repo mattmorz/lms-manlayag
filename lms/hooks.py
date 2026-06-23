@@ -86,13 +86,13 @@ after_migrate = [
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+	"Peer Review Rubric": "lms.lms.api.get_rubric_permission_query_conditions"
+}
+
+has_permission = {
+	"Peer Review Rubric": "lms.lms.api.has_rubric_permission"
+}
 
 # DocType Class
 # ---------------

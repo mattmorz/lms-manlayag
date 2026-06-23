@@ -23,7 +23,14 @@
   "created_from_version",
   "version_notes",
   "is_current_version",
-  "published_status"
+  "published_status",
+  "enable_peer_review",
+  "peer_review_rubric",
+  "reviews_required",
+  "anonymous_reviews",
+  "reviewer_assignment_method",
+  "grade_aggregation_method",
+  "moderation_required"
  ],
  "fields": [
   {
@@ -123,6 +130,56 @@
    "fieldtype": "Select",
    "label": "Published Status",
    "options": "Draft\nPublished\nArchived"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_peer_review",
+   "fieldtype": "Check",
+   "label": "Enable Peer Review"
+  },
+  {
+   "depends_on": "enable_peer_review",
+   "fieldname": "peer_review_rubric",
+   "fieldtype": "Link",
+   "label": "Peer Review Rubric",
+   "options": "Peer Review Rubric"
+  },
+  {
+   "default": "3",
+   "depends_on": "enable_peer_review",
+   "fieldname": "reviews_required",
+   "fieldtype": "Int",
+   "label": "Number of Reviews Required"
+  },
+  {
+   "default": "1",
+   "depends_on": "enable_peer_review",
+   "fieldname": "anonymous_reviews",
+   "fieldtype": "Check",
+   "label": "Anonymous Reviews"
+  },
+  {
+   "default": "Random",
+   "depends_on": "enable_peer_review",
+   "fieldname": "reviewer_assignment_method",
+   "fieldtype": "Select",
+   "label": "Reviewer Assignment Method",
+   "options": "Random\nManual\nGroup-Based"
+  },
+  {
+   "default": "Average",
+   "depends_on": "enable_peer_review",
+   "fieldname": "grade_aggregation_method",
+   "fieldtype": "Select",
+   "label": "Grade Aggregation Method",
+   "options": "Average\nMedian\nWeighted"
+  },
+  {
+   "default": "1",
+   "depends_on": "enable_peer_review",
+   "fieldname": "moderation_required",
+   "fieldtype": "Check",
+   "label": "Instructor Moderation Required"
   }
  ],
  "grid_page_length": 50,

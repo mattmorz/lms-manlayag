@@ -26,7 +26,11 @@
   "question",
   "column_break_esgd",
   "course",
-  "lesson"
+  "lesson",
+  "peer_review_score",
+  "peer_review_override_score",
+  "peer_review_overridden",
+  "is_peer_reviewed"
  ],
  "fields": [
   {
@@ -153,6 +157,29 @@
   {
    "fieldname": "section_break_ydgh",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "peer_review_score",
+   "fieldtype": "Float",
+   "label": "Peer Review Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "peer_review_override_score",
+   "fieldtype": "Float",
+   "label": "Peer Review Override Score"
+  },
+  {
+   "default": "0",
+   "fieldname": "peer_review_overridden",
+   "fieldtype": "Check",
+   "label": "Peer Review Overridden"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_peer_reviewed",
+   "fieldtype": "Check",
+   "label": "Is Peer Reviewed"
   }
  ],
  "grid_page_length": 50,

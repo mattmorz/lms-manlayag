@@ -47,6 +47,59 @@
 							editorClass="prose-sm max-w-none border-b border-x border-outline-gray-modals bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem] max-h-[18rem] overflow-y-auto"
 						/>
 					</div>
+
+					<div class="border-t pt-4 mt-4 space-y-4">
+						<FormControl
+							v-model="assignment.enable_peer_review"
+							type="checkbox"
+							:label="__('Enable Peer Review')"
+						/>
+
+						<div v-if="assignment.enable_peer_review" class="grid grid-cols-2 gap-4">
+							<Link
+								v-model="assignment.peer_review_rubric"
+								:label="__('Peer Review Rubric')"
+								doctype="Peer Review Rubric"
+								placeholder="Select Rubric"
+							/>
+							<FormControl
+								v-model.number="assignment.reviews_required"
+								type="number"
+								:label="__('Reviews Required')"
+								min="1"
+							/>
+							<FormControl
+								v-model="assignment.reviewer_assignment_method"
+								type="select"
+								:label="__('Assignment Method')"
+								:options="[
+									{ label: __('Random'), value: 'Random' },
+									{ label: __('Manual'), value: 'Manual' },
+									{ label: __('Group-Based'), value: 'Group-Based' }
+								]"
+							/>
+							<FormControl
+								v-model="assignment.grade_aggregation_method"
+								type="select"
+								:label="__('Aggregation Method')"
+								:options="[
+									{ label: __('Average'), value: 'Average' },
+									{ label: __('Median'), value: 'Median' },
+									{ label: __('Weighted'), value: 'Weighted' }
+								]"
+							/>
+							<FormControl
+								v-model="assignment.anonymous_reviews"
+								type="checkbox"
+								:label="__('Anonymous Reviews')"
+							/>
+							<FormControl
+								v-model="assignment.moderation_required"
+								type="checkbox"
+								:label="__('Instructor Moderation Required')"
+							/>
+						</div>
+					</div>
 				</div>
 
 				<div class="flex justify-end space-x-2 mt-5">
@@ -131,6 +184,13 @@ interface Assignment {
 	type: string
 	question: string
 	course?: string
+	enable_peer_review?: number
+	peer_review_rubric?: string
+	reviews_required?: number
+	anonymous_reviews?: number
+	reviewer_assignment_method?: string
+	grade_aggregation_method?: string
+	moderation_required?: number
 }
 
 interface Assignments {
@@ -146,6 +206,13 @@ const assignment = reactive({
 	type: '',
 	question: '',
 	course: '',
+	enable_peer_review: 0,
+	peer_review_rubric: '',
+	reviews_required: 3,
+	anonymous_reviews: 1,
+	reviewer_assignment_method: 'Random',
+	grade_aggregation_method: 'Average',
+	moderation_required: 1,
 })
 
 const props = defineProps({
@@ -162,12 +229,19 @@ watch(
 	() => props.assignmentID,
 	(val) => {
 		if (val !== 'new') {
-			assignments.value?.data.forEach((row) => {
+			assignments.value?.data.forEach((row: any) => {
 				if (row.name === val) {
 					assignment.title = row.title
 					assignment.type = row.type
 					assignment.question = row.question
 					assignment.course = row.course || ''
+					assignment.enable_peer_review = row.enable_peer_review || 0
+					assignment.peer_review_rubric = row.peer_review_rubric || ''
+					assignment.reviews_required = row.reviews_required || 3
+					assignment.anonymous_reviews = row.anonymous_reviews !== undefined ? row.anonymous_reviews : 1
+					assignment.reviewer_assignment_method = row.reviewer_assignment_method || 'Random'
+					assignment.grade_aggregation_method = row.grade_aggregation_method || 'Average'
+					assignment.moderation_required = row.moderation_required !== undefined ? row.moderation_required : 1
 				}
 			})
 		}
@@ -180,6 +254,13 @@ watch(show, (newVal) => {
 		assignment.title = ''
 		assignment.type = ''
 		assignment.question = ''
+		assignment.enable_peer_review = 0
+		assignment.peer_review_rubric = ''
+		assignment.reviews_required = 3
+		assignment.anonymous_reviews = 1
+		assignment.reviewer_assignment_method = 'Random'
+		assignment.grade_aggregation_method = 'Average'
+		assignment.moderation_required = 1
 	}
 })
 

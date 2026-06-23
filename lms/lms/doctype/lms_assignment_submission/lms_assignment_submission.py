@@ -19,6 +19,14 @@ class LMSAssignmentSubmission(Document):
 	def on_update(self):
 		self.validate_private_attachments()
 
+	def after_insert(self):
+		# Automatically trigger peer reviewer assignment in the background
+		frappe.enqueue(
+			"lms.lms.api.assign_peer_reviewers_for_submission",
+			submission_name=self.name,
+			queue="short"
+		)
+
 	def validate_duplicates(self):
 		if frappe.db.exists(
 			"LMS Assignment Submission",
