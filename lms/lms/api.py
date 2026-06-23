@@ -5681,9 +5681,14 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 		dropout_prob += 10.0
 		factors_drop.append(_("Stagnated at low course completion ({0}%).").format(round(progress, 1)))
 
-	dropout_prob = max(5.0, min(95.0, round(dropout_prob, 2)))
-	if not factors_drop:
-		factors_drop.append(_("Consistent recent activity indicates low dropout risk."))
+	if comp_prob >= 100.0:
+		dropout_prob = 0.0
+		factors_drop = [_("Course is completed.")]
+	else:
+		dropout_prob = dropout_prob * (1.0 - (comp_prob / 100.0))
+		dropout_prob = max(5.0, min(95.0, round(dropout_prob, 2)))
+		if not factors_drop:
+			factors_drop.append(_("Consistent recent activity indicates low dropout risk."))
 
 	return {
 		"completion_probability": comp_prob,
