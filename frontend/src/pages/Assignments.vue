@@ -21,23 +21,25 @@
 	</header>
 
 	<div class="py-5 mx-5">
-		<div class="flex items-center justify-between mb-5">
-			<div v-if="assignmentCount" class="text-lg font-semibold text-ink-gray-9">
-				{{ __('{0} Assignments').format(assignmentCount) }}
+		<div class="flex items-center justify-between mb-5 w-full">
+			<div class="text-lg font-semibold text-ink-gray-9">
+				{{ __('{0} Assignments').format(assignmentCount || 0) }}
 			</div>
 			<div
 				v-if="assignments.data?.length || assignmentCount > 0"
-				class="grid grid-cols-2 gap-5"
+				class="flex items-center gap-5 justify-end ml-auto"
 			>
 				<FormControl
 					v-model="titleFilter"
 					:placeholder="__('Search by title')"
+					class="w-64"
 				/>
 				<FormControl
 					v-model="typeFilter"
 					type="select"
 					:options="assignmentTypes"
 					:placeholder="__('Type')"
+					class="w-100"
 				/>
 			</div>
 		</div>

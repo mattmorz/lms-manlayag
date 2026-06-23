@@ -444,5 +444,68 @@ This is vtt test.
 		frappe.delete_doc("Course Lesson", lesson.name, force=True)
 		frappe.delete_doc("Course Lesson", new_lesson_name, force=True)
 
+	def test_convert_course_to_library(self):
+		self.switch_user("Administrator")
+		course = self.course.name
+		chapter = self.course.chapters[0].chapter
+		
+		# Create a normal lesson
+		normal_lesson = frappe.new_doc("Course Lesson")
+		normal_lesson.title = "Normal test lesson"
+		normal_lesson.course = course
+		normal_lesson.chapter = chapter
+		normal_lesson.insert(ignore_permissions=True)
+		
+		# Create a quiz block lesson
+		quiz_lesson = frappe.new_doc("Course Lesson")
+		quiz_lesson.title = "Quiz test lesson"
+		quiz_lesson.course = course
+		quiz_lesson.chapter = chapter
+		quiz_lesson.content = '{"blocks": [{"type": "quiz", "data": {"quiz": "Test Quiz Name"}}]}'
+		quiz_lesson.insert(ignore_permissions=True)
+		
+		# Add references to chapter
+		ref1 = frappe.new_doc("Lesson Reference")
+		ref1.parent = chapter
+		ref1.parenttype = "Course Chapter"
+		ref1.parentfield = "lessons"
+		ref1.lesson = normal_lesson.name
+		ref1.idx = 11
+		ref1.insert(ignore_permissions=True)
+		
+		ref2 = frappe.new_doc("Lesson Reference")
+		ref2.parent = chapter
+		ref2.parenttype = "Course Chapter"
+		ref2.parentfield = "lessons"
+		ref2.lesson = quiz_lesson.name
+		ref2.idx = 12
+		ref2.insert(ignore_permissions=True)
+		
+		# Convert course to library
+		from lms.lms.api import convert_course_to_library
+		lib_title = "Conversion Test Library"
+		if frappe.db.exists("Content Library", lib_title):
+			frappe.delete_doc("Content Library", lib_title, force=True)
+			
+		lib = convert_course_to_library(course, lib_title)
+		
+		# Verify library items types
+		items = lib.get("items", [])
+		normal_item = next((it for it in items if it.get("content_name") == normal_lesson.name), None)
+		quiz_item = next((it for it in items if it.get("content_name") == "Test Quiz Name"), None)
+		
+		self.assertIsNotNone(normal_item)
+		self.assertEqual(normal_item.get("content_doctype"), "Course Lesson")
+		
+		self.assertIsNotNone(quiz_item)
+		self.assertEqual(quiz_item.get("content_doctype"), "LMS Quiz")
+		
+		# Clean up
+		frappe.delete_doc("Lesson Reference", ref1.name, force=True)
+		frappe.delete_doc("Lesson Reference", ref2.name, force=True)
+		frappe.delete_doc("Course Lesson", normal_lesson.name, force=True)
+		frappe.delete_doc("Course Lesson", quiz_lesson.name, force=True)
+		frappe.delete_doc("Content Library", lib_title, force=True)
+
 
 

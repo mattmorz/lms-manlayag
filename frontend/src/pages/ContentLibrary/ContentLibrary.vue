@@ -176,7 +176,7 @@
 					<ListView
 						v-if="sortedReusedContent.length"
 						:columns="reusedColumns"
-						:rows="sortedReusedContent"
+						:rows="slicedReusedContent"
 						row-key="root_name"
 						:options="{ showTooltip: false, selectable: false }"
 					>
@@ -201,7 +201,7 @@
 						</ListHeader>
 						<ListRows>
 							<ListRow
-								v-for="row in sortedReusedContent"
+								v-for="row in slicedReusedContent"
 								:key="row.root_name"
 								:row="row"
 								class="hover:bg-surface-gray-1"
@@ -242,7 +242,18 @@
 							</ListRow>
 						</ListRows>
 					</ListView>
-					<div v-else class="text-center py-20 bg-white rounded-md">
+
+					<!-- Load More Button -->
+					<div
+						v-if="sortedReusedContent.length > visibleReusedLimit"
+						class="flex justify-center my-5"
+					>
+						<Button @click="visibleReusedLimit += 5">
+							{{ __('Load More') }}
+						</Button>
+					</div>
+
+					<div v-if="!sortedReusedContent.length" class="text-center py-20 bg-white rounded-md">
 						<div class="text-ink-gray-5 font-semibold text-lg">{{ __('No Reused Content') }}</div>
 						<p class="text-xs text-ink-gray-4 mt-1">{{ __('Add library content to courses to see reuse statistics.') }}</p>
 					</div>
@@ -665,6 +676,17 @@ const sortedReusedContent = computed(() => {
 
 	return list
 })
+
+const visibleReusedLimit = ref(5)
+
+const slicedReusedContent = computed(() => {
+	return sortedReusedContent.value.slice(0, visibleReusedLimit.value)
+})
+
+watch([search, sortBy, sortOrder, mostReusedContent], () => {
+	visibleReusedLimit.value = 5
+})
+
 
 const fetchUpgradeCandidates = () => {
 	upgradesLoading.value = true

@@ -851,7 +851,7 @@
 					</div>
 				</div>
 
-				<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+				<div v-if="user" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					<!-- Lowest Completion Courses -->
 					<div class="bg-surface-white border rounded-md p-5">
 						<h3 class="text-sm font-bold text-red-900 mb-3 flex items-center">

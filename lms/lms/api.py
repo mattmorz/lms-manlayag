@@ -5177,6 +5177,49 @@ def add_library_content_to_course(course, chapter, library, items, mode):
 	frappe.db.commit()
 	return {"success": True, "inserted_count": len(inserted_links)}
 
+def get_lesson_content_type_details(lesson_name):
+	lesson_title = frappe.db.get_value("Course Lesson", lesson_name, "title")
+	lesson_content = frappe.db.get_value("Course Lesson", lesson_name, "content")
+	
+	if lesson_content:
+		try:
+			content = json.loads(lesson_content)
+			for block in content.get("blocks", []):
+				btype = block.get("type")
+				bdata = block.get("data", {})
+				if btype == "quiz" and bdata.get("quiz"):
+					quiz_id = bdata.get("quiz")
+					quiz_title = frappe.db.get_value("LMS Quiz", quiz_id, "title") or quiz_id
+					return {
+						"content_doctype": "LMS Quiz",
+						"content_name": quiz_id,
+						"title": quiz_title
+					}
+				elif btype == "assignment" and bdata.get("assignment"):
+					asg_id = bdata.get("assignment")
+					asg_title = frappe.db.get_value("LMS Assignment", asg_id, "title") or asg_id
+					return {
+						"content_doctype": "LMS Assignment",
+						"content_name": asg_id,
+						"title": asg_title
+					}
+				elif btype == "program" and bdata.get("exercise"):
+					ex_id = bdata.get("exercise")
+					ex_title = frappe.db.get_value("LMS Programming Exercise", ex_id, "title") or ex_id
+					return {
+						"content_doctype": "LMS Programming Exercise",
+						"content_name": ex_id,
+						"title": ex_title
+					}
+		except Exception:
+			pass
+			
+	return {
+		"content_doctype": "Course Lesson",
+		"content_name": lesson_name,
+		"title": lesson_title
+	}
+
 
 @frappe.whitelist()
 def convert_course_to_library(course_name, library_title):
@@ -5198,13 +5241,12 @@ def convert_course_to_library(course_name, library_title):
 	for chapter in chapters:
 		lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter.name}, fields=["lesson", "idx"], order_by="idx")
 		for lesson_ref in lessons:
-			lesson_name = lesson_ref.lesson
-			lesson_title = frappe.db.get_value("Course Lesson", lesson_name, "title")
+			details = get_lesson_content_type_details(lesson_ref.lesson)
 			
 			lib.append("items", {
-				"content_doctype": "Course Lesson",
-				"content_name": lesson_name,
-				"title": lesson_title
+				"content_doctype": details["content_doctype"],
+				"content_name": details["content_name"],
+				"title": details["title"]
 			})
 			
 	lib.insert(ignore_permissions=True)
@@ -5228,13 +5270,14 @@ def convert_course_to_library(course_name, library_title):
 	for chapter in chapters:
 		lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter.name}, fields=["lesson"], order_by="idx")
 		for lesson_ref in lessons:
+			details = get_lesson_content_type_details(lesson_ref.lesson)
 			link_doc = frappe.new_doc("Course Content Link")
 			link_doc.course = course_name
 			link_doc.chapter = chapter.name
-			link_doc.content_doctype = "Course Lesson"
-			link_doc.content_name = lesson_ref.lesson
+			link_doc.content_doctype = details["content_doctype"]
+			link_doc.content_name = details["content_name"]
 			link_doc.library = lib.name
-			link_doc.library_item = lesson_ref.lesson
+			link_doc.library_item = details["content_name"]
 			link_doc.mode = "Linked"
 			link_doc.source_version = 1
 			link_doc.insert(ignore_permissions=True)

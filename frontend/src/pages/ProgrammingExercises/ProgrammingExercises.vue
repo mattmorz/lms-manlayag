@@ -34,14 +34,15 @@
 		</div>
 	</header>
 	<div class="p-5">
-		<div class="flex items-center justify-between mb-5">
+		<div class="flex items-center justify-between mb-5 w-full">
 			<div class="text-lg font-semibold text-ink-gray-9">
-				{{ __('{0} Exercises').format(exerciseCount) }}
+				{{ __('{0} Exercises').format(exerciseCount || 0) }}
 			</div>
-			<div class="grid grid-cols-2 gap-5">
+			<div class="flex items-center gap-5 justify-end ml-auto">
 				<FormControl
 					v-model="titleFilter"
 					:placeholder="__('Search by Title')"
+					class="w-64"
 					@input="updateList"
 				/>
 				<FormControl
@@ -49,6 +50,7 @@
 					type="select"
 					:options="languages"
 					:placeholder="__('Type')"
+					class="w-100"
 					@update:modelValue="updateList"
 				/>
 			</div>
@@ -72,6 +74,15 @@
 				<ListHeader
 					class="mb-2 grid items-center space-x-4 rounded bg-surface-gray-2 p-2"
 				>
+					<ListHeaderItem
+						v-for="column in columns"
+						:key="column.key"
+						:item="column"
+					>
+						<template #prefix="{ item }">
+							<component :is="item.icon" class="h-4 w-4 stroke-1.5 text-ink-gray-5" />
+						</template>
+					</ListHeaderItem>
 				</ListHeader>
 				<ListRows>
 					<ListRow
@@ -135,6 +146,7 @@ import {
 	FormControl,
 	ListView,
 	ListHeader,
+	ListHeaderItem,
 	ListRows,
 	ListRow,
 	ListRowItem,
@@ -143,7 +155,7 @@ import {
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
-import { ClipboardList, Plus } from 'lucide-vue-next'
+import { ClipboardList, Plus, FileText, Terminal, Calendar } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
 import ProgrammingExerciseForm from '@/pages/ProgrammingExercises/ProgrammingExerciseForm.vue'
@@ -272,17 +284,20 @@ const columns = computed(() => {
 			label: __('Title'),
 			key: 'title',
 			width: 3,
+			icon: FileText,
 		},
 		{
 			label: __('Language'),
 			key: 'language',
 			width: 2,
 			align: 'left',
+			icon: Terminal,
 		},
 		{
 			label: __('Updated On'),
 			key: 'modified',
 			width: 1,
+			icon: Calendar,
 		},
 	]
 })
