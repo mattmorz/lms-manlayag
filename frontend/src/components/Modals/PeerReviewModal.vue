@@ -73,14 +73,16 @@
 											min="0"
 											:max="criterion.max_score"
 											step="1"
-											v-model.number="scores[criterion.criterion_name]"
+											:value="scores[criterion.criterion_name] ?? 0"
+											@input="scores[criterion.criterion_name] = Math.min(criterion.max_score, Math.max(0, Number($event.target.value) || 0))"
 											class="flex-1 h-1.5 bg-outline-gray-2 rounded-lg appearance-none cursor-pointer accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
 										/>
 										<input
 											type="number"
 											min="0"
 											:max="criterion.max_score"
-											v-model.number="scores[criterion.criterion_name]"
+											:value="scores[criterion.criterion_name] ?? 0"
+											@input="scores[criterion.criterion_name] = Math.min(criterion.max_score, Math.max(0, Number($event.target.value) || 0))"
 											class="w-20 rounded border border-outline-gray-2 bg-surface-white px-2.5 py-1 text-center font-bold text-sm text-ink-gray-9 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
 										/>
 									</div>

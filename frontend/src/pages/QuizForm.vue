@@ -55,16 +55,19 @@
 						v-model="quizDetails.doc.title"
 						:label="__('Title')"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						type="number"
 						v-model="quizDetails.doc.max_attempts"
 						:label="__('Maximum Attempts')"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						type="number"
 						v-model="quizDetails.doc.duration"
 						:label="__('Duration (in minutes)')"
+						:disabled="readOnlyMode"
 					/>
 				</div>
 				<div class="space-y-5">
@@ -77,6 +80,7 @@
 						v-model="quizDetails.doc.passing_percentage"
 						:label="__('Passing Percentage')"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 				</div>
 			</div>
@@ -92,11 +96,13 @@
 						v-model="quizDetails.doc.show_answers"
 						type="checkbox"
 						:label="__('Show Answers')"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						v-model="quizDetails.doc.show_submission_history"
 						type="checkbox"
 						:label="__('Show Submission History')"
+						:disabled="readOnlyMode"
 					/>
 				</div>
 				<div class="flex flex-col space-y-5">
@@ -104,11 +110,13 @@
 						v-model="quizDetails.doc.shuffle_questions"
 						type="checkbox"
 						:label="__('Shuffle Questions')"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						v-if="quizDetails.doc.shuffle_questions"
 						v-model="quizDetails.doc.limit_questions_to"
 						:label="__('Limit Questions To')"
+						:disabled="readOnlyMode"
 					/>
 				</div>
 				<div class="flex flex-col space-y-5">
@@ -116,11 +124,13 @@
 						v-model="quizDetails.doc.enable_negative_marking"
 						type="checkbox"
 						:label="__('Enable Negative Marking')"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						v-if="quizDetails.doc.enable_negative_marking"
 						v-model="quizDetails.doc.marks_to_cut"
 						:label="__('Marks to Deduct')"
+						:disabled="readOnlyMode"
 					/>
 				</div>
 			</div>
@@ -216,6 +226,7 @@
 		v-model="showQuestionModal"
 		:questionDetail="currentQuestion"
 		v-model:quiz="quizDetails"
+		:disabled="readOnlyMode"
 		:title="
 			currentQuestion.question
 				? __('Edit the question')
@@ -456,7 +467,7 @@ import {
 import { sessionStore } from '../stores/session'
 import { AlertTriangle, ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import { escapeHTML } from '@/utils'
+import { escapeHTML, cleanError } from '@/utils'
 
 import Question from '@/components/Modals/Question.vue'
 
@@ -475,7 +486,17 @@ const currentQuestion = reactive({
 })
 const user = inject('$user')
 const router = useRouter()
-const readOnlyMode = window.read_only_mode
+const readOnlyMode = computed(() => {
+	if (window.read_only_mode) return true
+	if (
+		user.data?.roles?.includes('Course Creator') &&
+		quizDetails.doc &&
+		quizDetails.doc.owner !== user.data.name
+	) {
+		return true
+	}
+	return false
+})
 
 const showQuizSaveWarningModal = ref(false)
 const quizVersionChangeLog = ref('')
@@ -739,7 +760,7 @@ const submitQuiz = () => {
 				toast.success(__('Quiz updated successfully'))
 			},
 			onError(err) {
-				toast.error(err.messages?.[0] || err)
+				toast.error(cleanError(err.messages?.[0] || err.message || err))
 			},
 		}
 	)
@@ -814,6 +835,9 @@ const deleteQuestions = (selections, unselectAll) => {
 				toast.success(__('Questions deleted successfully'))
 				quizDetails.reload()
 				unselectAll()
+			},
+			onError(err) {
+				toast.error(cleanError(err.messages?.[0] || err.message || err))
 			},
 		}
 	)

@@ -66,7 +66,7 @@
 			<ListView
 				v-if="assignments.data?.length"
 				:columns="assignmentColumns"
-				:rows="assignments.data"
+				:rows="transformedAssignments"
 				row-key="name"
 				:options="{
 					showTooltip: false,
@@ -84,7 +84,7 @@
 				</ListHeader>
 				<ListRows>
 					<ListRow
-						v-for="row in assignments.data"
+						v-for="row in transformedAssignments"
 						:key="row.name"
 						:row="row"
 						class="hover:bg-surface-gray-1"
@@ -98,8 +98,27 @@
 					>
 						<template #default="{ column }">
 							<ListRowItem :item="row[column.key]" :align="column.align">
+								<div v-if="column.key == 'used_in'" class="flex flex-wrap gap-1.5 max-w-xs">
+									<Badge
+										v-for="course in row[column.key].slice(0, 2)"
+										:key="course"
+										theme="gray"
+									>
+										{{ course }}
+									</Badge>
+									<Badge
+										v-if="row[column.key].length > 2"
+										theme="gray"
+										:title="row[column.key].slice(2).join(', ')"
+									>
+										+{{ row[column.key].length - 2 }}
+									</Badge>
+									<span v-if="!row[column.key]?.length" class="text-ink-gray-4 text-xs font-normal">
+										{{ __('Not Used') }}
+									</span>
+								</div>
 								<div
-									v-if="column.key == 'creation'"
+									v-else-if="column.key == 'creation'"
 									class="text-xs text-ink-gray-5"
 								>
 									{{ row[column.key] }}
@@ -139,7 +158,7 @@
 			<ListView
 				v-if="rubrics.data?.length"
 				:columns="rubricColumns"
-				:rows="rubrics.data"
+				:rows="transformedRubrics"
 				row-key="name"
 				:options="{
 					showTooltip: false,
@@ -157,7 +176,7 @@
 				</ListHeader>
 				<ListRows>
 					<ListRow
-						v-for="row in rubrics.data"
+						v-for="row in transformedRubrics"
 						:key="row.name"
 						:row="row"
 						class="hover:bg-surface-gray-1"
@@ -181,6 +200,25 @@
 									<Badge :theme="row[column.key] ? 'green' : 'gray'">
 										{{ row[column.key] ? __('Shared') : __('Private') }}
 									</Badge>
+								</div>
+								<div v-else-if="column.key == 'linked_to'" class="flex flex-wrap gap-1.5 max-w-xs">
+									<Badge
+										v-for="assignment in row[column.key].slice(0, 2)"
+										:key="assignment"
+										theme="gray"
+									>
+										{{ assignment }}
+									</Badge>
+									<Badge
+										v-if="row[column.key].length > 2"
+										theme="gray"
+										:title="row[column.key].slice(2).join(', ')"
+									>
+										+{{ row[column.key].length - 2 }}
+									</Badge>
+									<span v-if="!row[column.key]?.length" class="text-ink-gray-4 text-xs font-normal">
+										{{ __('Not Linked') }}
+									</span>
 								</div>
 								<div v-else class="truncate max-w-xs">
 									{{ row[column.key] }}
@@ -223,7 +261,7 @@
 	<RubricForm
 		v-model="showRubricForm"
 		:rubricID="rubricID"
-		@saved="rubrics.reload()"
+		@saved="reloadRubrics()"
 	/>
 </template>
 <script setup>
@@ -232,6 +270,7 @@ import {
 	Button,
 	call,
 	createListResource,
+	createResource,
 	FormControl,
 	ListView,
 	usePageMeta,
@@ -253,6 +292,7 @@ import { sessionStore } from '../stores/session'
 import AssignmentForm from '@/components/Modals/AssignmentForm.vue'
 import RubricForm from '@/components/Modals/RubricForm.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { cleanError } from '@/utils'
 
 const user = inject('$user')
 const dayjs = inject('$dayjs')
@@ -332,9 +372,10 @@ const assignmentFilter = computed(() => {
 
 const assignments = createListResource({
 	doctype: 'LMS Assignment',
-	fields: ['name', 'title', 'type', 'creation', 'question', 'course'],
+	fields: ['name', 'title', 'type', 'creation', 'question', 'course', 'owner'],
 	orderBy: 'modified desc',
 	cache: ['assignments'],
+	pageLength: 10,
 	transform(data) {
 		return data.map((row) => {
 			return {
@@ -343,6 +384,24 @@ const assignments = createListResource({
 			}
 		})
 	},
+})
+
+const usageInfo = createResource({
+	url: 'lms.lms.api.get_content_usage_info',
+	params: { content_doctype: 'LMS Assignment' },
+	auto: true,
+})
+
+const transformedAssignments = computed(() => {
+	if (!assignments.data) return []
+	return assignments.data.map((row) => {
+		const info = usageInfo.data?.[row.name] || {}
+		return {
+			...row,
+			created_by: info.created_by || '',
+			used_in: info.courses || [],
+		}
+	})
 })
 
 const assignmentColumns = computed(() => {
@@ -361,6 +420,20 @@ const assignmentColumns = computed(() => {
 			icon: 'layers',
 		},
 		{
+			label: __('Created By'),
+			key: 'created_by',
+			width: 1.5,
+			align: 'left',
+			icon: 'user',
+		},
+		{
+			label: __('Used In'),
+			key: 'used_in',
+			width: 2,
+			align: 'left',
+			icon: 'book',
+		},
+		{
 			label: __('Created'),
 			key: 'creation',
 			width: 1,
@@ -371,11 +444,29 @@ const assignmentColumns = computed(() => {
 })
 
 const deleteAssignment = (selections, unselectAll) => {
-	Array.from(selections).forEach(async (assignmentName) => {
-		await assignments.delete.submit(assignmentName)
+	if (user.data?.roles?.includes('Course Creator')) {
+		const nonOwned = Array.from(selections).filter((name) => {
+			const assignment = assignments.data?.find((a) => a.name === name)
+			return assignment && assignment.owner !== user.data.name
+		})
+		if (nonOwned.length > 0) {
+			toast.error(__('You can only delete assignments created by you.'))
+			return
+		}
+	}
+	const promises = Array.from(selections).map((assignmentName) => {
+		return assignments.delete.submit(assignmentName)
 	})
-	unselectAll()
-	toast.success(__('Assignments deleted successfully'))
+	Promise.all(promises)
+		.then(() => {
+			toast.success(__('Assignments deleted successfully'))
+			unselectAll()
+		})
+		.catch((err) => {
+			const errorMsg = err.messages?.[0] || err.message || String(err)
+			toast.error(cleanError(errorMsg))
+			unselectAll()
+		})
 }
 
 const rubrics = createListResource({
@@ -383,6 +474,7 @@ const rubrics = createListResource({
 	fields: ['name', 'title', 'description', 'is_public', 'owner', 'modified'],
 	orderBy: 'modified desc',
 	cache: ['rubrics'],
+	pageLength: 10,
 	transform(data) {
 		return data.map((row) => {
 			return {
@@ -392,6 +484,24 @@ const rubrics = createListResource({
 			}
 		})
 	},
+})
+
+const rubricsUsageInfo = createResource({
+	url: 'lms.lms.api.get_content_usage_info',
+	params: { content_doctype: 'Peer Review Rubric' },
+	auto: true,
+})
+
+const transformedRubrics = computed(() => {
+	if (!rubrics.data) return []
+	return rubrics.data.map((row) => {
+		const info = rubricsUsageInfo.data?.[row.name] || {}
+		return {
+			...row,
+			created_by: info.created_by || '',
+			linked_to: info.assignments || [],
+		}
+	})
 })
 
 const rubricColumns = computed(() => {
@@ -405,14 +515,21 @@ const rubricColumns = computed(() => {
 		{
 			label: __('Description'),
 			key: 'description',
-			width: 3,
+			width: 2.5,
 			icon: 'align-left',
 		},
 		{
 			label: __('Status'),
 			key: 'is_public',
-			width: 1.5,
+			width: 1,
 			icon: 'share-2',
+		},
+		{
+			label: __('Linked To'),
+			key: 'linked_to',
+			width: 2,
+			align: 'left',
+			icon: 'link-2',
 		},
 		{
 			label: __('Last Modified'),
@@ -425,11 +542,29 @@ const rubricColumns = computed(() => {
 })
 
 const deleteRubrics = (selections, unselectAll) => {
-	Array.from(selections).forEach(async (rubricName) => {
-		await rubrics.delete.submit(rubricName)
+	if (user.data?.roles?.includes('Course Creator')) {
+		const nonOwned = Array.from(selections).filter((name) => {
+			const rubric = rubrics.data?.find((r) => r.name === name)
+			return rubric && rubric.owner !== user.data.name
+		})
+		if (nonOwned.length > 0) {
+			toast.error(__('You can only delete rubrics created by you.'))
+			return
+		}
+	}
+	const promises = Array.from(selections).map((rubricName) => {
+		return rubrics.delete.submit(rubricName)
 	})
-	unselectAll()
-	toast.success(__('Rubrics deleted successfully'))
+	Promise.all(promises)
+		.then(() => {
+			toast.success(__('Rubrics deleted successfully'))
+			unselectAll()
+		})
+		.catch((err) => {
+			const errorMsg = err.messages?.[0] || err.message || String(err)
+			toast.error(cleanError(errorMsg))
+			unselectAll()
+		})
 }
 
 const reloadRubrics = () => {
@@ -437,6 +572,7 @@ const reloadRubrics = () => {
 		filters: rubricFilter.value,
 	})
 	rubrics.reload()
+	rubricsUsageInfo.reload()
 }
 
 const rubricFilter = computed(() => {

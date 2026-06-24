@@ -21,6 +21,7 @@
 						v-model="exercise.title"
 						:label="__('Title')"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						v-model="exercise.language"
@@ -28,15 +29,16 @@
 						type="select"
 						:options="languageOptions"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 					<ChildTable
 						v-model="testCases.data"
 						:label="__('Test Cases')"
 						:columns="testCaseColumns"
 						:required="true"
-						:addable="true"
-						:deletable="true"
-						:editable="true"
+						:addable="!readOnlyMode"
+						:deletable="!readOnlyMode"
+						:editable="!readOnlyMode"
 						:placeholder="__('Add Test Case')"
 					/>
 				</div>
@@ -49,7 +51,7 @@
 						<TextEditor
 							:content="exercise.problem_statement"
 							@change="(val: string) => (exercise.problem_statement = val)"
-							:editable="true"
+							:editable="!readOnlyMode"
 							:fixedMenu="true"
 							editorClass="prose-sm max-w-none border-b border-x border-outline-gray-modals bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem] max-h-[21rem] overflow-y-auto"
 						/>
@@ -60,7 +62,7 @@
 		<template #actions="{ close }">
 			<div class="flex justify-end space-x-2 group">
 				<Button
-					v-if="exerciseID != 'new'"
+					v-if="exerciseID != 'new' && !readOnlyMode"
 					@click="deleteExercise(close)"
 					variant="outline"
 					theme="red"
@@ -87,6 +89,7 @@
 					</Button>
 				</router-link>
 				<router-link
+					v-if="exerciseID != 'new' && (!user.data?.roles?.includes('Course Creator') || exercise.owner === user.data.name || user.data?.is_moderator)"
 					:to="{
 						name: 'ProgrammingExerciseSubmissions',
 						query: {
@@ -101,7 +104,7 @@
 						{{ __('Check Submission') }}
 					</Button>
 				</router-link>
-				<Button variant="solid" @click="saveExercise(close)">
+				<Button v-if="!readOnlyMode" variant="solid" @click="saveExercise(close)">
 					{{ __('Save') }}
 				</Button>
 			</div>
@@ -155,8 +158,8 @@
 	</Dialog>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUpdated } from 'vue'
-import { escapeHTML } from '@/utils'
+import { computed, ref, watch, onMounted, onUpdated, inject } from 'vue'
+import { escapeHTML, cleanError } from '@/utils'
 import {
 	Badge,
 	Button,
@@ -187,6 +190,20 @@ const exercise = ref<ProgrammingExercise>({
 	language: 'Python',
 	problem_statement: '',
 	test_cases: [],
+	owner: '',
+})
+
+const user = inject<any>('$user')
+const readOnlyMode = computed(() => {
+	if (props.exerciseID === 'new') return false
+	if (
+		user.data?.roles?.includes('Course Creator') &&
+		exercise.value?.owner &&
+		exercise.value.owner !== user.data.name
+	) {
+		return true
+	}
+	return false
 })
 
 const languageOptions = [
@@ -358,7 +375,8 @@ const createNewExercise = (close: () => void) => {
 				toast.success(__('Programming Exercise created successfully'))
 			},
 			onError(err: any) {
-				toast.warning(__(err.messages?.[0] || err))
+				const errorMsg = err.messages?.[0] || err.message || String(err)
+				toast.error(cleanError(errorMsg))
 			},
 		}
 	)
@@ -378,7 +396,8 @@ const updateExercise = (close: () => void) => {
 				toast.success(__('Programming Exercise updated successfully'))
 			},
 			onError(err: any) {
-				toast.warning(__(err.messages?.[0] || err))
+				const errorMsg = err.messages?.[0] || err.message || String(err)
+				toast.error(cleanError(errorMsg))
 			},
 		}
 	)
@@ -390,13 +409,22 @@ const testCaseColumns = computed(() => {
 
 const deleteExercise = (close: () => void) => {
 	if (props.exerciseID == 'new') return
+	if (
+		user.data?.roles?.includes('Course Creator') &&
+		exercise.value?.owner &&
+		exercise.value.owner !== user.data.name
+	) {
+		toast.error(__('You can only delete programming exercises created by you.'))
+		return
+	}
 	exercises.value?.delete.submit(props.exerciseID, {
 		onSuccess() {
 			toast.success(__('Programming Exercise deleted successfully'))
 			close()
 		},
 		onError(err: any) {
-			toast.warning(__(err.messages?.[0] || err))
+			const errorMsg = err.messages?.[0] || err.message || String(err)
+			toast.error(cleanError(errorMsg))
 		},
 	})
 }

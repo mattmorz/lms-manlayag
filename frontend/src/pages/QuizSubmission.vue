@@ -128,10 +128,34 @@ const props = defineProps({
 	},
 })
 
+const quizResource = createResource({
+	url: 'frappe.client.get',
+	makeParams(values) {
+		return {
+			doctype: 'LMS Quiz',
+			name: values.name,
+		}
+	},
+	onSuccess(quizDoc) {
+		if (
+			user.data?.roles?.includes('Course Creator') &&
+			quizDoc.owner !== user.data.name &&
+			!user.data?.is_moderator
+		) {
+			router.push({ name: 'Courses' })
+		}
+	}
+})
+
 const submissionDetails = createDocumentResource({
 	doctype: 'LMS Quiz Submission',
 	name: props.submission,
 	auto: true,
+	onSuccess(doc) {
+		if (doc.quiz) {
+			quizResource.submit({ name: doc.quiz })
+		}
+	}
 })
 
 const breadcrumbs = computed(() => {

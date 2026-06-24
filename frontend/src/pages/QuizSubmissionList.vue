@@ -63,9 +63,30 @@ const { brand } = sessionStore()
 const router = useRouter()
 const user = inject('$user')
 
+const quizResource = createResource({
+	url: 'frappe.client.get',
+	makeParams(values) {
+		return {
+			doctype: 'LMS Quiz',
+			name: values.name,
+		}
+	},
+	onSuccess(quizDoc) {
+		if (
+			user.data?.roles?.includes('Course Creator') &&
+			quizDoc.owner !== user.data.name &&
+			!user.data?.is_moderator
+		) {
+			router.push({ name: 'Courses' })
+		}
+	}
+})
+
 onMounted(() => {
-	if (!user.data?.is_instructor && !user.data?.is_moderator)
+	if (!user.data?.is_instructor && !user.data?.is_moderator) {
 		router.push({ name: 'Courses' })
+	}
+	quizResource.submit({ name: props.quizID })
 })
 
 const props = defineProps({

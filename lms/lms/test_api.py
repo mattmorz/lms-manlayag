@@ -507,5 +507,137 @@ This is vtt test.
 		frappe.delete_doc("Course Lesson", quiz_lesson.name, force=True)
 		frappe.delete_doc("Content Library", lib_title, force=True)
 
+	def test_get_content_usage_info(self):
+		import json
+		from lms.lms.api import get_content_usage_info
+		
+		quiz = frappe.new_doc("LMS Quiz")
+		quiz.title = "API Test Quiz"
+		quiz.insert(ignore_permissions=True)
+		
+		# Test 1: Course Content Link reference
+		link = frappe.new_doc("Course Content Link")
+		link.course = self.course.name
+		link.chapter = self.course.chapters[0].chapter
+		link.content_doctype = "LMS Quiz"
+		link.content_name = quiz.name
+		link.library = "Test Library"
+		link.mode = "Linked"
+		link.insert(ignore_permissions=True)
+		
+		info = get_content_usage_info("LMS Quiz")
+		self.assertIn(quiz.name, info)
+		self.assertIn(self.course.title, info[quiz.name]["courses"])
+		
+		frappe.delete_doc("Course Content Link", link.name, force=True)
+		
+		# Test 2: Lesson block content reference
+		quiz_lesson = frappe.new_doc("Course Lesson")
+		quiz_lesson.title = "Quiz Block Test Lesson"
+		quiz_lesson.course = self.course.name
+		quiz_lesson.chapter = self.course.chapters[0].chapter
+		quiz_lesson.content = json.dumps({"blocks": [{"type": "quiz", "data": {"quiz": quiz.name}}]})
+		quiz_lesson.insert(ignore_permissions=True)
+		
+		info = get_content_usage_info("LMS Quiz")
+		self.assertIn(quiz.name, info)
+		self.assertIn(self.course.title, info[quiz.name]["courses"])
+		
+		frappe.delete_doc("Course Lesson", quiz_lesson.name, force=True)
+		frappe.delete_doc("LMS Quiz", quiz.name, force=True)
+
+	def test_question_bank_sharing_and_permissions(self):
+		from lms.lms.api import (
+			import_question_bank,
+			get_question_banks,
+			get_bank_questions,
+			update_question_bank_sharing
+		)
+		
+		# Setup instructors
+		inst1 = self.admin # frappe@example.com (Moderator/Course Creator)
+		inst2 = self._create_user("instructor2@example.com", "Jane", "Doe", ["Course Creator"])
+		
+		# Ensure clean state
+		bank_name = "Test Sharing Bank"
+		frappe.delete_doc("LMS Question Bank", bank_name, force=True)
+		frappe.db.delete("LMS Question", {"question_bank": bank_name})
+		
+		# Aiken format content for import
+		aiken_content = (
+			"What is 2+2?\n"
+			"A. 3\n"
+			"B. 4\n"
+			"C. 5\n"
+			"ANSWER: B\n"
+		)
+		
+		# 1. Import as private (is_shared = 0)
+		self.switch_user(inst1.email)
+		res = import_question_bank(
+			file_content=aiken_content,
+			format_type="AIKEN",
+			bank_label=bank_name,
+			is_shared=0
+		)
+		self.assertEqual(res["count"], 1)
+		
+		# Check database records
+		bank_doc = frappe.get_doc("LMS Question Bank", bank_name)
+		self.assertEqual(bank_doc.owner, inst1.email)
+		self.assertEqual(bank_doc.is_shared, 0)
+		self.assertEqual(bank_doc.shared_with or "", "")
+		
+		# 2. Get banks as owner
+		self.switch_user(inst1.email)
+		banks = get_question_banks()
+		my_bank = next((b for b in banks if b.get("question_bank") == bank_name), None)
+		self.assertIsNotNone(my_bank)
+		self.assertEqual(my_bank.get("shared_count"), -1)
+		self.assertEqual(my_bank.get("is_shared"), 0)
+		
+		# 3. Get banks as other instructor - should be private (not listed)
+		self.switch_user(inst2.email)
+		banks = get_question_banks()
+		other_bank = next((b for b in banks if b.get("question_bank") == bank_name), None)
+		self.assertIsNone(other_bank)
+		
+		# 4. Access questions directly as other instructor - should raise PermissionError
+		with self.assertRaises(frappe.PermissionError):
+			get_bank_questions(bank_name)
+			
+		# 5. Share with inst2
+		self.switch_user(inst1.email)
+		update_question_bank_sharing(bank_label=bank_name, is_shared=1, shared_with=inst2.email)
+		
+		# Verify share count and presence for inst2
+		self.switch_user(inst2.email)
+		banks = get_question_banks()
+		shared_bank = next((b for b in banks if b.get("question_bank") == bank_name), None)
+		self.assertIsNotNone(shared_bank)
+		self.assertEqual(shared_bank.get("shared_count"), 1)
+		self.assertEqual(shared_bank.get("is_shared"), 1)
+		
+		# Verify inst2 can read questions now
+		questions = get_bank_questions(bank_name)
+		self.assertEqual(len(questions), 1)
+		self.assertIn("What is 2+2?", questions[0].question)
+		
+		# 6. Share with all (is_shared = 1, shared_with = "")
+		self.switch_user(inst1.email)
+		update_question_bank_sharing(bank_label=bank_name, is_shared=1, shared_with="")
+		
+		# Verify another user or inst2 sees it as "shared with all"
+		self.switch_user(inst2.email)
+		banks = get_question_banks()
+		all_bank = next((b for b in banks if b.get("question_bank") == bank_name), None)
+		self.assertIsNotNone(all_bank)
+		self.assertEqual(all_bank.get("shared_count"), 0)
+		
+		# Clean up
+		self.switch_user("Administrator")
+		frappe.delete_doc("LMS Question Bank", bank_name, force=True)
+		frappe.db.delete("LMS Question", {"question_bank": bank_name})
+
 
 

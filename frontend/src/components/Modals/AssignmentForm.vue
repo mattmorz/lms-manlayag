@@ -19,6 +19,7 @@
 						v-model="assignment.title"
 						:label="__('Title')"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 					<FormControl
 						v-model="assignment.type"
@@ -26,12 +27,14 @@
 						:options="assignmentOptions"
 						:label="__('Submission Type')"
 						:required="true"
+						:disabled="readOnlyMode"
 					/>
 					<Link
 						v-model="assignment.course"
 						:label="__('Course')"
 						doctype="LMS Course"
 						placeholder=" "
+						:disabled="readOnlyMode"
 					/>
 
 					<div>
@@ -42,7 +45,7 @@
 						<TextEditor
 							:content="assignment.question"
 							@change="(val) => (assignment.question = val)"
-							:editable="true"
+							:editable="!readOnlyMode"
 							:fixedMenu="true"
 							editorClass="prose-sm max-w-none border-b border-x border-outline-gray-modals bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem] max-h-[18rem] overflow-y-auto"
 						/>
@@ -53,6 +56,7 @@
 							v-model="assignment.enable_peer_review"
 							type="checkbox"
 							:label="__('Enable Peer Review')"
+							:disabled="readOnlyMode"
 						/>
 
 						<div v-if="assignment.enable_peer_review" class="grid grid-cols-2 gap-4">
@@ -61,12 +65,14 @@
 								:label="__('Peer Review Rubric')"
 								doctype="Peer Review Rubric"
 								placeholder="Select Rubric"
+								:disabled="readOnlyMode"
 							/>
 							<FormControl
 								v-model.number="assignment.reviews_required"
 								type="number"
 								:label="__('Reviews Required')"
 								min="1"
+								:disabled="readOnlyMode"
 							/>
 							<FormControl
 								v-model="assignment.reviewer_assignment_method"
@@ -77,6 +83,7 @@
 									{ label: __('Manual'), value: 'Manual' },
 									{ label: __('Group-Based'), value: 'Group-Based' }
 								]"
+								:disabled="readOnlyMode"
 							/>
 							<FormControl
 								v-model="assignment.grade_aggregation_method"
@@ -87,16 +94,19 @@
 									{ label: __('Median'), value: 'Median' },
 									{ label: __('Weighted'), value: 'Weighted' }
 								]"
+								:disabled="readOnlyMode"
 							/>
 							<FormControl
 								v-model="assignment.anonymous_reviews"
 								type="checkbox"
 								:label="__('Anonymous Reviews')"
+								:disabled="readOnlyMode"
 							/>
 							<FormControl
 								v-model="assignment.moderation_required"
 								type="checkbox"
 								:label="__('Instructor Moderation Required')"
+								:disabled="readOnlyMode"
 							/>
 						</div>
 					</div>
@@ -104,6 +114,7 @@
 
 				<div class="flex justify-end space-x-2 mt-5">
 					<router-link
+						v-if="assignmentID !== 'new' && (!user.data?.roles?.includes('Course Creator') || assignment.owner === user.data.name || user.data?.is_moderator)"
 						:to="{
 							name: 'AssignmentSubmissionList',
 							query: {
@@ -111,11 +122,11 @@
 							},
 						}"
 					>
-						<Button v-if="assignmentID !== 'new'" variant="subtle">
+						<Button variant="subtle">
 							{{ __('Check Submissions') }}
 						</Button>
 					</router-link>
-					<Button variant="solid" @click="saveAssignment">
+					<Button v-if="!readOnlyMode" variant="solid" @click="saveAssignment">
 						{{ __('Save') }}
 					</Button>
 				</div>
@@ -171,8 +182,8 @@
 </template>
 <script setup lang="ts">
 import { Button, Dialog, FormControl, TextEditor, toast, createResource, call } from 'frappe-ui'
-import { computed, reactive, watch, ref } from 'vue'
-import { escapeHTML, sanitizeHTML } from '@/utils'
+import { computed, reactive, watch, ref, inject } from 'vue'
+import { escapeHTML, sanitizeHTML, cleanError } from '@/utils'
 import { Link } from 'frappe-ui/frappe'
 import { AlertTriangle } from 'lucide-vue-next'
 
@@ -213,6 +224,7 @@ const assignment = reactive({
 	reviewer_assignment_method: 'Random',
 	grade_aggregation_method: 'Average',
 	moderation_required: 1,
+	owner: '',
 })
 
 const props = defineProps({
@@ -242,6 +254,7 @@ watch(
 					assignment.reviewer_assignment_method = row.reviewer_assignment_method || 'Random'
 					assignment.grade_aggregation_method = row.grade_aggregation_method || 'Average'
 					assignment.moderation_required = row.moderation_required !== undefined ? row.moderation_required : 1
+					assignment.owner = row.owner || ''
 				}
 			})
 		}
@@ -261,7 +274,21 @@ watch(show, (newVal) => {
 		assignment.reviewer_assignment_method = 'Random'
 		assignment.grade_aggregation_method = 'Average'
 		assignment.moderation_required = 1
+		assignment.owner = ''
 	}
+})
+
+const user = inject<any>('$user')
+const readOnlyMode = computed(() => {
+	if (props.assignmentID === 'new') return false
+	if (
+		user.data?.roles?.includes('Course Creator') &&
+		assignment.owner &&
+		assignment.owner !== user.data.name
+	) {
+		return true
+	}
+	return false
 })
 
 const validateFields = () => {
@@ -309,7 +336,7 @@ const handleCreateNewAssignmentVersion = () => {
 		show.value = false
 		assignments.value?.reload()
 	}).catch(err => {
-		toast.error(err.messages?.[0] || err.message || __('Failed to create new version'))
+		toast.error(cleanError(err.messages?.[0] || err.message || __('Failed to create new version')))
 	})
 }
 
@@ -323,6 +350,9 @@ const createAssignment = () => {
 				show.value = false
 				toast.success(__('Assignment created successfully'))
 			},
+			onError(err: any) {
+				toast.error(cleanError(err.messages?.[0] || err.message || err))
+			}
 		}
 	)
 }
@@ -338,6 +368,9 @@ const updateAssignment = () => {
 				show.value = false
 				toast.success(__('Assignment updated successfully'))
 			},
+			onError(err: any) {
+				toast.error(cleanError(err.messages?.[0] || err.message || err))
+			}
 		}
 	)
 }

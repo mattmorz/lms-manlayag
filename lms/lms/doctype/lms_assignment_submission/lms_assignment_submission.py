@@ -27,6 +27,10 @@ class LMSAssignmentSubmission(Document):
 			queue="short"
 		)
 
+		if self.lesson and self.course:
+			from lms.lms.doctype.course_lesson.course_lesson import save_progress
+			save_progress(self.lesson, self.course)
+
 	def validate_duplicates(self):
 		if frappe.db.exists(
 			"LMS Assignment Submission",

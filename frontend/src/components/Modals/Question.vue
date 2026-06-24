@@ -9,7 +9,7 @@
 		<template #body-content>
 			<div class="space-y-5">
 				<div
-					v-if="!editMode"
+					v-if="!editMode && !disabled"
 					class="flex items-center text-xs text-ink-gray-7 space-x-5"
 				>
 					<Switch
@@ -17,6 +17,7 @@
 						:label="__('Choose an existing question')"
 						v-model="chooseFromExisting"
 						class="!p-0"
+						:disabled="disabled"
 					/>
 				</div>
 				<div v-if="!chooseFromExisting || editMode">
@@ -27,7 +28,7 @@
 						<TextEditor
 							:content="question.question"
 							@change="(val) => (question.question = val)"
-							:editable="true"
+							:editable="!disabled"
 							:fixedMenu="true"
 							editorClass="prose-sm max-w-none border-b border-x border-outline-gray-modals bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem]"
 						/>
@@ -37,6 +38,7 @@
 							v-model="question.marks"
 							:label="__('Marks')"
 							type="number"
+							:disabled="disabled"
 						/>
 						<FormControl
 							:label="__('Type')"
@@ -45,6 +47,7 @@
 							:options="['Choices', 'User Input', 'Open Ended']"
 							class="pb-2"
 							:required="true"
+							:disabled="disabled"
 						/>
 					</div>
 					<div
@@ -68,15 +71,18 @@
 								:label="__('Option') + ' ' + n"
 								v-model="question[`option_${n}`]"
 								:required="n <= 2 ? true : false"
+								:disabled="disabled"
 							/>
 							<FormControl
 								:label="__('Explanation')"
 								v-model="question[`explanation_${n}`]"
+								:disabled="disabled"
 							/>
 							<FormControl
 								:label="__('Correct Answer')"
 								v-model="question[`is_correct_${n}`]"
 								type="checkbox"
+								:disabled="disabled"
 							/>
 						</div>
 					</div>
@@ -89,6 +95,7 @@
 								:label="__('Possibility') + ' ' + n"
 								v-model="question[`possibility_${n}`]"
 								:required="n == 1 ? true : false"
+								:disabled="disabled"
 							/>
 						</div>
 					</div>
@@ -98,15 +105,17 @@
 						v-model="existingQuestion.question"
 						:label="__('Select a question')"
 						doctype="LMS Question"
+						:disabled="disabled"
 					/>
 					<FormControl
 						v-model="existingQuestion.marks"
 						:label="__('Marks')"
 						type="number"
+						:disabled="disabled"
 					/>
 				</div>
 				<div class="flex items-center justify-end space-x-2 mt-5">
-					<Button variant="solid" @click="submitQuestion()">
+					<Button v-if="!disabled" variant="solid" @click="submitQuestion()">
 						{{ __('Save') }}
 					</Button>
 				</div>
@@ -167,6 +176,10 @@ const props = defineProps({
 	questionDetail: {
 		type: [Object, null],
 		required: true,
+	},
+	disabled: {
+		type: Boolean,
+		default: false,
 	},
 })
 

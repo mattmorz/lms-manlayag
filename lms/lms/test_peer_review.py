@@ -193,3 +193,22 @@ class TestPeerReview(BaseTestUtils):
 		rubric_names_stud = [r.name for r in rubrics_stud]
 		self.assertNotIn(rubric_private.name, rubric_names_stud)
 		self.assertIn(rubric_public.name, rubric_names_stud)
+
+	def test_rubric_cannot_be_modified_with_submissions(self):
+		# Student 1 submits the assignment
+		submission = frappe.new_doc("LMS Assignment Submission")
+		submission.update({
+			"assignment": self.assignment.name,
+			"member": self.student1.email,
+			"answer": "This is student 1's submission.",
+			"status": "Not Graded"
+		})
+		submission.insert()
+		self.cleanup_items.append(("LMS Assignment Submission", submission.name))
+
+		# Now trying to modify/save the rubric should raise a ValidationError
+		frappe.set_user(self.instructor.email)
+		rubric_doc = frappe.get_doc("Peer Review Rubric", self.rubric.name)
+		rubric_doc.title = "Modified Rubric Title"
+		with self.assertRaises(frappe.ValidationError):
+			rubric_doc.save()

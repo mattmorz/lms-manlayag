@@ -250,11 +250,38 @@ def create_submission(quiz: str, results: list, score_out_of: int, passing_perce
 	return submission
 
 
+def is_quiz_graded_in_lesson(lesson: str, quiz: str) -> bool:
+	if not lesson:
+		return True
+	lesson_details = frappe.db.get_value("Course Lesson", lesson, ["body", "content"], as_dict=1)
+	if not lesson_details:
+		return True
+
+	if lesson_details.content:
+		try:
+			content = json.loads(lesson_details.content)
+			for block in content.get("blocks", []):
+				if block.get("type") == "quiz" and block.get("data", {}).get("quiz") == quiz:
+					return bool(cint(block.get("data", {}).get("include_in_grading", 1)))
+				elif block.get("type") in ["upload", "embed"]:
+					quizzes_in_video = block.get("data", {}).get("quizzes", [])
+					for row in quizzes_in_video:
+						if row.get("quiz") == quiz:
+							return bool(cint(row.get("include_in_grading", 1)))
+		except Exception:
+			pass
+	return True
+
+
 def save_progress_after_quiz(quiz_details: dict, percentage: float):
-	if percentage >= quiz_details.passing_percentage and quiz_details.lesson and quiz_details.course:
-		save_progress(quiz_details.lesson, quiz_details.course)
-	elif not quiz_details.passing_percentage:
-		save_progress(quiz_details.lesson, quiz_details.course)
+	if quiz_details.lesson and quiz_details.course:
+		is_graded = is_quiz_graded_in_lesson(quiz_details.lesson, quiz_details.name)
+		if not is_graded:
+			save_progress(quiz_details.lesson, quiz_details.course)
+		elif percentage >= quiz_details.passing_percentage:
+			save_progress(quiz_details.lesson, quiz_details.course)
+		elif not quiz_details.passing_percentage:
+			save_progress(quiz_details.lesson, quiz_details.course)
 
 
 @frappe.whitelist()

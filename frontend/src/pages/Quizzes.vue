@@ -30,7 +30,7 @@
 			<ListView
 				v-if="quizzes.data?.length"
 				:columns="quizColumns"
-				:rows="quizzes.data"
+				:rows="transformedQuizzes"
 				row-key="name"
 				:options="{ showTooltip: false, selectable: true }"
 			>
@@ -45,7 +45,7 @@
 				</ListHeader>
 				<ListRows>
 					<router-link
-						v-for="row in quizzes.data"
+						v-for="row in transformedQuizzes"
 						:to="{
 							name: 'QuizForm',
 							params: {
@@ -62,6 +62,25 @@
 											v-model="row[column.key]"
 											:disabled="true"
 										/>
+									</div>
+									<div v-else-if="column.key == 'used_in'" class="flex flex-wrap gap-1.5 max-w-xs">
+										<Badge
+											v-for="course in row[column.key].slice(0, 2)"
+											:key="course"
+											theme="gray"
+										>
+											{{ course }}
+										</Badge>
+										<Badge
+											v-if="row[column.key].length > 2"
+											theme="gray"
+											:title="row[column.key].slice(2).join(', ')"
+										>
+											+{{ row[column.key].length - 2 }}
+										</Badge>
+										<span v-if="!row[column.key]?.length" class="text-ink-gray-4 text-xs font-normal">
+											{{ __('Not Used') }}
+										</span>
 									</div>
 									<div
 										v-else-if="column.key == 'modified'"
@@ -104,7 +123,7 @@
 					v-for="bank in filteredBanks"
 					:key="bank.question_bank"
 					@click="openBankQuestions(bank.question_bank)"
-					class="cursor-pointer bg-white border border-outline-gray-2 rounded-xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between gap-4"
+					class="cursor-pointer bg-white border border-outline-gray-2 rounded-xl p-5 hover:bg-surface-gray-2 transition-all duration-200 flex items-center justify-between gap-4"
 				>
 					<div class="flex items-center gap-4 min-w-0">
 						<div class="bg-surface-gray-2 p-3 rounded-lg text-ink-gray-7">
@@ -114,14 +133,30 @@
 							<div class="font-semibold text-ink-gray-9 text-base truncate">
 								{{ bank.question_bank }}
 							</div>
-							<div class="text-sm text-ink-gray-5 mt-0.5">
-								{{ bank.question_count }} {{ bank.question_count === 1 ? __('Question') : __('Questions') }}
+							<div class="text-sm text-ink-gray-5 mt-0.5 flex items-center gap-1.5 flex-wrap">
+								<span>
+									{{ bank.question_count }} {{ bank.question_count === 1 ? __('Question') : __('Questions') }}
+								</span>
+								<span v-if="bank.shared_count !== undefined" class="text-ink-gray-4">
+									•
+								</span>
+								<span v-if="bank.shared_count !== undefined">
+									{{ bank.shared_count === -1 ? __('Private') : bank.shared_count === 0 ? __('Shared with all') : bank.shared_count === 1 ? __('Shared with 1 instructor') : __('Shared with {0} instructors').format(bank.shared_count) }}
+								</span>
 							</div>
 						</div>
 					</div>
 					<div class="flex items-center gap-2">
 						<Button
-							v-if="!readOnlyMode"
+							v-if="!readOnlyMode && bank.owner === user.data?.name"
+							variant="ghost"
+							class="text-ink-gray-6 hover:bg-surface-gray-2 p-1 rounded"
+							@click.stop="openShareModal(bank)"
+						>
+							<FeatherIcon name="share-2" class="w-4 h-4 text-ink-gray-5" />
+						</Button>
+						<Button
+							v-if="!readOnlyMode && bank.owner === user.data?.name"
 							variant="ghost"
 							class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1 rounded"
 							@click.stop="confirmDeleteBank(bank.question_bank)"
@@ -132,7 +167,7 @@
 					</div>
 				</div>
 			</div>
-			<div v-else class="flex flex-col items-center justify-center py-20 bg-surface-gray-2 rounded-xl border border-dashed border-outline-gray-3">
+			<div v-else class="flex flex-col items-center justify-center py-20 bg-white rounded-xl">
 				<FeatherIcon name="database" class="w-12 h-12 text-ink-gray-3 mb-3" />
 				<div class="text-ink-gray-7 font-medium text-lg mb-1">{{ __('No Question Banks') }}</div>
 				<div class="text-ink-gray-5 text-sm text-center max-w-sm px-4">
@@ -210,6 +245,18 @@
 					v-model="importFormat"
 					:label="__('Format Type')"
 				/>
+				<FormControl
+					v-model="isShared"
+					type="checkbox"
+					:label="__('Share with others')"
+				/>
+				<MultiSelect
+					v-if="isShared"
+					v-model="sharedWith"
+					doctype="User"
+					:label="__('Instructors to share with')"
+					:filters="{ ignore_user_type: 1 }"
+				/>
 				<div class="mt-4">
 					<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">{{ __('Select File') }}</label>
 					<input
@@ -255,7 +302,7 @@
 						<div class="prose-sm text-ink-gray-9 leading-relaxed" v-html="q.question"></div>
 					</div>
 					<Button
-						v-if="!readOnlyMode"
+						v-if="!readOnlyMode && selectedBankOwner === user.data?.name"
 						variant="ghost"
 						class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1 rounded mt-1 align-self-start"
 						@click="confirmDeleteQuestion(q.name, idx)"
@@ -263,6 +310,38 @@
 						<FeatherIcon name="trash-2" class="w-4 h-4 text-red-500" />
 					</Button>
 				</div>
+			</div>
+		</template>
+	</Dialog>
+
+	<Dialog
+		v-model="showShareModal"
+		:options="{
+			title: bankToShare ? __('Share Question Bank: {0}').format(bankToShare.question_bank) : __('Share Question Bank'),
+			size: 'md',
+			actions: [
+				{
+					label: __('Save'),
+					variant: 'solid',
+					onClick: (dialog) => handleSaveShare(dialog),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div class="space-y-4 text-base">
+				<FormControl
+					v-model="shareIsShared"
+					type="checkbox"
+					:label="__('Share with others')"
+				/>
+				<MultiSelect
+					v-if="shareIsShared"
+					v-model="shareInstructors"
+					doctype="User"
+					:label="__('Instructors to share with')"
+					:filters="{ ignore_user_type: 1 }"
+				/>
 			</div>
 		</template>
 	</Dialog>
@@ -313,6 +392,7 @@
 </template>
 <script setup>
 import {
+	Badge,
 	Breadcrumbs,
 	Button,
 	createListResource,
@@ -336,9 +416,10 @@ import { useRouter, useRoute } from 'vue-router'
 import { computed, inject, onMounted, ref, watch, onUpdated } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
-import { escapeHTML } from '@/utils'
+import { escapeHTML, cleanError } from '@/utils'
 import { useTelemetry } from 'frappe-ui/frappe'
 import EmptyState from '@/components/EmptyState.vue'
+import MultiSelect from '@/components/Controls/MultiSelect.vue'
 
 const { brand } = sessionStore()
 const { capture } = useTelemetry()
@@ -362,9 +443,17 @@ const showImportModal = ref(false)
 const bankLabel = ref('')
 const importFormat = ref('GIFT')
 const bankFileInput = ref(null)
+const isShared = ref(false)
+const sharedWith = ref([])
+
+const showShareModal = ref(false)
+const bankToShare = ref(null)
+const shareIsShared = ref(false)
+const shareInstructors = ref([])
 
 const showViewBankQuestionsDialog = ref(false)
 const selectedBank = ref('')
+const selectedBankOwner = ref('')
 const bankQuestions = ref([])
 const loadingBankQuestions = ref(false)
 
@@ -377,8 +466,6 @@ const questionToDeleteIndex = ref(-1)
 onMounted(() => {
 	if (!user.data?.is_moderator && !user.data?.is_instructor) {
 		router.push({ name: 'Courses' })
-	} else if (!user.data?.is_moderator) {
-		quizFilters.value['owner'] = user.data?.name
 	}
 	if (route.query.new === 'true') {
 		showForm.value = true
@@ -415,10 +502,12 @@ const quizzes = createListResource({
 		'show_answers',
 		'max_attempts',
 		'modified',
+		'owner',
 	],
 	auto: true,
 	cache: ['quizzes', user.data?.name],
 	orderBy: 'modified desc',
+	pageLength: 10,
 	transform(data) {
 		return data.map((quiz) => {
 			return {
@@ -427,6 +516,24 @@ const quizzes = createListResource({
 			}
 		})
 	},
+})
+
+const usageInfo = createResource({
+	url: 'lms.lms.api.get_content_usage_info',
+	params: { content_doctype: 'LMS Quiz' },
+	auto: true,
+})
+
+const transformedQuizzes = computed(() => {
+	if (!quizzes.data) return []
+	return quizzes.data.map((quiz) => {
+		const info = usageInfo.data?.[quiz.name] || {}
+		return {
+			...quiz,
+			created_by: info.created_by || '',
+			used_in: info.courses || [],
+		}
+	})
 })
 
 const questionBanks = createResource({
@@ -461,12 +568,16 @@ const handleBankImport = (dialog) => {
 			file_content: content,
 			format_type: importFormat.value,
 			bank_label: label,
+			is_shared: isShared.value ? 1 : 0,
+			shared_with: isShared.value && sharedWith.value ? sharedWith.value.join(',') : '',
 		})
 			.then((res) => {
 				toast.success(__('Question bank imported successfully: {0} questions added.').format(res.count))
 				questionBanks.reload()
 				dialog.close()
 				bankLabel.value = ''
+				isShared.value = false
+				sharedWith.value = []
 				if (bankFileInput.value) {
 					bankFileInput.value.value = ''
 				}
@@ -480,6 +591,8 @@ const handleBankImport = (dialog) => {
 
 const openBankQuestions = (bankLabel) => {
 	selectedBank.value = bankLabel
+	const bank = questionBanks.data?.find(b => b.question_bank === bankLabel)
+	selectedBankOwner.value = bank ? bank.owner : ''
 	showViewBankQuestionsDialog.value = true
 	loadingBankQuestions.value = true
 	bankQuestions.value = []
@@ -489,6 +602,29 @@ const openBankQuestions = (bankLabel) => {
 		})
 		.finally(() => {
 			loadingBankQuestions.value = false
+		})
+}
+
+const openShareModal = (bank) => {
+	bankToShare.value = bank
+	shareIsShared.value = (bank.is_shared === 1)
+	shareInstructors.value = bank.shared_with ? bank.shared_with.split(',').map(u => u.trim()) : []
+	showShareModal.value = true
+}
+
+const handleSaveShare = (dialog) => {
+	call('lms.lms.api.update_question_bank_sharing', {
+		bank_label: bankToShare.value.question_bank,
+		is_shared: shareIsShared.value ? 1 : 0,
+		shared_with: shareIsShared.value && shareInstructors.value ? shareInstructors.value.join(',') : '',
+	})
+		.then(() => {
+			toast.success(__('Sharing settings updated successfully'))
+			questionBanks.reload()
+			dialog.close()
+		})
+		.catch((err) => {
+			toast.error(err.messages?.[0] || err.message || err)
 		})
 }
 
@@ -567,11 +703,29 @@ const insertQuiz = (close) => {
 }
 
 const deleteQuiz = (selections, unselectAll) => {
-	Array.from(selections).forEach(async (quizName) => {
-		await quizzes.delete.submit(quizName)
+	if (user.data?.roles?.includes('Course Creator')) {
+		const nonOwned = Array.from(selections).filter((name) => {
+			const quiz = quizzes.data?.find((q) => q.name === name)
+			return quiz && quiz.owner !== user.data.name
+		})
+		if (nonOwned.length > 0) {
+			toast.error(__('You can only delete quizzes created by you.'))
+			return
+		}
+	}
+	const promises = Array.from(selections).map((quizName) => {
+		return quizzes.delete.submit(quizName)
 	})
-	unselectAll()
-	toast.success(__('Quizzes deleted successfully'))
+	Promise.all(promises)
+		.then(() => {
+			toast.success(__('Quizzes deleted successfully'))
+			unselectAll()
+		})
+		.catch((err) => {
+			const errorMsg = err.messages?.[0] || err.message || String(err)
+			toast.error(cleanError(errorMsg))
+			unselectAll()
+		})
 }
 
 const quizColumns = computed(() => {
@@ -609,6 +763,20 @@ const quizColumns = computed(() => {
 			width: 1,
 			align: 'center',
 			icon: 'eye',
+		},
+		{
+			label: __('Created By'),
+			key: 'created_by',
+			width: 1.5,
+			align: 'left',
+			icon: 'user',
+		},
+		{
+			label: __('Used In'),
+			key: 'used_in',
+			width: 2,
+			align: 'left',
+			icon: 'book',
 		},
 		{
 			label: __('Modified'),

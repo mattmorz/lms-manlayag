@@ -1524,9 +1524,15 @@ def validate_meta_data_permissions(meta_type: str):
 @frappe.whitelist()
 def create_programming_exercise_submission(exercise: str, submission: str, code: str, test_cases: list):
 	if submission == "new":
-		return make_new_exercise_submission(exercise, code, test_cases)
+		sub_name = make_new_exercise_submission(exercise, code, test_cases)
 	else:
+		sub_name = submission
 		update_exercise_submission(submission, code, test_cases)
+
+	from lms.lms.doctype.course_lesson.course_lesson import save_progress_for_programming_exercise
+	save_progress_for_programming_exercise(exercise)
+
+	return sub_name
 
 
 def make_new_exercise_submission(exercise: str, code: str, test_cases: list):
@@ -3822,10 +3828,36 @@ def get_batch_members(batch: str, course: str = None) -> list:
 
 
 @frappe.whitelist()
-def import_question_bank(file_content: str, format_type: str, bank_label: str):
+def import_question_bank(file_content: str, format_type: str, bank_label: str, is_shared: int = 0, shared_with: str = None):
 	roles = frappe.get_roles(frappe.session.user)
 	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
 		frappe.throw(_("You do not have permission to import to the Question Bank."), frappe.PermissionError)
+
+	try:
+		frappe.reload_doc("lms", "doctype", "lms_question_bank")
+	except Exception:
+		pass
+
+	user = frappe.session.user
+	if not frappe.db.exists("LMS Question Bank", bank_label):
+		doc = frappe.get_doc({
+			"doctype": "LMS Question Bank",
+			"bank_name": bank_label,
+			"is_shared": is_shared,
+			"shared_with": shared_with if is_shared else ""
+		})
+		doc.insert(ignore_permissions=True)
+	else:
+		doc = frappe.get_doc("LMS Question Bank", bank_label)
+		if doc.owner != user and user != "Administrator":
+			frappe.throw(_("Only the owner of the question bank can modify it."), frappe.PermissionError)
+		doc.is_shared = is_shared
+		if is_shared:
+			if shared_with is not None:
+				doc.shared_with = shared_with
+		else:
+			doc.shared_with = ""
+		doc.save(ignore_permissions=True)
 
 	if "question_bank" not in frappe.db.get_table_columns("LMS Question"):
 		frappe.db.add_column("LMS Question", "question_bank", "Data")
@@ -3982,6 +4014,11 @@ def parse_gift_questions(file_content):
 
 @frappe.whitelist()
 def get_question_banks():
+	try:
+		frappe.reload_doc("lms", "doctype", "lms_question_bank")
+	except Exception:
+		pass
+
 	if "question_bank" not in frappe.db.get_table_columns("LMS Question"):
 		frappe.db.add_column("LMS Question", "question_bank", "Data")
 
@@ -3991,16 +4028,122 @@ def get_question_banks():
 		WHERE question_bank IS NOT NULL AND question_bank != '' 
 		GROUP BY question_bank
 	""", as_dict=True)
-	return data
+
+	for row in data:
+		bank_label = row.get("question_bank")
+		if not frappe.db.exists("LMS Question Bank", bank_label):
+			first_q_owner = frappe.db.get_value("LMS Question", {"question_bank": bank_label}, "owner") or "Administrator"
+			doc = frappe.get_doc({
+				"doctype": "LMS Question Bank",
+				"bank_name": bank_label,
+				"owner": first_q_owner,
+				"is_shared": 0
+			})
+			doc.insert(ignore_permissions=True)
+
+	user = frappe.session.user
+	user_roles = frappe.get_roles(user)
+	
+	allowed_banks = []
+	for row in data:
+		bank_label = row.get("question_bank")
+		try:
+			bank_doc = frappe.get_doc("LMS Question Bank", bank_label)
+		except Exception:
+			continue
+		
+		shared_with = bank_doc.shared_with
+		is_shared = bank_doc.is_shared or 0
+		
+		if is_shared:
+			shared_count = len([u.strip() for u in shared_with.split(",") if u.strip()]) if shared_with else 0
+		else:
+			shared_count = -1
+		row["shared_count"] = shared_count
+		row["is_shared"] = is_shared
+		
+		if user == "Administrator" or "System Manager" in user_roles or "Moderator" in user_roles:
+			row["owner"] = bank_doc.owner
+			row["shared_with"] = shared_with or ""
+			allowed_banks.append(row)
+			continue
+			
+		if bank_doc.owner == user:
+			row["owner"] = bank_doc.owner
+			row["shared_with"] = shared_with or ""
+			allowed_banks.append(row)
+			continue
+			
+		if is_shared:
+			if not shared_with:
+				row["owner"] = bank_doc.owner
+				row["shared_with"] = ""
+				allowed_banks.append(row)
+			else:
+				shared_users = [u.strip().lower() for u in shared_with.replace(",", " ").split() if u.strip()]
+				if user.lower() in shared_users:
+					row["owner"] = bank_doc.owner
+					row["shared_with"] = shared_with
+					allowed_banks.append(row)
+				
+	return allowed_banks
 
 
 @frappe.whitelist()
 def get_bank_questions(bank_label: str):
+	user = frappe.session.user
+	user_roles = frappe.get_roles(user)
+	
+	try:
+		frappe.reload_doc("lms", "doctype", "lms_question_bank")
+	except Exception:
+		pass
+		
+	if frappe.db.exists("LMS Question Bank", bank_label):
+		bank_doc = frappe.get_doc("LMS Question Bank", bank_label)
+		is_allowed = False
+		
+		if user == "Administrator" or "System Manager" in user_roles or "Moderator" in user_roles:
+			is_allowed = True
+		elif bank_doc.owner == user:
+			is_allowed = True
+		elif bank_doc.is_shared:
+			if not bank_doc.shared_with:
+				is_allowed = True
+			else:
+				shared_users = [u.strip().lower() for u in bank_doc.shared_with.replace(",", " ").split() if u.strip()]
+				if user.lower() in shared_users:
+					is_allowed = True
+				
+		if not is_allowed:
+			frappe.throw(_("You do not have permission to access this question bank."), frappe.PermissionError)
+
 	return frappe.get_all(
 		"LMS Question",
 		filters={"question_bank": bank_label},
 		fields=["name", "question", "type"]
 	)
+
+
+@frappe.whitelist()
+def update_question_bank_sharing(bank_label: str, is_shared: int, shared_with: str = None):
+	try:
+		frappe.reload_doc("lms", "doctype", "lms_question_bank")
+	except Exception:
+		pass
+		
+	if not frappe.db.exists("LMS Question Bank", bank_label):
+		frappe.throw(_("Question Bank does not exist."), frappe.DoesNotExistError)
+		
+	doc = frappe.get_doc("LMS Question Bank", bank_label)
+	user = frappe.session.user
+	if doc.owner != user and user != "Administrator":
+		frappe.throw(_("Only the owner of the question bank can modify sharing settings."), frappe.PermissionError)
+		
+	doc.is_shared = is_shared
+	doc.shared_with = shared_with if is_shared else ""
+	doc.save(ignore_permissions=True)
+	return {"status": "success"}
 
 
 @frappe.whitelist()
@@ -4038,6 +4181,18 @@ def delete_question_bank(bank_label: str):
 	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
 		frappe.throw(_("You do not have permission to delete question banks."), frappe.PermissionError)
 
+	try:
+		frappe.reload_doc("lms", "doctype", "lms_question_bank")
+	except Exception:
+		pass
+
+	user = frappe.session.user
+	if frappe.db.exists("LMS Question Bank", bank_label):
+		doc = frappe.get_doc("LMS Question Bank", bank_label)
+		if doc.owner != user and user != "Administrator":
+			frappe.throw(_("Only the owner of the question bank can delete it."), frappe.PermissionError)
+		frappe.delete_doc("LMS Question Bank", bank_label, ignore_permissions=True)
+
 	questions = frappe.get_all("LMS Question", filters={"question_bank": bank_label}, pluck="name")
 	for q in questions:
 		frappe.delete_doc("LMS Question", q, ignore_permissions=True)
@@ -4050,6 +4205,18 @@ def delete_bank_question(question_name: str):
 	roles = frappe.get_roles(frappe.session.user)
 	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
 		frappe.throw(_("You do not have permission to delete questions."), frappe.PermissionError)
+
+	question_bank = frappe.db.get_value("LMS Question", question_name, "question_bank")
+	user = frappe.session.user
+	if question_bank:
+		try:
+			frappe.reload_doc("lms", "doctype", "lms_question_bank")
+		except Exception:
+			pass
+		if frappe.db.exists("LMS Question Bank", question_bank):
+			doc = frappe.get_doc("LMS Question Bank", question_bank)
+			if doc.owner != user and user != "Administrator":
+				frappe.throw(_("Only the owner of the question bank can delete questions from it."), frappe.PermissionError)
 
 	frappe.delete_doc("LMS Question", question_name, ignore_permissions=True)
 	return {"status": "success"}
@@ -6665,6 +6832,11 @@ def check_content_before_save(content_doctype: str, content_name: str) -> dict:
 		has_submissions = frappe.db.count("LMS Assignment Submission", {"assignment": content_name}) > 0
 	elif content_doctype == "LMS Programming Exercise":
 		has_submissions = frappe.db.count("LMS Programming Exercise Submission", {"exercise": content_name}) > 0
+	elif content_doctype == "Peer Review Rubric":
+		assignments = frappe.get_all("LMS Assignment", filters={"peer_review_rubric": content_name}, pluck="name")
+		if assignments:
+			has_submissions = frappe.db.count("LMS Assignment Submission", {"assignment": ["in", assignments]}) > 0
+
 
 	return {
 		"is_shared": is_shared,
@@ -7451,3 +7623,115 @@ def get_reviewer_stats(assignment_name) -> list:
 		result.append(s)
 
 	return result
+
+
+@frappe.whitelist()
+def get_content_usage_info(content_doctype: str) -> dict:
+	import json
+
+	items = frappe.get_all(content_doctype, fields=["name", "owner"])
+
+	users = frappe.get_all("User", fields=["name", "full_name", "first_name", "username"])
+	user_names = {}
+	for u in users:
+		val = u.get("full_name") or u.get("first_name") or u.get("username") or u.get("name")
+		user_names[u.get("name")] = val
+
+	if content_doctype == "Peer Review Rubric":
+		usage_info = {}
+		for item in items:
+			item_name = item.get("name")
+			item_owner = item.get("owner")
+			usage_info[item_name] = {
+				"created_by": user_names.get(item_owner) or item_owner or "",
+				"assignments": []
+			}
+		assignments = frappe.get_all(
+			"LMS Assignment",
+			filters={"peer_review_rubric": ["is", "set"]},
+			fields=["name", "title", "peer_review_rubric"]
+		)
+		for assignment in assignments:
+			rubric_name = assignment.get("peer_review_rubric")
+			if rubric_name in usage_info:
+				assignment_title = assignment.get("title") or assignment.get("name")
+				if assignment_title not in usage_info[rubric_name]["assignments"]:
+					usage_info[rubric_name]["assignments"].append(assignment_title)
+		return usage_info
+
+	links = frappe.get_all(
+		"Course Content Link",
+		filters={"content_doctype": content_doctype},
+		fields=["content_name", "course"]
+	)
+
+	courses = frappe.get_all("LMS Course", fields=["name", "title"])
+	course_titles = {c.get("name"): c.get("title") for c in courses}
+
+	old_refs = []
+	
+	# 1. Check legacy/field-based references in Course Lesson
+	if content_doctype == "LMS Quiz":
+		lessons = frappe.get_all("Course Lesson", filters={"quiz_id": ["is", "set"]}, fields=["quiz_id", "course"])
+		for lesson in lessons:
+			quiz_id = lesson.get("quiz_id")
+			course = lesson.get("course")
+			if quiz_id and course:
+				for q_id in [q.strip() for q in quiz_id.split(",") if q.strip()]:
+					old_refs.append({"content_name": q_id, "course": course})
+	elif content_doctype == "LMS Assignment":
+		lessons = frappe.get_all("Course Lesson", filters={"question": ["is", "set"]}, fields=["question", "course"])
+		for lesson in lessons:
+			question = lesson.get("question")
+			course = lesson.get("course")
+			if question and course:
+				old_refs.append({"content_name": question, "course": course})
+
+	# 2. Check Gutenberg/Editor block-based references in Course Lesson
+	lessons_with_content = frappe.get_all("Course Lesson", filters={"content": ["is", "set"]}, fields=["content", "course"])
+	for lesson in lessons_with_content:
+		content_str = lesson.get("content")
+		course = lesson.get("course")
+		if content_str and course:
+			try:
+				content_data = json.loads(content_str)
+				for block in content_data.get("blocks", []):
+					btype = block.get("type")
+					bdata = block.get("data", {})
+					if content_doctype == "LMS Quiz" and btype == "quiz":
+						qid = bdata.get("quiz")
+						if qid:
+							old_refs.append({"content_name": qid, "course": course})
+					elif content_doctype == "LMS Assignment" and btype == "assignment":
+						aid = bdata.get("assignment")
+						if aid:
+							old_refs.append({"content_name": aid, "course": course})
+					elif content_doctype == "LMS Programming Exercise" and btype == "program":
+						eid = bdata.get("exercise")
+						if eid:
+							old_refs.append({"content_name": eid, "course": course})
+			except Exception:
+				pass
+
+	all_links = links + old_refs
+
+	usage_info = {}
+	for item in items:
+		item_name = item.get("name")
+		item_owner = item.get("owner")
+		usage_info[item_name] = {
+			"created_by": user_names.get(item_owner) or item_owner or "",
+			"courses": []
+		}
+
+	for link in all_links:
+		c_name = link.get("content_name")
+		c_course = link.get("course")
+		if c_name in usage_info:
+			course_title = course_titles.get(c_course) or c_course
+			if course_title not in usage_info[c_name]["courses"]:
+				usage_info[c_name]["courses"].append(course_title)
+
+	return usage_info
+
+

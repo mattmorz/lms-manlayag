@@ -139,6 +139,7 @@ import {
 	call,
 	FeatherIcon,
 	Button,
+	createResource,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -158,6 +159,25 @@ const assignmentID = ref('')
 const member = ref('')
 const status = ref('')
 
+const assignmentResource = createResource({
+	url: 'frappe.client.get',
+	makeParams(values) {
+		return {
+			doctype: 'LMS Assignment',
+			name: values.name,
+		}
+	},
+	onSuccess(assignmentDoc) {
+		if (
+			user.data?.roles?.includes('Course Creator') &&
+			assignmentDoc.owner !== user.data.name &&
+			!user.data?.is_moderator
+		) {
+			router.push({ name: 'Courses' })
+		}
+	}
+})
+
 onMounted(() => {
 	if (!user.data?.is_instructor && !user.data?.is_moderator) {
 		router.push({ name: 'Courses' })
@@ -165,6 +185,9 @@ onMounted(() => {
 	assignmentID.value = router.currentRoute.value.query.assignmentID
 	member.value = router.currentRoute.value.query.member
 	status.value = router.currentRoute.value.query.status
+	if (assignmentID.value) {
+		assignmentResource.submit({ name: assignmentID.value })
+	}
 	reloadSubmissions()
 })
 

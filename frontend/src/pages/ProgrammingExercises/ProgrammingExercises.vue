@@ -59,7 +59,7 @@
 		<div v-if="exercises.data?.length">
 			<ListView
 				:columns="columns"
-				:rows="exercises.data"
+				:rows="transformedExercises"
 				row-key="name"
 				:options="{
 					showTooltip: false,
@@ -87,13 +87,32 @@
 				<ListRows>
 					<ListRow
 						:row="row"
-						v-for="row in exercises.data"
+						v-for="row in transformedExercises"
 						class="hover:bg-surface-gray-1"
 					>
 						<template #default="{ column, item }">
 							<ListRowItem :item="row[column.key]" :align="column.align">
+								<div v-if="column.key == 'used_in'" class="flex flex-wrap gap-1.5 max-w-xs">
+									<Badge
+										v-for="course in row[column.key].slice(0, 2)"
+										:key="course"
+										theme="gray"
+									>
+										{{ course }}
+									</Badge>
+									<Badge
+										v-if="row[column.key].length > 2"
+										theme="gray"
+										:title="row[column.key].slice(2).join(', ')"
+									>
+										+{{ row[column.key].length - 2 }}
+									</Badge>
+									<span v-if="!row[column.key]?.length" class="text-ink-gray-4 text-sm font-normal">
+										{{ __('Not Used') }}
+									</span>
+								</div>
 								<div
-									v-if="column.key == 'modified'"
+									v-else-if="column.key == 'modified'"
 									class="text-sm text-ink-gray-5"
 								>
 									{{ dayjs(row[column.key]).format('MMM D, YYYY') }}
@@ -138,10 +157,12 @@
 <script setup lang="ts">
 import { computed, getCurrentInstance, inject, onMounted, ref } from 'vue'
 import {
+	Badge,
 	Breadcrumbs,
 	Button,
 	call,
 	createListResource,
+	createResource,
 	dayjs,
 	FormControl,
 	ListView,
@@ -155,10 +176,11 @@ import {
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
-import { ClipboardList, Plus, FileText, Terminal, Calendar } from 'lucide-vue-next'
+import { ClipboardList, Plus, FileText, Terminal, Calendar, User, Book } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
 import ProgrammingExerciseForm from '@/pages/ProgrammingExercises/ProgrammingExerciseForm.vue'
+import { cleanError } from '@/utils'
 
 const exerciseCount = ref<number>(0)
 const readOnlyMode = window.read_only_mode
@@ -205,9 +227,28 @@ const getExerciseCount = (filters: any = {}) => {
 const exercises = createListResource({
 	doctype: 'LMS Programming Exercise',
 	cache: ['programmingExercises'],
-	fields: ['name', 'title', 'language', 'problem_statement', 'modified'],
+	fields: ['name', 'title', 'language', 'problem_statement', 'modified', 'owner'],
 	auto: true,
 	orderBy: 'modified desc',
+	pageLength: 10,
+})
+
+const usageInfo = createResource({
+	url: 'lms.lms.api.get_content_usage_info',
+	params: { content_doctype: 'LMS Programming Exercise' },
+	auto: true,
+})
+
+const transformedExercises = computed(() => {
+	if (!exercises.data) return []
+	return exercises.data.map((row) => {
+		const info = usageInfo.data?.[row.name] || {}
+		return {
+			...row,
+			created_by: info.created_by || '',
+			used_in: info.courses || [],
+		}
+	})
 })
 
 const updateList = () => {
@@ -254,20 +295,34 @@ const showDeleteConfirmation = (
 }
 
 const deleteExercises = (selections: Set<string>, unselectAll: () => void) => {
-	Array.from(selections).forEach(async (exerciseName) => {
-		call('lms.lms.api.delete_programming_exercise', {
+	if (user.data?.roles?.includes('Course Creator')) {
+		const nonOwned = Array.from(selections).filter((name) => {
+			const exercise = exercises.data?.find((e) => e.name === name)
+			return exercise && exercise.owner !== user.data.name
+		})
+		if (nonOwned.length > 0) {
+			toast.error(__('You can only delete programming exercises created by you.'))
+			return
+		}
+	}
+	const promises = Array.from(selections).map((exerciseName) => {
+		return call('lms.lms.api.delete_programming_exercise', {
 			exercise: exerciseName,
 		})
-			.then(() => {
-				toast.success(__('Exercise deleted successfully'))
-				updateList()
-			})
-			.catch((error: any) => {
-				toast.error(__(error.message || error))
-				console.error('Error deleting exercise:', error)
-			})
 	})
-	unselectAll()
+	Promise.all(promises)
+		.then(() => {
+			toast.success(__('Exercises deleted successfully'))
+			updateList()
+			unselectAll()
+		})
+		.catch((error: any) => {
+			const errorMsg = error.message || error.messages?.[0] || String(error)
+			toast.error(cleanError(errorMsg))
+			console.error('Error deleting exercises:', error)
+			updateList()
+			unselectAll()
+		})
 }
 
 const languages = [
@@ -294,9 +349,23 @@ const columns = computed(() => {
 			icon: Terminal,
 		},
 		{
+			label: __('Created By'),
+			key: 'created_by',
+			width: 2,
+			align: 'left',
+			icon: User,
+		},
+		{
+			label: __('Used In'),
+			key: 'used_in',
+			width: 3,
+			align: 'left',
+			icon: Book,
+		},
+		{
 			label: __('Updated On'),
 			key: 'modified',
-			width: 1,
+			width: 1.5,
 			icon: Calendar,
 		},
 	]

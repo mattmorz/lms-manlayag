@@ -544,10 +544,12 @@ const courseResource = createDocumentResource({
 
 watch(
 	() => courseResource.doc,
-	() => {
-		check_permission()
-		getMetaInfo('courses', courseResource.doc?.name, meta)
-		updateCourseData()
+	(doc) => {
+		if (doc) {
+			updateCourseData()
+			check_permission()
+			getMetaInfo('courses', doc.name, meta)
+		}
 	}
 )
 

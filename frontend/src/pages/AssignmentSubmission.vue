@@ -16,6 +16,7 @@
 <script setup>
 import { Breadcrumbs, createResource, usePageMeta } from 'frappe-ui'
 import { computed, inject, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { sessionStore } from '../stores/session'
 import Assignment from '@/components/Assignment.vue'
 
@@ -34,16 +35,23 @@ const props = defineProps({
 	},
 })
 
-const title = createResource({
-	url: 'frappe.client.get_value',
+const router = useRouter()
+const assignmentDetails = createResource({
+	url: 'frappe.client.get',
 	params: {
 		doctype: 'LMS Assignment',
-		fieldname: 'title',
-		filters: {
-			name: props.assignmentID,
-		},
+		name: props.assignmentID,
 	},
 	auto: true,
+	onSuccess(doc) {
+		if (
+			user.data?.roles?.includes('Course Creator') &&
+			doc.owner !== user.data.name &&
+			!user.data?.is_moderator
+		) {
+			router.push({ name: 'Courses' })
+		}
+	}
 })
 
 onMounted(async () => {
@@ -71,7 +79,7 @@ const breadcrumbs = computed(() => {
 			route: { name: 'AssignmentSubmissionList' },
 		},
 		{
-			label: title.data?.title,
+			label: assignmentDetails.data?.title,
 			route: {
 				name: 'AssignmentSubmission',
 				params: {
@@ -85,7 +93,7 @@ const breadcrumbs = computed(() => {
 
 usePageMeta(() => {
 	return {
-		title: title.data?.title,
+		title: assignmentDetails.data?.title,
 		icon: brand.favicon,
 	}
 })

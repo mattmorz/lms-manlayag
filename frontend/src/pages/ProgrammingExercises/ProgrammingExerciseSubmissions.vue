@@ -158,9 +158,34 @@ const filters = ref<Filters>({
 })
 const router = useRouter()
 
+const exerciseResource = createResource({
+	url: 'frappe.client.get',
+	makeParams(values: any) {
+		return {
+			doctype: 'LMS Programming Exercise',
+			name: values.name,
+		}
+	},
+	onSuccess(doc: any) {
+		if (
+			user.data?.roles?.includes('Course Creator') &&
+			doc.owner !== user.data.name &&
+			!user.data?.is_moderator
+		) {
+			router.push({ name: 'Courses' })
+		}
+	}
+})
+
 onMounted(() => {
 	setFiltersFromRoute()
 	fetchBasedOnRole()
+	const exerciseName = router.currentRoute.value.query.exercise as string
+	if (exerciseName) {
+		exerciseResource.submit({ name: exerciseName })
+	} else if (user.data?.roles?.includes('Course Creator') && !user.data?.is_moderator) {
+		router.push({ name: 'Courses' })
+	}
 })
 
 const setFiltersFromRoute = () => {

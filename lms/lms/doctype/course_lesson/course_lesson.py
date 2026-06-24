@@ -252,12 +252,13 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 
 	quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
+	programming_exercise_completed = get_programming_exercise_progress(lesson)
 	video_completed = get_video_progress(lesson)
 
 	if scorm_details:
 		scorm_details = frappe._dict(**scorm_details)
 
-	if not lesson_already_completed and quiz_completed and assignment_completed and video_completed and not scorm_details:
+	if not lesson_already_completed and quiz_completed and assignment_completed and programming_exercise_completed and video_completed and not scorm_details:
 		if progress_already_exists:
 			frappe.db.set_value("LMS Course Progress", progress_already_exists, "status", "Complete")
 		else:
@@ -325,28 +326,48 @@ def get_quiz_progress(lesson):
 
 		for block in content.get("blocks", []):
 			if block.get("type") == "quiz":
-				quizzes.append(block.get("data").get("quiz"))
+				data = block.get("data", {})
+				quizzes.append({
+					"quiz": data.get("quiz"),
+					"include_in_grading": cint(data.get("include_in_grading", 1))
+				})
 			elif block.get("type") in ["upload", "embed"]:
 				quizzes_in_video = block.get("data", {}).get("quizzes")
 				if quizzes_in_video and len(quizzes_in_video) > 0:
 					for row in quizzes_in_video:
-						quizzes.append(row.get("quiz"))
+						quizzes.append({
+							"quiz": row.get("quiz"),
+							"include_in_grading": cint(row.get("include_in_grading", 1))
+						})
 
 	elif lesson_details.body:
 		macros = find_macros(lesson_details.body)
-		quizzes = [value for name, value in macros if name == "Quiz"]
+		quizzes = [{"quiz": value, "include_in_grading": 1} for name, value in macros if name == "Quiz"]
 
-	for quiz in quizzes:
-		passing_percentage = frappe.db.get_value("LMS Quiz", quiz, "passing_percentage")
-		if not frappe.db.exists(
-			"LMS Quiz Submission",
-			{
-				"quiz": quiz,
-				"member": frappe.session.user,
-				"percentage": [">=", passing_percentage],
-			},
-		):
-			return False
+	for q in quizzes:
+		quiz = q["quiz"]
+		include_in_grading = q["include_in_grading"]
+
+		if include_in_grading:
+			passing_percentage = frappe.db.get_value("LMS Quiz", quiz, "passing_percentage")
+			if not frappe.db.exists(
+				"LMS Quiz Submission",
+				{
+					"quiz": quiz,
+					"member": frappe.session.user,
+					"percentage": [">=", passing_percentage],
+				},
+			):
+				return False
+		else:
+			if not frappe.db.exists(
+				"LMS Quiz Submission",
+				{
+					"quiz": quiz,
+					"member": frappe.session.user,
+				},
+			):
+				return False
 	return True
 
 
@@ -426,3 +447,40 @@ def get_video_progress(lesson):
 				return False
 
 	return True
+
+
+def get_programming_exercise_progress(lesson):
+	lesson_details = frappe.db.get_value("Course Lesson", lesson, ["body", "content"], as_dict=1)
+	exercises = []
+
+	if lesson_details.content:
+		content = json.loads(lesson_details.content)
+
+		for block in content.get("blocks", []):
+			if block.get("type") == "program":
+				exercises.append(block.get("data", {}).get("exercise"))
+
+	for exercise in exercises:
+		if not frappe.db.exists(
+			"LMS Programming Exercise Submission",
+			{"exercise": exercise, "member": frappe.session.user},
+		):
+			return False
+	return True
+
+
+def save_progress_for_programming_exercise(exercise: str):
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"content": ["like", f"%{exercise}%"]},
+		fields=["name", "course"]
+	)
+	for lesson in lessons:
+		if lesson.content:
+			try:
+				content = json.loads(lesson.content)
+				for block in content.get("blocks", []):
+					if block.get("type") == "program" and block.get("data", {}).get("exercise") == exercise:
+						save_progress(lesson.name, lesson.course)
+			except Exception:
+				pass

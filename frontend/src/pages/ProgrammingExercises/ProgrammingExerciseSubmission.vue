@@ -322,6 +322,17 @@ const checkIfUserIsPermitted = async (doc: any = null) => {
 
 	if (!doc) return
 	if (
+		user.data?.roles?.includes('Course Creator') &&
+		exercise.doc?.owner &&
+		exercise.doc.owner !== user.data.name &&
+		!user.data?.is_moderator
+	) {
+		router.push({
+			name: 'Courses',
+		})
+		return
+	}
+	if (
 		doc.owner != user.data?.name &&
 		!user.data?.is_instructor &&
 		!user.data?.is_moderator &&
