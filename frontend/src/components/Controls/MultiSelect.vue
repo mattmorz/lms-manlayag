@@ -17,6 +17,7 @@
 					"
 					autocomplete="off"
 					@focus="onFocus"
+					:disabled="disabled"
 				/>
 				<ComboboxButton ref="trigger" class="hidden" />
 				<ComboboxOptions
@@ -90,6 +91,7 @@
 			>
 				<span>{{ value }}</span>
 				<X
+					v-if="!disabled"
 					class="size-4 stroke-1.5 cursor-pointer"
 					@click="removeValue(value)"
 				/>
@@ -122,6 +124,7 @@ const props = defineProps({
 		default: (value) => `${value} is an Invalid value`,
 	},
 	required: Boolean,
+	disabled: Boolean,
 })
 
 const values = defineModel()
@@ -179,6 +182,7 @@ function reload(val) {
 }
 
 function onFocus() {
+	if (props.disabled) return
 	if (!filterOptions.data?.length) {
 		reload('')
 	}

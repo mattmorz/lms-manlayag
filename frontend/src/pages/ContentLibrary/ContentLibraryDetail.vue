@@ -3,7 +3,7 @@
 		class="sticky top-0 z-10 flex items-center justify-between border-b bg-surface-white px-3 py-2.5 sm:px-5"
 	>
 		<Breadcrumbs :items="breadcrumbs" />
-		<div class="flex gap-2" v-if="library">
+		<div class="flex gap-2" v-if="library && canEdit">
 			<Button variant="outline" @click="showVersionModal = true">
 				<template #prefix>
 					<GitBranch class="w-4 h-4" />
@@ -29,7 +29,7 @@
 							<h2 class="text-lg font-bold text-ink-gray-9">{{ __('Library Composition') }}</h2>
 							<p class="text-sm text-ink-gray-5">{{ __('Drag and drop items to reorder the content of this library.') }}</p>
 						</div>
-						<Button variant="solid" size="sm" @click="openAddItemModal()">
+						<Button variant="solid" size="sm" @click="openAddItemModal()" v-if="canEdit">
 							<template #prefix>
 								<Plus class="w-4 h-4" />
 							</template>
@@ -44,6 +44,7 @@
 							item-key="name"
 							handle=".drag-handle"
 							class="space-y-3"
+							:disabled="!canEdit"
 						>
 							<template #item="{ element: item, index }">
 								<div class="flex items-center justify-between p-4 bg-surface-gray-2 rounded-md border border-outline-gray-2 group">
@@ -74,6 +75,7 @@
 											size="sm"
 											class="text-xs text-indigo-600 border-indigo-200"
 											@click="openUpgradeManagement(item)"
+											v-if="canEdit"
 										>
 											<template #prefix>
 												<GitBranch class="w-3.5 h-3.5" />
@@ -84,6 +86,7 @@
 											variant="ghost"
 											class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1.5 rounded"
 											@click="removeItem(index)"
+											v-if="canEdit"
 										>
 											<Trash2 class="w-4 h-4 text-red-500" />
 										</Button>
@@ -97,7 +100,7 @@
 						<Library class="w-10 h-10 text-ink-gray-3 mb-2" />
 						<div class="font-semibold">{{ __('Empty Library') }}</div>
 						<p class="text-sm max-w-xs mt-1">{{ __('Add reusable lessons, quizzes, or assignments to this library.') }}</p>
-						<Button variant="outline" size="sm" class="mt-4" @click="openAddItemModal()">
+						<Button variant="outline" size="sm" class="mt-4" @click="openAddItemModal()" v-if="canEdit">
 							{{ __('Add Content Now') }}
 						</Button>
 					</div>
@@ -115,17 +118,20 @@
 						:label="__('Library Name')"
 						type="text"
 						:required="true"
+						:disabled="!canEdit"
 					/>
 					<FormControl
 						v-model="library.description"
 						:label="__('Description')"
 						type="textarea"
 						rows="3"
+						:disabled="!canEdit"
 					/>
 					<FormControl
 						v-model="library.department"
 						:label="__('Department')"
 						type="text"
+						:disabled="!canEdit"
 					/>
 					<FormControl
 						type="select"
@@ -136,11 +142,13 @@
 						]"
 						v-model="library.status"
 						:label="__('Status')"
+						:disabled="!canEdit"
 					/>
 					<FormControl
 						v-model="library.shared"
 						:label="__('Shared with other instructors')"
 						type="checkbox"
+						:disabled="!canEdit"
 					/>
 					<MultiSelect
 						v-slot="scope"
@@ -149,6 +157,7 @@
 						doctype="User"
 						:label="__('Specific Instructors (Leave blank to share with all)')"
 						class="mt-3"
+						:disabled="!canEdit"
 					/>
 				</div>
 
@@ -435,6 +444,7 @@ import {
 	Badge,
 } from 'frappe-ui'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
+import { usersStore } from '@/stores/user'
 import Link from '@/components/Controls/Link.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -481,6 +491,18 @@ const activeManageItem = ref(null)
 const manageItemVersions = ref([])
 const manageItemUsage = ref({ courses: [] })
 const loadingManageUsage = ref(false)
+
+const { userResource } = usersStore()
+
+const canEdit = computed(() => {
+	if (!library.value || !userResource.data) return false
+	if (userResource.data.is_moderator || userResource.data.roles?.includes('System Manager')) return true
+	if (library.value.owner === userResource.data.name) return true
+	if (library.value.shared && selectedInstructors.value && selectedInstructors.value.includes(userResource.data.name)) {
+		return true
+	}
+	return false
+})
 
 const newItem = ref({
 	doctype: 'Course Lesson',

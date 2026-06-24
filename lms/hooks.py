@@ -87,11 +87,13 @@ after_migrate = [
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"Peer Review Rubric": "lms.lms.api.get_rubric_permission_query_conditions"
+	"Peer Review Rubric": "lms.lms.api.get_rubric_permission_query_conditions",
+	"Content Library": "lms.lms.api.get_library_permission_query_conditions"
 }
 
 has_permission = {
-	"Peer Review Rubric": "lms.lms.api.has_rubric_permission"
+	"Peer Review Rubric": "lms.lms.api.has_rubric_permission",
+	"Content Library": "lms.lms.api.has_library_permission"
 }
 
 # DocType Class

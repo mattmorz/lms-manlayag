@@ -639,5 +639,85 @@ This is vtt test.
 		frappe.delete_doc("LMS Question Bank", bank_name, force=True)
 		frappe.db.delete("LMS Question", {"question_bank": bank_name})
 
+	def test_content_library_sharing_and_permissions(self):
+		from lms.lms.api import (
+			create_content_library,
+			update_content_library,
+			get_content_libraries
+		)
+
+		# Setup instructors
+		inst1 = self.admin
+		inst2 = self._create_user("lib_inst2@example.com", "Jane", "Doe", ["Course Creator"])
+		inst3 = self._create_user("lib_inst3@example.com", "John", "Smith", ["Course Creator"])
+
+		# 1. Create a library as inst1 (is_shared = 0 by default)
+		self.switch_user(inst1.email)
+		lib_title = "Permission Test Library"
+		if frappe.db.exists("Content Library", lib_title):
+			frappe.delete_doc("Content Library", lib_title, force=True)
+
+		lib = create_content_library(title=lib_title, description="Test description", shared=0)
+		lib_name = lib["name"]
+
+		# Verify inst1 can read and update
+		self.switch_user(inst1.email)
+		doc = frappe.get_doc("Content Library", lib_name)
+		self.assertTrue(frappe.has_permission(doc, "read"))
+		self.assertTrue(frappe.has_permission(doc, "write"))
+
+		# Verify inst2 cannot read or update
+		self.switch_user(inst2.email)
+		doc = frappe.get_doc("Content Library", lib_name)
+		self.assertFalse(frappe.has_permission(doc, "read"))
+		self.assertFalse(frappe.has_permission(doc, "write"))
+
+		# Verify get_content_libraries() for inst2 does not show it
+		res = get_content_libraries()
+		self.assertNotIn(lib_name, [l.name for l in res.get("shared_libraries", [])])
+		self.assertNotIn(lib_name, [l.name for l in res.get("department_libraries", [])])
+
+		# 2. Update to shared generally (shared=1, shared_instructors=[])
+		self.switch_user(inst1.email)
+		update_content_library(library_name=lib_name, shared=1, shared_instructors=[])
+
+		# Verify inst2 can read but NOT update
+		self.switch_user(inst2.email)
+		doc = frappe.get_doc("Content Library", lib_name)
+		self.assertTrue(frappe.has_permission(doc, "read"))
+		self.assertFalse(frappe.has_permission(doc, "write"))
+
+		with self.assertRaises(frappe.PermissionError):
+			update_content_library(library_name=lib_name, description="Attempted Hack")
+
+		# Verify get_content_libraries() for inst2 now lists it in shared
+		res = get_content_libraries()
+		self.assertIn(lib_name, [l.name for l in res.get("shared_libraries", [])])
+
+		# 3. Update to shared specifically (shared=1, shared_instructors=[inst2])
+		self.switch_user(inst1.email)
+		update_content_library(library_name=lib_name, shared=1, shared_instructors=[inst2.email])
+
+		# Verify inst2 can read AND update
+		self.switch_user(inst2.email)
+		doc = frappe.get_doc("Content Library", lib_name)
+		self.assertTrue(frappe.has_permission(doc, "read"))
+		self.assertTrue(frappe.has_permission(doc, "write"))
+
+		# Verify update succeeds for inst2
+		update_content_library(library_name=lib_name, description="Shared update success")
+
+		# Verify inst3 (not in list) can NOT read or update
+		self.switch_user(inst3.email)
+		doc = frappe.get_doc("Content Library", lib_name)
+		self.assertFalse(frappe.has_permission(doc, "read"))
+		self.assertFalse(frappe.has_permission(doc, "write"))
+
+		# Clean up
+		self.switch_user("Administrator")
+		frappe.delete_doc("Content Library", lib_name, force=True)
+		frappe.db.delete("User", {"email": ["in", [inst2.email, inst3.email]]})
+
+
 
 

@@ -5116,6 +5116,8 @@ def update_content_library(library_name, title=None, description=None, departmen
 		frappe.throw(_("Content Library '{0}' does not exist.").format(library_name))
 		
 	lib = frappe.get_doc("Content Library", library_name)
+	if not has_library_permission(lib, "write"):
+		frappe.throw(_("You do not have permission to update this Content Library."), frappe.PermissionError)
 	if title and title != lib.library_name:
 		if frappe.db.exists("Content Library", title):
 			frappe.throw(_("A Content Library with the title '{0}' already exists.").format(title))
@@ -5187,7 +5189,7 @@ def get_content_libraries():
 	
 	dept_filters = {"shared": 1}
 	if user_dept:
-		dept_filters = {"department": user_dept}
+		dept_filters = {"department": user_dept, "shared": 1}
 	department_libraries_raw = frappe.get_all(
 		"Content Library",
 		filters=dept_filters,
@@ -5276,6 +5278,8 @@ def add_library_content_to_course(course, chapter, library, items, mode):
 		items = json.loads(items)
 		
 	lib_doc = frappe.get_doc("Content Library", library)
+	if not has_library_permission(lib_doc, "read"):
+		frappe.throw(_("You do not have permission to access this Content Library."), frappe.PermissionError)
 	current_lib_version = lib_doc.version or 1
 	
 	existing_lessons = frappe.get_all("Lesson Reference", filters={"parent": chapter}, pluck="lesson")
@@ -5456,6 +5460,10 @@ def convert_course_to_library(course_name, library_title):
 @frappe.whitelist()
 def get_library_usage(library_name):
 	check_library_permission()
+	lib = frappe.get_doc("Content Library", library_name)
+	if not has_library_permission(lib, "read"):
+		frappe.throw(_("You do not have permission to access this Content Library."), frappe.PermissionError)
+		
 	links = frappe.get_all(
 		"Course Content Link",
 		filters={"library": library_name},
@@ -5484,6 +5492,10 @@ def get_library_usage(library_name):
 @frappe.whitelist()
 def get_library_versions(library_name):
 	check_library_permission()
+	lib = frappe.get_doc("Content Library", library_name)
+	if not has_library_permission(lib, "read"):
+		frappe.throw(_("You do not have permission to access this Content Library."), frappe.PermissionError)
+		
 	versions = frappe.get_all(
 		"Content Library Version",
 		filters={"library": library_name},
@@ -5496,14 +5508,16 @@ def get_library_versions(library_name):
 @frappe.whitelist()
 def restore_library_version(library_name, version_number):
 	check_library_permission()
+	lib = frappe.get_doc("Content Library", library_name)
+	if not has_library_permission(lib, "write"):
+		frappe.throw(_("You do not have permission to update this Content Library."), frappe.PermissionError)
+		
 	version_doc_name = frappe.db.exists("Content Library Version", {"library": library_name, "version_number": version_number})
 	if not version_doc_name:
 		frappe.throw(_("Version {0} for Content Library '{1}' not found.").format(version_number, library_name))
 		
 	version_doc = frappe.get_doc("Content Library Version", version_doc_name)
 	items = json.loads(version_doc.items_snapshot)
-	
-	lib = frappe.get_doc("Content Library", library_name)
 	lib.items = []
 	for item in items:
 		lib.append("items", {
@@ -7230,6 +7244,62 @@ def has_rubric_permission(doc, ptype=None, user=None) -> bool:
 	
 	# For write/delete/create, only the owner can modify their rubrics
 	return doc.owner == user
+
+
+def get_library_permission_query_conditions(user) -> str:
+	if not user:
+		user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+		return ""
+	
+	escaped_user = frappe.db.escape(user)
+	return f"""(
+		owner = {escaped_user}
+		or (
+			shared = 1
+			and (
+				not exists (
+					select 1 from `tabCourse Instructor`
+					where parent = `tabContent Library`.name
+					and parenttype = 'Content Library'
+				)
+				or exists (
+					select 1 from `tabCourse Instructor`
+					where parent = `tabContent Library`.name
+					and parenttype = 'Content Library'
+					and instructor = {escaped_user}
+				)
+			)
+		)
+	)"""
+
+
+def has_library_permission(doc, ptype=None, user=None) -> bool:
+	if not user:
+		user = frappe.session.user
+	if "System Manager" in frappe.get_roles(user) or "Moderator" in frappe.get_roles(user):
+		return True
+
+	if ptype == "create":
+		return True
+
+	if doc.owner == user:
+		return True
+
+	if ptype == "read":
+		if not doc.shared:
+			return False
+		instructors = [d.instructor for d in doc.get("shared_instructors") or []]
+		return not instructors or user in instructors
+
+	if ptype in ("write", "delete"):
+		if doc.shared:
+			instructors = [d.instructor for d in doc.get("shared_instructors") or []]
+			if instructors and user in instructors:
+				return True
+		return False
+
+	return False
 
 
 def _assign_for_submission(submission, assignment):
