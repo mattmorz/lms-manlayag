@@ -241,7 +241,8 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	if not membership:
 		return 0
 
-	frappe.db.set_value("LMS Enrollment", membership, "current_lesson", lesson)
+	# current_lesson will be set on the enrollment doc below to avoid a double-write
+	# (which causes MySQL error 1020 / QueryDeadlockError)
 	progress_already_exists = frappe.db.exists(
 		"LMS Course Progress", {"lesson": lesson, "member": frappe.session.user}
 	)
@@ -298,7 +299,10 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	capture_progress_for_analytics()
 
 	# Had to get doc, as on_change doesn't trigger when you use set_value. The trigger is necessary for badge to get assigned.
+	# We also set current_lesson here (instead of a separate set_value above) to avoid a double-write
+	# on the same row which causes MySQL error 1020 / QueryDeadlockError.
 	enrollment = frappe.get_doc("LMS Enrollment", membership)
+	enrollment.current_lesson = lesson
 	enrollment.progress = progress
 	enrollment.save()
 	enrollment.run_method("on_change")
