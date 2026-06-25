@@ -1216,20 +1216,27 @@ watch(
 	}
 )
 
-// Guard flag: prevents concurrent save_progress calls that cause MySQL error 1020
-const progressSubmitting = ref(false)
+// Guard: holds the lesson name currently being submitted to prevent concurrent
+// save_progress calls (MySQL error 1020). Using the lesson name (not a boolean)
+// so a late response from Lesson A can never unblock Lesson B.
+const progressSubmitting = ref(null)
 
 const markProgress = () => {
-	if (user.data && lesson.data && !lesson.data.progress && !progressSubmitting.value) {
-		progressSubmitting.value = true
+	if (
+		user.data &&
+		lesson.data &&
+		!lesson.data.progress &&
+		progressSubmitting.value !== lesson.data.name
+	) {
+		progressSubmitting.value = lesson.data.name
 		progress.submit(
 			{},
 			{
 				onSuccess() {
-					progressSubmitting.value = false
+					progressSubmitting.value = null
 				},
 				onError(err) {
-					progressSubmitting.value = false
+					progressSubmitting.value = null
 					console.error(err)
 				},
 			}
@@ -1252,12 +1259,7 @@ const progress = createResource({
 			lesson.data.progress = data
 		}
 		if (wasNotComplete && lesson.data?.next) {
-			toast({
-				title: __('Lesson Complete'),
-				text: __('Next lesson is now unlocked!'),
-				icon: 'check-circle',
-				iconClasses: 'text-green-600',
-			})
+			toast.success(__('Next lesson is now unlocked!'))
 		}
 	},
 })
@@ -1396,6 +1398,8 @@ const resetLessonState = (newChapterNumber, newLessonNumber) => {
 	editor.value = null
 	instructorEditor.value = null
 	allowDiscussions.value = false
+	// Null out the guard so the new lesson isn't blocked by the previous lesson's in-flight request
+	progressSubmitting.value = null
 	lesson.submit({
 		chapter: newChapterNumber,
 		lesson: newLessonNumber,
@@ -1521,11 +1525,18 @@ const getPlyrSource = async () => {
 
 	const lastSavedTimes = {}
 
+	// Capture the lesson name at the time listeners are registered.
+	// If lesson.data.name has changed by the time a callback fires (i.e. the
+	// Plyr instance belongs to a previous lesson), skip the callback entirely.
+	// This prevents stale players from marking the wrong lesson as complete.
+	const registeredForLesson = lesson.data?.name
+
 	// Register real-time timeupdate and pause listeners
 	plyrSources.value.forEach((plyrSource) => {
 		const sourceUrl = cleanYouTubeUrl(plyrSource.source)
 
 		plyrSource.on('pause', () => {
+			if (lesson.data?.name !== registeredForLesson) return
 			// Skip the programmatic pause triggered by updatePlyrVideoTime on 'ready'
 			// (player may not have a valid source/duration yet → 417 MandatoryError)
 			if (plyrSource._suppressNextPause) {
@@ -1536,6 +1547,7 @@ const getPlyrSource = async () => {
 		})
 
 		plyrSource.on('timeupdate', () => {
+			if (lesson.data?.name !== registeredForLesson) return
 			currentVideoTime.value = plyrSource.currentTime
 			activePlayer.value = plyrSource
 
@@ -1554,10 +1566,12 @@ const getPlyrSource = async () => {
 	const videos = document.querySelectorAll('video')
 	videos.forEach((video) => {
 		video.addEventListener('pause', () => {
+			if (lesson.data?.name !== registeredForLesson) return
 			trackVideoWatchDuration()
 		})
 
 		video.addEventListener('timeupdate', () => {
+			if (lesson.data?.name !== registeredForLesson) return
 			currentVideoTime.value = video.currentTime
 
 			if (video.duration && video.currentTime >= 0.9 * video.duration) {
@@ -1624,6 +1638,11 @@ const updateVideoTime = (video) => {
 }
 
 const startTimer = () => {
+	// Always reset the timer when starting — without this, navigating to the
+	// next lesson after the 30s timer already fired would immediately call
+	// markProgress() on the new lesson because timer.value was still >= 30.
+	clearInterval(timerInterval)
+	timer.value = 0
 	if (!lesson.data?.membership) return
 	if (lesson.data?.icon === 'icon-youtube') return
 	timerInterval = setInterval(() => {
