@@ -1419,6 +1419,8 @@ const getVideoDetails = () => {
 	const videos = document.querySelectorAll('video')
 	if (videos.length > 0) {
 		videos.forEach((video) => {
+			// Skip videos that haven't loaded yet (no src or no duration)
+			if (!video.src || !video.duration) return
 			if (video.duration && video.currentTime >= 0.9 * video.duration) markProgress()
 			details.push({
 				source: video.src,
@@ -1433,6 +1435,8 @@ const getVideoDetails = () => {
 const getPlyrSourceDetails = () => {
 	let details = []
 	plyrSources.value.forEach((source) => {
+		// Skip Plyr sources that haven't fully initialized (no source URL or no duration)
+		if (!source.source || !source.duration) return
 		if (source.duration && source.currentTime >= 0.9 * source.duration) markProgress()
 		let src = cleanYouTubeUrl(source.source)
 		details.push({
@@ -1522,6 +1526,12 @@ const getPlyrSource = async () => {
 		const sourceUrl = cleanYouTubeUrl(plyrSource.source)
 
 		plyrSource.on('pause', () => {
+			// Skip the programmatic pause triggered by updatePlyrVideoTime on 'ready'
+			// (player may not have a valid source/duration yet → 417 MandatoryError)
+			if (plyrSource._suppressNextPause) {
+				plyrSource._suppressNextPause = false
+				return
+			}
 			trackVideoWatchDuration()
 		})
 
@@ -1583,6 +1593,11 @@ const updatePlyrVideoTime = (video) => {
 		plyrSource.on('ready', () => {
 			if (plyrSource.source === video.source) {
 				plyrSource.embed.seekTo(video.watch_time, true)
+				// Play then pause to force the seek to register, but we must NOT let
+				// this programmatic pause fire trackVideoWatchDuration (Plyr may not
+				// have a valid source/duration yet, causing a 417 MandatoryError).
+				// Use a flag so the 'pause' listener skips this one event.
+				plyrSource._suppressNextPause = true
 				plyrSource.play()
 				plyrSource.pause()
 			}

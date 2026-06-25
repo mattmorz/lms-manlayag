@@ -1606,6 +1606,12 @@ def track_video_watch_duration(lesson: str, videos: list):
 	has_duration_field = frappe.get_meta("LMS Video Watch Duration").has_field("duration")
 
 	for video in videos:
+		# Skip entries with no source or no watch_time — these come from uninitialized
+		# Plyr players (e.g., during the ready→seek→pause sequence) and would fail the
+		# mandatory field check on insert.
+		if not video.get("source") or video.get("watch_time") is None:
+			continue
+
 		filters = {
 			"lesson": lesson,
 			"source": video.get("source"),
