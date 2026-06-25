@@ -304,8 +304,18 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	enrollment = frappe.get_doc("LMS Enrollment", membership)
 	enrollment.current_lesson = lesson
 	enrollment.progress = progress
-	enrollment.save()
-	enrollment.run_method("on_change")
+	try:
+		enrollment.save()
+		enrollment.run_method("on_change")
+	except frappe.QueryDeadlockError:
+		# Fallback: use set_value which skips optimistic-lock check_if_latest.
+		# This can happen if another concurrent save_progress call for the same
+		# enrollment was committed between our get_doc and save().
+		frappe.db.set_value(
+			"LMS Enrollment",
+			membership,
+			{"current_lesson": lesson, "progress": progress},
+		)
 
 	frappe.publish_realtime(
 		event="update_lesson_progress",

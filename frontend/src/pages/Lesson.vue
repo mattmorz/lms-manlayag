@@ -1216,12 +1216,20 @@ watch(
 	}
 )
 
+// Guard flag: prevents concurrent save_progress calls that cause MySQL error 1020
+const progressSubmitting = ref(false)
+
 const markProgress = () => {
-	if (user.data && lesson.data && !lesson.data.progress) {
+	if (user.data && lesson.data && !lesson.data.progress && !progressSubmitting.value) {
+		progressSubmitting.value = true
 		progress.submit(
 			{},
 			{
+				onSuccess() {
+					progressSubmitting.value = false
+				},
 				onError(err) {
+					progressSubmitting.value = false
 					console.error(err)
 				},
 			}
@@ -1238,9 +1246,18 @@ const progress = createResource({
 		}
 	},
 	onSuccess(data) {
+		const wasNotComplete = !lesson.data?.progress
 		lessonProgress.value = data
 		if (lesson.data) {
 			lesson.data.progress = data
+		}
+		if (wasNotComplete && lesson.data?.next) {
+			toast({
+				title: __('Lesson Complete'),
+				text: __('Next lesson is now unlocked!'),
+				icon: 'check-circle',
+				iconClasses: 'text-green-600',
+			})
 		}
 	},
 })
