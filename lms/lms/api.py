@@ -5861,9 +5861,14 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 		comp_prob = 100.0
 		factors_comp = [_("Course is already 100% completed.")]
 	else:
-		active_days_ago = 99
+		# Determine how long the student has been inactive
+		no_activity_ever = last_act is None
 		if last_act:
 			active_days_ago = (now_datetime() - last_act).days
+		else:
+			# Fall back to days since enrollment as the inactivity baseline
+			enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
+			active_days_ago = (now_datetime() - get_datetime(enrollment_date)).days if enrollment_date else 99
 
 		eng_factor = 1.0
 		if active_days_ago > 14:
@@ -5883,7 +5888,10 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 
 		factors_comp = []
 		if eng_factor < 1.0:
-			factors_comp.append(_("Recent inactivity ({0} days) reduces completion momentum.").format(active_days_ago))
+			if no_activity_ever:
+				factors_comp.append(_("No learning activity recorded — enrolled {0} days ago with no engagement yet.").format(active_days_ago))
+			else:
+				factors_comp.append(_("Inactive for {0} days since last activity; this reduces completion momentum.").format(active_days_ago))
 		else:
 			factors_comp.append(_("Active study engagement maintains progress projection."))
 		if perf_factor < 1.0:
@@ -5911,31 +5919,34 @@ def get_predictive_analytics(member: str, course: str) -> dict:
 	dropout_prob = 10.0
 	factors_drop = []
 
-	if last_act:
-		days_inactive = (now_datetime() - last_act).days
-		if days_inactive >= 14:
-			dropout_prob += 60.0
-			factors_drop.append(_("Critically inactive for {0} days.").format(days_inactive))
-		elif days_inactive >= 7:
-			dropout_prob += 30.0
-			factors_drop.append(_("Inactive for {0} days.").format(days_inactive))
-	else:
-		enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
-		if enrollment_date:
-			days_since_enroll = (now_datetime() - get_datetime(enrollment_date)).days
-			if days_since_enroll >= 10:
-				dropout_prob += 50.0
-				factors_drop.append(_("Zero learning activity in the {0} days since enrollment.").format(days_since_enroll))
-
-	if progress < 10.0 and dropout_prob > 20.0:
-		dropout_prob += 10.0
-		factors_drop.append(_("Stagnated at low course completion ({0}%).").format(round(progress, 1)))
-
-	if comp_prob >= 100.0:
+	# Use actual enrollment progress (not predicted comp_prob) to determine true completion
+	if progress >= 100.0:
 		dropout_prob = 0.0
-		factors_drop = [_("Course is completed.")]
+		factors_drop = [_("No dropout risk — student has successfully completed the course.")]
 	else:
-		dropout_prob = dropout_prob * (1.0 - (comp_prob / 100.0))
+		if last_act:
+			days_inactive = (now_datetime() - last_act).days
+			if days_inactive >= 14:
+				dropout_prob += 60.0
+				factors_drop.append(_("Critically inactive for {0} days.").format(days_inactive))
+			elif days_inactive >= 7:
+				dropout_prob += 30.0
+				factors_drop.append(_("Inactive for {0} days.").format(days_inactive))
+		else:
+			enrollment_date = frappe.db.get_value("LMS Enrollment", {"member": member, "course": course}, "creation")
+			if enrollment_date:
+				days_since_enroll = (now_datetime() - get_datetime(enrollment_date)).days
+				if days_since_enroll >= 10:
+					dropout_prob += 50.0
+					factors_drop.append(_("Zero learning activity in the {0} days since enrollment.").format(days_since_enroll))
+
+		if progress < 10.0 and dropout_prob > 20.0:
+			dropout_prob += 10.0
+			factors_drop.append(_("Stagnated at low course completion ({0}%).").format(round(progress, 1)))
+
+		# Scale dropout by actual remaining course progress (not predicted probability)
+		remaining = max(0.0, 1.0 - (progress / 100.0))
+		dropout_prob = dropout_prob * remaining
 		dropout_prob = max(5.0, min(95.0, round(dropout_prob, 2)))
 		if not factors_drop:
 			factors_drop.append(_("Consistent recent activity indicates low dropout risk."))
