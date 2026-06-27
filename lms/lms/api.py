@@ -6840,7 +6840,79 @@ def get_instructor_analytics_batches():
 	return batches
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
+def get_public_platform_stats() -> dict:
+	"""
+	Returns aggregated, non-sensitive platform statistics for guest / non-logged-in visitors.
+	No personal or instructor-specific data is included.
+	"""
+	from frappe.utils import add_days, today
+
+	# Total published courses
+	total_courses = frappe.db.count("LMS Course", {"published": 1})
+
+	# Total registered members (LMS Member)
+	total_members = frappe.db.count("User", {"enabled": 1, "user_type": "Website User"})
+
+	# Total enrollments across all courses
+	total_enrollments = frappe.db.count("LMS Enrollment")
+
+	# Active learners in the last 30 days (users with a page view in last 30 days)
+	thirty_days_ago = add_days(today(), -30)
+	active_learners = frappe.db.sql(
+		"""
+		SELECT COUNT(DISTINCT member) FROM `tabLMS Page View Log`
+		WHERE creation >= %s
+		""",
+		(thirty_days_ago,),
+	)[0][0] or 0
+
+	# Platform-wide completion rate
+	total_with_progress = frappe.db.sql(
+		"SELECT COUNT(*) FROM `tabLMS Enrollment`"
+	)[0][0] or 0
+	completed = frappe.db.sql(
+		"SELECT COUNT(*) FROM `tabLMS Enrollment` WHERE progress >= 100"
+	)[0][0] or 0
+	completion_rate = round((completed / total_with_progress * 100), 1) if total_with_progress else 0.0
+
+	# Top 5 most-enrolled published courses
+	popular_courses = frappe.db.sql(
+		"""
+		SELECT c.title AS course, COUNT(e.name) AS enrollments
+		FROM `tabLMS Enrollment` e
+		INNER JOIN `tabLMS Course` c ON c.name = e.course
+		WHERE c.published = 1
+		GROUP BY e.course
+		ORDER BY enrollments DESC
+		LIMIT 5
+		""",
+		as_dict=True,
+	)
+
+	# Total published batches
+	total_batches = frappe.db.count("LMS Batch", {"published": 1})
+
+	# Total quiz submissions (engagement signal)
+	total_quiz_submissions = frappe.db.count("LMS Quiz Submission")
+
+	# Total certificates issued
+	total_certificates = frappe.db.count("LMS Certificate")
+
+	return {
+		"total_courses": total_courses,
+		"total_members": total_members,
+		"total_enrollments": total_enrollments,
+		"active_learners_30d": active_learners,
+		"completion_rate": completion_rate,
+		"popular_courses": popular_courses,
+		"total_batches": total_batches,
+		"total_quiz_submissions": total_quiz_submissions,
+		"total_certificates": total_certificates,
+	}
+
+
+
 def check_content_before_save(content_doctype: str, content_name: str) -> dict:
 	check_library_permission()
 	is_shared = False

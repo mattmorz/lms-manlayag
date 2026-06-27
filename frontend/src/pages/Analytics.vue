@@ -28,8 +28,10 @@
 				<div v-else-if="user" class="text-sm font-semibold text-ink-gray-7">
 					{{ __('My Learning Insights') }}
 				</div>
-				<div v-else class="text-sm font-semibold text-ink-gray-7">
-					{{ __('Platform Statistics') }}
+				<div v-else class="flex items-center gap-2">
+					<BarChart3 class="w-4 h-4 text-indigo-600" />
+					<span class="text-sm font-semibold text-ink-gray-7">{{ __('Platform Overview') }}</span>
+					<span class="text-xs text-ink-gray-4 font-normal ml-1">{{ __('Live statistics') }}</span>
 				</div>
 
 				<!-- Dynamic Parameter Dropdown depending on currentTab -->
@@ -105,6 +107,171 @@
 			</div>
 
 			<div v-else class="space-y-6">
+				<!-- 0. GUEST / PUBLIC STATISTICS DASHBOARD -->
+				<div v-if="currentTab === 'Guest'" class="space-y-6">
+
+					<!-- Hero Banner -->
+					<div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 p-6 sm:p-8 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-lg">
+						<div>
+							<div class="flex items-center gap-2 mb-1.5">
+								<TrendingUp class="w-5 h-5 text-indigo-200" />
+								<span class="text-xs font-semibold tracking-widest uppercase text-indigo-200">{{ __('Platform Statistics') }}</span>
+							</div>
+							<h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug">
+								{{ __('Learn. Grow. Succeed.') }}
+							</h2>
+							<p class="text-sm text-indigo-200 mt-1.5 max-w-md leading-relaxed">
+								{{ __('Join thousands of learners already building skills on this platform. Here\'s a live snapshot of what\'s happening.') }}
+							</p>
+						</div>
+						<div class="flex flex-col sm:items-end gap-2 shrink-0">
+							<Button
+								variant="solid"
+								class="!bg-white !text-indigo-700 font-bold hover:!bg-indigo-50 transition-colors shadow"
+								@click="router.push({ name: 'Login' })"
+							>
+								{{ __('Sign In to Track Your Progress') }}
+							</Button>
+							<span class="text-xs text-indigo-300 text-center sm:text-right">{{ __('Free to join · No credit card needed') }}</span>
+						</div>
+					</div>
+
+					<!-- KPI Grid -->
+					<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+						<!-- Courses -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-indigo-50 rounded-full p-2 mb-1">
+								<BookOpen class="w-5 h-5 text-indigo-600" />
+							</div>
+							<div class="text-2xl font-extrabold text-indigo-600">{{ publicStats.data?.total_courses ?? '—' }}</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Published Courses') }}</div>
+						</div>
+						<!-- Members -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-green-50 rounded-full p-2 mb-1">
+								<Users class="w-5 h-5 text-green-600" />
+							</div>
+							<div class="text-2xl font-extrabold text-green-600">{{ publicStats.data?.total_members ?? '—' }}</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Registered Learners') }}</div>
+						</div>
+						<!-- Enrollments -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-purple-50 rounded-full p-2 mb-1">
+								<GraduationCap class="w-5 h-5 text-purple-600" />
+							</div>
+							<div class="text-2xl font-extrabold text-purple-600">{{ publicStats.data?.total_enrollments ?? '—' }}</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Total Enrollments') }}</div>
+						</div>
+						<!-- Active learners -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-orange-50 rounded-full p-2 mb-1">
+								<Flame class="w-5 h-5 text-orange-500 fill-orange-400" />
+							</div>
+							<div class="text-2xl font-extrabold text-orange-500">{{ publicStats.data?.active_learners_30d ?? '—' }}</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Active Learners (30d)') }}</div>
+						</div>
+						<!-- Completion rate -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-teal-50 rounded-full p-2 mb-1">
+								<CheckCircle2 class="w-5 h-5 text-teal-600" />
+							</div>
+							<div class="text-2xl font-extrabold text-teal-600">{{ publicStats.data?.completion_rate ?? '—' }}%</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Completion Rate') }}</div>
+						</div>
+						<!-- Certificates -->
+						<div class="bg-surface-white border rounded-xl p-4 flex flex-col items-center text-center gap-1.5 hover:shadow-md transition-shadow">
+							<div class="bg-yellow-50 rounded-full p-2 mb-1">
+								<BadgeCheckIcon class="w-5 h-5 text-yellow-600" />
+							</div>
+							<div class="text-2xl font-extrabold text-yellow-600">{{ publicStats.data?.total_certificates ?? '—' }}</div>
+							<div class="text-xs text-ink-gray-5 font-medium leading-tight">{{ __('Certificates Issued') }}</div>
+						</div>
+					</div>
+
+					<!-- Lower section: Popular Courses + Engagement + CTA -->
+					<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+						<!-- Popular Courses -->
+						<div class="lg:col-span-2 bg-surface-white border rounded-xl p-5">
+							<h3 class="text-sm font-bold text-ink-gray-9 mb-4 flex items-center gap-2">
+								<Trophy class="w-4 h-4 text-yellow-500 fill-yellow-400" />
+								{{ __('Most Popular Courses') }}
+							</h3>
+							<div v-if="publicStats.data?.popular_courses?.length" class="space-y-3">
+								<div
+									v-for="(c, i) in publicStats.data.popular_courses"
+									:key="i"
+									class="flex items-center justify-between gap-4 p-3 rounded-lg border bg-surface-gray-1 hover:bg-indigo-50/30 transition-colors"
+								>
+									<div class="flex items-center gap-3 min-w-0">
+										<span class="text-xs font-extrabold text-indigo-600 bg-indigo-50 rounded-full w-6 h-6 flex items-center justify-center shrink-0">{{ i + 1 }}</span>
+										<span class="text-xs font-semibold text-ink-gray-8 truncate">{{ c.course }}</span>
+									</div>
+									<div class="flex items-center gap-2 shrink-0">
+										<div class="w-20 bg-gray-100 rounded-full h-1.5 hidden sm:block">
+											<div
+												class="bg-indigo-500 h-1.5 rounded-full"
+												:style="{ width: Math.min(100, (c.enrollments / (publicStats.data.popular_courses[0]?.enrollments || 1)) * 100) + '%' }"
+											></div>
+										</div>
+										<span class="text-xs font-bold text-indigo-600 whitespace-nowrap">{{ c.enrollments }} {{ __('enrolled') }}</span>
+									</div>
+								</div>
+							</div>
+							<div v-else class="text-xs text-ink-gray-4 text-center py-6">{{ __('No course data yet.') }}</div>
+						</div>
+
+						<!-- Engagement Summary + CTA -->
+						<div class="space-y-4">
+
+							<!-- Engagement stats card -->
+							<div class="bg-surface-white border rounded-xl p-5 space-y-4">
+								<h3 class="text-sm font-bold text-ink-gray-9 flex items-center gap-2">
+									<BarChart3 class="w-4 h-4 text-indigo-500" />
+									{{ __('Engagement Highlights') }}
+								</h3>
+								<div class="space-y-3">
+									<div class="flex items-center justify-between text-xs">
+										<span class="text-ink-gray-5 flex items-center gap-1.5">
+											<Layers class="w-3.5 h-3.5" /> {{ __('Published Batches') }}
+										</span>
+										<span class="font-extrabold text-indigo-600">{{ publicStats.data?.total_batches ?? '—' }}</span>
+									</div>
+									<div class="flex items-center justify-between text-xs">
+										<span class="text-ink-gray-5 flex items-center gap-1.5">
+											<CircleHelp class="w-3.5 h-3.5" /> {{ __('Quiz Attempts') }}
+										</span>
+										<span class="font-extrabold text-indigo-600">{{ publicStats.data?.total_quiz_submissions ?? '—' }}</span>
+									</div>
+									<div class="flex items-center justify-between text-xs">
+										<span class="text-ink-gray-5 flex items-center gap-1.5">
+											<BadgeCheckIcon class="w-3.5 h-3.5" /> {{ __('Certificates Earned') }}
+										</span>
+										<span class="font-extrabold text-yellow-600">{{ publicStats.data?.total_certificates ?? '—' }}</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Join CTA card -->
+							<div class="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-5 text-center space-y-3">
+								<GraduationCap class="w-8 h-8 text-indigo-500 mx-auto" />
+								<p class="text-xs font-semibold text-indigo-800 leading-relaxed">
+									{{ __('Sign in to unlock your personal learning dashboard, track progress, and earn certificates.') }}
+								</p>
+								<Button
+									variant="solid"
+									class="w-full"
+									@click="router.push({ name: 'Login' })"
+								>
+									{{ __('Get Started') }}
+								</Button>
+							</div>
+
+						</div>
+					</div>
+
+				</div>
+
 				<!-- 1. STUDENT DASHBOARD -->
 				<div v-if="currentTab === 'Student'" class="space-y-6">
 				<!-- KPI Cards -->
@@ -938,6 +1105,12 @@ import {
 	Pencil,
 	Code,
 	CircleHelp,
+	Users,
+	GraduationCap,
+	BarChart3,
+	Layers,
+	BadgeCheckIcon,
+	Trophy,
 } from 'lucide-vue-next'
 import apexchart from 'vue3-apexcharts'
 
@@ -999,7 +1172,7 @@ const availableTabs = computed(() => {
 	return tabs
 })
 
-const currentTab = ref(user ? 'Student' : 'Administrative')
+const currentTab = ref(user ? 'Student' : 'Guest')
 
 // Selector values
 const selectedStudentCourse = ref(null)
@@ -1077,10 +1250,10 @@ watch(currentTab, resetLimits)
 // 1. Resources definitions
 // ----------------------------------------------------
 
-// Fetch dropdown inputs
+// Fetch dropdown inputs — only for authenticated users to avoid 403 errors for guests
 const instructorCourses = createResource({
 	url: 'lms.lms.api.get_instructor_analytics_courses',
-	auto: true,
+	auto: user ? true : false,
 	onSuccess(data) {
 		if (data?.length) {
 			selectedInstructorCourse.value = data[0].name
@@ -1090,12 +1263,18 @@ const instructorCourses = createResource({
 
 const batchesList = createResource({
 	url: 'lms.lms.api.get_instructor_analytics_batches',
-	auto: true,
+	auto: user ? true : false,
 	onSuccess(data) {
 		if (data?.length) {
 			selectedBatchName.value = data[0].name
 		}
 	},
+})
+
+// Public statistics for guest / non-logged-in visitors
+const publicStats = createResource({
+	url: 'lms.lms.api.get_public_platform_stats',
+	auto: !user ? true : false,
 })
 
 const categoriesList = createResource({
@@ -1169,6 +1348,7 @@ const adminDashboard = createResource({
 })
 
 const loading = computed(() => {
+	if (currentTab.value === 'Guest') return publicStats.loading
 	if (currentTab.value === 'Student') return studentDashboard.loading
 	if (currentTab.value === 'Instructor') return instructorDashboard.loading || instructorCourses.loading
 	if (currentTab.value === 'Batch') return batchDashboard.loading || batchesList.loading
