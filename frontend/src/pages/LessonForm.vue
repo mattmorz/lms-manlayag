@@ -6,13 +6,22 @@
 					class="sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between border-b overflow-hidden bg-surface-white px-3 py-2.5 sm:px-5"
 				>
 					<Breadcrumbs class="text-ellipsis" :items="breadcrumbs" />
-					<Button
-						variant="solid"
-						@click="saveLesson({ showSuccessMessage: true })"
-						class="mt-3 md:mt-0"
-					>
-						{{ __('Save') }}
-					</Button>
+					<div class="flex items-center gap-2 mt-3 md:mt-0">
+						<Button
+							v-if="!isLessonOwner && lessonDetails.data?.lesson"
+							variant="solid"
+							@click="handleDuplicateLesson"
+						>
+							{{ __('Duplicate Lesson') }}
+						</Button>
+						<Button
+							v-if="isLessonOwner"
+							variant="solid"
+							@click="saveLesson({ showSuccessMessage: true })"
+						>
+							{{ __('Save') }}
+						</Button>
+					</div>
 				</header>
 				<div class="py-5">
 					<div class="w-5/6 mx-auto">
@@ -21,6 +30,7 @@
 							label="Title"
 							class="mb-4"
 							:required="true"
+							:disabled="!isLessonOwner"
 						/>
 
 						<div class="grid grid-cols-3 gap-6">
@@ -30,6 +40,7 @@
 									v-model="lesson.include_in_preview"
 									type="checkbox"
 									label="Include in Preview"
+									:disabled="!isLessonOwner"
 								/>
 							</div>
 
@@ -39,16 +50,19 @@
 									v-model="lesson.require_quiz_pass"
 									type="checkbox"
 									:label="__('Require Quiz Pass')"
+									:disabled="!isLessonOwner"
 								/>
 
-								<MultiSelect
-									v-if="lesson.require_quiz_pass"
-									v-model="requiredQuizzes"
-									doctype="LMS Quiz"
-									:label="__('Quizzes to Pass')"
-									:required="true"
-									class="mt-3"
-								/>
+								<div :class="{ 'pointer-events-none opacity-65': !isLessonOwner }">
+									<MultiSelect
+										v-if="lesson.require_quiz_pass"
+										v-model="requiredQuizzes"
+										doctype="LMS Quiz"
+										:label="__('Quizzes to Pass')"
+										:required="true"
+										class="mt-3"
+									/>
+								</div>
 							</div>
 						</div>
 
@@ -59,6 +73,7 @@
 									v-model="lesson.exclude_from_course"
 									type="checkbox"
 									:label="__('Exclude from Course')"
+									:disabled="!isLessonOwner"
 								/>
 							</div>
 
@@ -70,11 +85,13 @@
 										type="date"
 										v-model="lesson.release_date"
 										:label="__('Release Date')"
+										:disabled="!isLessonOwner"
 									/>
 									<FormControl
 										type="time"
 										v-model="lesson.release_time"
 										:label="__('Release Time')"
+										:disabled="!isLessonOwner"
 									/>
 								</div>
 							</div>
@@ -134,21 +151,7 @@
 		v-model="showLessonSaveWarningModal"
 		:options="{
 			size: 'md',
-			actions: [
-				{
-					label: __('Create New Version'),
-					variant: 'solid',
-					onClick: () => handleCreateNewLessonVersion()
-				},
-				{
-					label: __('Update Current Version'),
-					variant: 'outline',
-					onClick: () => {
-						showLessonSaveWarningModal = false
-						editCurrentLesson()
-					}
-				}
-			]
+			actions: saveWarningModalActions
 		}"
 	>
 		<template #body-title>
@@ -161,10 +164,14 @@
 		</template>
 		<template #body-content>
 			<div class="space-y-4">
-				<p class="text-sm text-ink-gray-6">
+				<p class="text-sm text-ink-gray-6" v-if="isLessonOwner">
 					{{ __('This lesson is currently used in {0} courses. Modifying it directly will affect all linked courses. Creating a new version is highly recommended.', [sharedCoursesCount]) }}
 				</p>
+				<p class="text-sm text-ink-gray-6" v-else>
+					{{ __('This lesson is currently used in {0} courses and you are not the original creator. To modify this lesson, you must duplicate it for this course.', [sharedCoursesCount]) }}
+				</p>
 				<FormControl
+					v-if="isLessonOwner"
 					v-model="lessonVersionChangeLog"
 					:label="__('Change Log Description')"
 					type="textarea"
@@ -193,21 +200,23 @@ import {
 	ref,
 	onBeforeUnmount,
 	onUpdated,
+	h,
 } from 'vue'
 import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
 import LessonHelp from '@/components/LessonHelp.vue'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'
-import { AlertTriangle, ChevronRight } from 'lucide-vue-next'
+import { AlertTriangle, ChevronRight, Lock } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr } from '@/utils'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const { brand } = sessionStore()
 const editor = ref(null)
 const instructorEditor = ref(null)
 const user = inject('$user')
 const route = useRoute()
+const router = useRouter()
 const openInstructorEditor = ref(false)
 const requiredQuizzes = ref([])
 const { capture } = useTelemetry()
@@ -215,6 +224,8 @@ const { updateOnboardingStep } = useOnboarding('learning')
 const showLessonSaveWarningModal = ref(false)
 const sharedCoursesCount = ref(0)
 const lessonVersionChangeLog = ref('')
+const isLessonOwner = ref(false)
+const isLessonShared = ref(false)
 let autoSaveInterval
 let showSuccessMessage = false
 
@@ -256,6 +267,7 @@ const renderEditor = (holder, toolOptions = { allowAssessments: true }) => {
 		holder: holder,
 		tools: getEditorTools(toolOptions),
 		defaultBlock: 'markdown',
+		readOnly: !isLessonOwner.value,
 		onChange: async (api, event) => {
 			enablePlyr()
 		},
@@ -361,6 +373,22 @@ const lessonDetails = createResource({
 	},
 	auto: true,
 	onSuccess(data) {
+		if (data.lesson) {
+			isLessonOwner.value = data.is_owner
+			isLessonShared.value = data.is_shared
+			sharedCoursesCount.value = data.usage_count
+			if (!data.is_owner) {
+				const LockIcon = () => h(Lock, { style: { color: 'white' } })
+				toast.info(
+					__('You do not have permission to modify this lesson because you are not the original creator. Click "Duplicate Lesson" in the header to create an independent copy.'),
+					{ icon: LockIcon, duration: 10 }
+				)
+			}
+		} else {
+			isLessonOwner.value = true
+			isLessonShared.value = false
+			sharedCoursesCount.value = 0
+		}
 		initEditors(getEditorToolOptions(data.lesson))
 		if (data.lesson) {
 			window.current_lesson_name = data.lesson.name
@@ -410,6 +438,7 @@ const addInstructorNotes = (data) => {
 
 const enableAutoSave = () => {
 	autoSaveInterval = setInterval(() => {
+		if (!isLessonOwner.value) return
 		saveLesson({ showSuccessMessage: false })
 	}, 10000)
 }
@@ -445,12 +474,12 @@ const newLessonResource = createResource({
 })
 
 const editLesson = createResource({
-	url: 'frappe.client.set_value',
+	url: 'lms.lms.api.update_course_lesson',
 	makeParams(values) {
 		return {
-			doctype: 'Course Lesson',
-			name: values.lesson,
-			fieldname: lesson,
+			course: props.courseName,
+			lesson_name: values.lesson,
+			fields: JSON.stringify(lesson),
 		}
 	},
 })
@@ -585,6 +614,16 @@ const saveLesson = (e) => {
 		showSuccessMessage = true
 	}
 	updateQuizGateFields()
+	
+	if (!isLessonOwner.value) {
+		if (lessonDetails.data?.lesson) {
+			checkAndSaveLesson()
+		} else {
+			createNewLesson()
+		}
+		return
+	}
+	
 	editor.value.save().then((outputData) => {
 		outputData = removeEmptyBlocks(outputData)
 		lesson.content = JSON.stringify(outputData)
@@ -601,18 +640,76 @@ const saveLesson = (e) => {
 }
 
 const checkAndSaveLesson = () => {
-	call('lms.lms.api.check_content_before_save', {
-		content_doctype: 'Course Lesson',
-		content_name: lessonDetails.data.lesson.name
-	}).then(res => {
-		if (res && res.is_shared) {
-			sharedCoursesCount.value = res.usage_count
-			showLessonSaveWarningModal.value = true
+	if (isLessonShared.value) {
+		if (isLessonOwner.value) {
+			if (showSuccessMessage) {
+				showLessonSaveWarningModal.value = true
+				toast.warning(__('This shared lesson is linked to other courses. Modifying it will update it for all of them.'))
+			}
 		} else {
 			editCurrentLesson()
 		}
-	}).catch(() => {
+	} else {
 		editCurrentLesson()
+	}
+}
+
+const saveWarningModalActions = computed(() => {
+	const actions = []
+	if (isLessonOwner.value) {
+		actions.push({
+			label: __('Create New Version'),
+			variant: 'solid',
+			onClick: () => handleCreateNewLessonVersion()
+		})
+		actions.push({
+			label: __('Update Current Version'),
+			variant: 'outline',
+			onClick: () => {
+				showLessonSaveWarningModal.value = false
+				editCurrentLesson()
+			}
+		})
+	} else {
+		actions.push({
+			label: __('Duplicate Lesson'),
+			variant: 'solid',
+			onClick: () => handleDuplicateLesson()
+		})
+	}
+	actions.push({
+		label: __('Cancel'),
+		variant: 'light',
+		onClick: () => {
+			showLessonSaveWarningModal.value = false
+		}
+	})
+	return actions
+})
+
+const handleDuplicateLesson = () => {
+	showLessonSaveWarningModal.value = false
+	
+	call('lms.lms.api.duplicate_linked_lesson', {
+		course: props.courseName,
+		chapter: lessonDetails.data.chapter.name,
+		lesson_name: lessonDetails.data.lesson.name,
+		doc_data: JSON.stringify(lesson)
+	}).then(res => {
+		toast.success(__('Lesson duplicated and saved successfully'))
+		router.replace({
+			name: 'LessonForm',
+			params: {
+				courseName: props.courseName,
+				chapterNumber: props.chapterNumber,
+				lessonNumber: props.lessonNumber
+			},
+			query: route.query
+		}).then(() => {
+			lessonDetails.reload()
+		})
+	}).catch(err => {
+		toast.error(err.messages?.[0] || err.message || __('Failed to duplicate lesson'))
 	})
 }
 
@@ -691,26 +788,32 @@ const editCurrentLesson = () => {
 				return validateLesson()
 			},
 			onSuccess() {
-				showSuccessMessage
-					? toast.success(
+				if (showSuccessMessage) {
+					if (!isLessonOwner.value) {
+						toast.success(__('Lesson settings updated successfully (applies to all courses linking to this lesson)'))
+					} else {
+						toast.success(
 							route.query.mode === 'assessment'
 								? __('Activity updated successfully')
 								: __('Lesson updated successfully')
-					  )
-					: ''
+						)
+					}
+				}
 			},
 			onError(err) {
-				toast.error(err.message)
+				if (showSuccessMessage) {
+					toast.error(err.messages?.[0] || err.message)
+				}
 			},
 		}
 	)
 }
 
 const validateLesson = () => {
-	if (!lesson.title) {
+	if (!lesson.title && isLessonOwner.value) {
 		return 'Title is required'
 	}
-	if (!lesson.content) {
+	if (!lesson.content && isLessonOwner.value) {
 		return 'Content is required'
 	}
 	if (lesson.require_quiz_pass && !requiredQuizzes.value.length) {

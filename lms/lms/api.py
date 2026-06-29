@@ -472,8 +472,62 @@ def delete_lesson(lesson: str, chapter: str):
 	frappe.db.delete("Lesson Reference", {"parent": chapter, "lesson": lesson})
 	update_index(lessons, chapter)
 
+	# Determine if the lesson is in a library and if the user is a library owner/editor
+	library_items = frappe.get_all(
+		"Content Library Item",
+		filters={"content_doctype": "Course Lesson", "content_name": lesson},
+		fields=["parent"]
+	)
+	library_names = [item.parent for item in library_items]
+	in_library = len(library_names) > 0
+	
+	is_library_editor = False
+	if in_library:
+		for lib_name in library_names:
+			lib_doc = frappe.get_doc("Content Library", lib_name)
+			if lib_doc.owner == frappe.session.user or frappe.session.user == "Administrator":
+				is_library_editor = True
+				break
+			instructors = frappe.get_all(
+				"Course Instructor",
+				filters={"parent": lib_name, "parenttype": "Content Library"},
+				pluck="instructor"
+			)
+			if frappe.session.user in instructors:
+				is_library_editor = True
+				break
+
+	# Check if the lesson is used elsewhere in references or links
+	other_refs = frappe.db.count("Lesson Reference", {"lesson": lesson, "parent": ["!=", chapter]})
+	other_links = frappe.db.count("Course Content Link", {
+		"content_doctype": "Course Lesson",
+		"content_name": lesson,
+		"mode": "Linked",
+		"course": ["!=", course]
+	})
+	is_used_elsewhere = (other_refs > 0 or other_links > 0)
+
+	# Only delete the Course Lesson doc if:
+	# 1. If it's in a library, only if the user is a library owner/editor and it is not used in other courses.
+	# 2. If it's NOT in a library, if it's not used elsewhere.
+	if in_library:
+		can_delete_doc = is_library_editor and not is_used_elsewhere
+	else:
+		can_delete_doc = not is_used_elsewhere
+
+	# Clean up Course Content Link for this course
+	frappe.db.delete("Course Content Link", {
+		"course": course,
+		"chapter": chapter,
+		"content_doctype": "Course Lesson",
+		"content_name": lesson
+	})
+
 	frappe.db.delete("LMS Course Progress", {"lesson": lesson})
-	frappe.db.delete("Course Lesson", lesson)
+	if can_delete_doc:
+		if in_library:
+			frappe.db.delete("Content Library Item", {"content_doctype": "Course Lesson", "content_name": lesson})
+		frappe.db.delete("Course Lesson", lesson)
 
 
 @frappe.whitelist()
@@ -6955,6 +7009,7 @@ def get_public_platform_stats() -> dict:
 
 
 
+@frappe.whitelist()
 def check_content_before_save(content_doctype: str, content_name: str) -> dict:
 	check_library_permission()
 	is_shared = False
@@ -6982,11 +7037,133 @@ def check_content_before_save(content_doctype: str, content_name: str) -> dict:
 		if assignments:
 			has_submissions = frappe.db.count("LMS Assignment Submission", {"assignment": ["in", assignments]}) > 0
 
+	owner = frappe.db.get_value(content_doctype, content_name, "owner")
+	is_owner = (owner == frappe.session.user or frappe.session.user == "Administrator")
 
 	return {
 		"is_shared": is_shared,
 		"usage_count": usage_count,
-		"has_submissions": has_submissions
+		"has_submissions": has_submissions,
+		"is_owner": is_owner
+	}
+
+
+@frappe.whitelist()
+def update_course_lesson(course: str, lesson_name: str, fields: str) -> dict:
+	if not can_modify_course(course):
+		frappe.throw(_("You do not have permission to modify this course."), frappe.PermissionError)
+		
+	if not frappe.db.exists("Course Lesson", lesson_name):
+		frappe.throw(_("Lesson not found."))
+		
+	doc = frappe.get_doc("Course Lesson", lesson_name)
+	
+	from lms.lms.utils import user_can_edit_lesson
+	is_owner = user_can_edit_lesson(lesson_name, frappe.session.user)
+	
+	if not is_owner:
+		frappe.throw(_("You do not have permission to modify this lesson. Please duplicate it instead."), frappe.PermissionError)
+		
+	import json
+	data = json.loads(fields)
+	
+	update_fields = [
+		"include_in_preview",
+		"require_quiz_pass",
+		"exclude_from_course",
+		"release_date",
+		"release_time",
+		"quiz_id",
+		"title",
+		"content",
+		"body",
+		"instructor_notes",
+		"instructor_content",
+		"youtube"
+	]
+	
+	for field in update_fields:
+		if field in data:
+			doc.set(field, data[field])
+				
+	doc.save(ignore_permissions=True)
+	
+	from lms.lms.utils import calculate_course_completion_time
+	frappe.db.set_value(
+		"LMS Course",
+		course,
+		"estimated_completion_time",
+		calculate_course_completion_time(course)
+	)
+	
+	frappe.db.commit()
+	return {"status": "success"}
+
+
+@frappe.whitelist()
+def duplicate_linked_lesson(course: str, chapter: str, lesson_name: str, doc_data: str) -> dict:
+	check_library_permission()
+	if not can_modify_course(course):
+		frappe.throw(_("You do not have permission to modify this course."), frappe.PermissionError)
+		
+	if not frappe.db.exists("Course Lesson", lesson_name):
+		frappe.throw(_("Lesson not found."))
+		
+	original_lesson = frappe.get_doc("Course Lesson", lesson_name)
+	cloned_lesson = frappe.copy_doc(original_lesson)
+	cloned_lesson.name = None
+	cloned_lesson.chapter = chapter
+	cloned_lesson.course = course
+	cloned_lesson.parent_version = None
+	cloned_lesson.version_number = 1
+	cloned_lesson.is_current_version = 1
+	cloned_lesson.owner = frappe.session.user
+	
+	if doc_data:
+		import json
+		data = json.loads(doc_data)
+		for k, v in data.items():
+			if k not in ["name", "owner", "creation", "modified", "modified_by"]:
+				cloned_lesson.set(k, v)
+				
+	cloned_lesson.insert(ignore_permissions=True)
+	
+	# Update Lesson Reference in this course chapter
+	frappe.db.set_value(
+		"Lesson Reference",
+		{"parent": chapter, "parenttype": "Course Chapter", "lesson": lesson_name},
+		"lesson",
+		cloned_lesson.name
+	)
+	
+	# Update Course Content Link in this course to Copied
+	frappe.db.set_value(
+		"Course Content Link",
+		{
+			"course": course,
+			"chapter": chapter,
+			"content_doctype": "Course Lesson",
+			"content_name": lesson_name
+		},
+		{
+			"mode": "Copied",
+			"content_name": cloned_lesson.name
+		}
+	)
+	
+	# Recalculate completion time
+	from lms.lms.utils import calculate_course_completion_time
+	frappe.db.set_value(
+		"LMS Course",
+		course,
+		"estimated_completion_time",
+		calculate_course_completion_time(course)
+	)
+	
+	frappe.db.commit()
+	
+	return {
+		"new_name": cloned_lesson.name
 	}
 
 
@@ -7935,4 +8112,4 @@ def get_content_usage_info(content_doctype: str) -> dict:
 
 	return usage_info
 
-
+

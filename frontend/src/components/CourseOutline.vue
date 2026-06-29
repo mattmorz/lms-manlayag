@@ -153,6 +153,7 @@
 													/>
 													<span class="mr-2">{{ lesson.title }}</span>
 													<Badge
+														v-slot="{}"
 														v-if="lesson.exclude_from_course"
 														theme="red"
 														variant="subtle"
@@ -170,6 +171,20 @@
 													>
 														{{ __('Scheduled: {0}').format(formatScheduledRelease(lesson.release_date, lesson.release_time)) }}
 													</Badge>
+													<Tooltip
+														v-if="lesson.is_linked"
+														:text="linkedCoursesText(lesson.other_courses)"
+														placement="top"
+													>
+														<Badge
+															theme="purple"
+															variant="subtle"
+															size="sm"
+															class="mr-2 cursor-help"
+														>
+															{{ __('Linked') }}
+														</Badge>
+													</Tooltip>
 													<Trash2
 														v-if="allowEdit"
 														@click.prevent="
@@ -320,6 +335,11 @@ const formatScheduledRelease = (dateStr, timeStr) => {
 	const parsed = dayjs(combined)
 	if (!parsed.isValid()) return `${dateStr} ${timeStr || ''}`.trim()
 	return parsed.format('MMMM DD, YYYY hh:mmA')
+}
+
+const linkedCoursesText = (courses) => {
+	if (!courses || courses.length === 0) return ''
+	return __('Linked to other courses: ') + courses.map(c => c.title).join(', ')
 }
 
 const props = defineProps({

@@ -206,6 +206,67 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 	lesson_list = frappe.get_all(
 		"Lesson Reference", {"parent": chapter_name}, ["lesson", "idx"], order_by="idx"
 	)
+
+	lesson_names = [row.lesson for row in lesson_list]
+	lessons_other_courses = {}
+	for name in lesson_names:
+		lessons_other_courses[name] = set()
+
+	if lesson_names:
+		all_refs = frappe.get_all(
+			"Lesson Reference",
+			filters={"lesson": ["in", lesson_names]},
+			fields=["lesson", "parent"]
+		)
+		
+		ref_chapters = list(set(r.parent for r in all_refs))
+		chapter_courses = {}
+		if ref_chapters:
+			chapters_data = frappe.get_all(
+				"Course Chapter",
+				filters={"name": ["in", ref_chapters]},
+				fields=["name", "course"]
+			)
+			chapter_courses = {c.name: c.course for c in chapters_data}
+			
+		all_links = frappe.get_all(
+			"Course Content Link",
+			filters={
+				"content_name": ["in", lesson_names],
+				"content_doctype": "Course Lesson",
+				"mode": "Linked"
+			},
+			fields=["content_name", "course"]
+		)
+		
+		for r in all_refs:
+			c_course = chapter_courses.get(r.parent)
+			if c_course and c_course != course:
+				lessons_other_courses[r.lesson].add(c_course)
+				
+		for l in all_links:
+			if l.course and l.course != course:
+				lessons_other_courses[l.content_name].add(l.course)
+
+		all_unique_other_courses = set()
+		for courses_set in lessons_other_courses.values():
+			all_unique_other_courses.update(courses_set)
+			
+		course_titles = {}
+		if all_unique_other_courses:
+			courses_data = frappe.get_all(
+				"LMS Course",
+				filters={"name": ["in", list(all_unique_other_courses)]},
+				fields=["name", "title"]
+			)
+			course_titles = {c.name: c.title for c in courses_data}
+			
+		for name in lesson_names:
+			lessons_other_courses[name] = [
+				{"name": c_id, "title": course_titles.get(c_id, c_id)}
+				for c_id in lessons_other_courses[name]
+			]
+
 	for row in lesson_list:
 		lesson_details = frappe.db.get_value(
 			"Course Lesson",
@@ -240,6 +301,10 @@ def get_lesson_details(chapter: dict, progress: bool = False):
 		lesson_details.number = f"{chapter_idx}-{row.idx}"
 		lesson_details.icon = get_lesson_icon(lesson_details.body, lesson_details.content)
 		lesson_details.locked = False
+		
+		other_courses_list = lessons_other_courses.get(row.lesson, [])
+		lesson_details.other_courses = other_courses_list
+		lesson_details.is_linked = len(other_courses_list) > 0
 
 		if progress:
 			lesson_details.is_complete = get_progress(
@@ -2482,6 +2547,46 @@ def calculate_discount_amount(base_amount: float, coupon: dict) -> float:
 	return discount_amount
 
 
+def user_can_edit_lesson(lesson_name: str, user: str) -> bool:
+	if not lesson_name:
+		return True
+		
+	if user in ["Administrator", "Guest"]:
+		return user == "Administrator"
+		
+	roles = frappe.get_roles(user)
+	if "System Manager" in roles or "Moderator" in roles:
+		return True
+		
+	lesson_owner = frappe.db.get_value("Course Lesson", lesson_name, "owner")
+	if lesson_owner == user:
+		return True
+		
+	library_items = frappe.get_all(
+		"Content Library Item",
+		filters={"content_doctype": "Course Lesson", "content_name": lesson_name},
+		pluck="parent"
+	)
+	
+	if not library_items:
+		return False
+		
+	for lib_name in library_items:
+		lib_doc = frappe.get_doc("Content Library", lib_name)
+		if lib_doc.owner == user:
+			return True
+			
+		instructors = frappe.get_all(
+			"Course Instructor",
+			filters={"parent": lib_name, "parenttype": "Content Library"},
+			pluck="instructor"
+		)
+		if user in instructors:
+			return True
+			
+	return False
+
+
 @frappe.whitelist()
 def get_lesson_creation_details(course: str, chapter: int, lesson: int) -> dict:
 	frappe.only_for(["Moderator", "Course Creator"])
@@ -2507,14 +2612,32 @@ def get_lesson_creation_details(course: str, chapter: int, lesson: int) -> dict:
 				"exclude_from_course",
 				"release_date",
 				"release_time",
+				"owner",
 			],
 			as_dict=1,
 		)
+
+	is_shared = False
+	usage_count = 0
+	is_owner = True
+	if lesson_name:
+		usage_count = frappe.db.count("Course Content Link", {
+			"content_doctype": "Course Lesson",
+			"content_name": lesson_name,
+			"mode": "Linked"
+		})
+		if usage_count > 0:
+			is_shared = True
+		
+		is_owner = user_can_edit_lesson(lesson_name, frappe.session.user)
 
 	return {
 		"course_title": frappe.db.get_value("LMS Course", course, "title"),
 		"chapter": frappe.db.get_value("Course Chapter", chapter_name, ["title", "name"], as_dict=True),
 		"lesson": lesson_details if lesson_name else None,
+		"is_shared": is_shared,
+		"usage_count": usage_count,
+		"is_owner": is_owner
 	}
 
 
