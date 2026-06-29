@@ -6840,8 +6840,50 @@ def get_instructor_analytics_batches():
 	return batches
 
 
+@frappe.whitelist()
+def get_lms_staff_users(txt: str = "") -> list:
+	"""
+	Returns users who hold at least one LMS staff role:
+	  Course Creator, Course Evaluator, Moderator, Batch Evaluator.
+	Used in the Share Question Bank dialog to restrict the recipient list.
+	Returns: [{ value: email, label: full_name, description: email }]
+	"""
+	lms_roles = ["Course Creator", "Course Evaluator", "Moderator", "Batch Evaluator"]
+
+	# Get all user emails that have at least one of the required roles
+	txt_like = "%" + (txt or "") + "%"
+	eligible_emails = frappe.db.sql(
+		"""
+		SELECT DISTINCT u.name AS email, u.full_name
+		FROM `tabUser` u
+		INNER JOIN `tabHas Role` hr ON hr.parent = u.name
+		WHERE hr.role IN ({roles})
+		  AND u.enabled = 1
+		  AND u.name != 'Administrator'
+		  AND (
+			u.name LIKE %s
+			OR u.full_name LIKE %s
+		  )
+		ORDER BY u.full_name
+		LIMIT 20
+		""".format(roles=", ".join(["%s"] * len(lms_roles))),
+		tuple(lms_roles) + (txt_like, txt_like),
+		as_dict=True,
+	)
+
+	return [
+		{
+			"value": row.email,
+			"label": row.full_name or row.email,
+			"description": row.email,
+		}
+		for row in eligible_emails
+	]
+
+
 @frappe.whitelist(allow_guest=True)
 def get_public_platform_stats() -> dict:
+
 	"""
 	Returns aggregated, non-sensitive platform statistics for guest / non-logged-in visitors.
 	No personal or instructor-specific data is included.

@@ -287,7 +287,7 @@ const fetchTestCases = () => {
 		},
 	})
 	testCases.reload()
-	originalTestCaseCount.value = testCases.data.length
+	// originalTestCaseCount is set in onSuccess once the async reload completes
 }
 
 const validateTitle = () => {

@@ -254,8 +254,8 @@
 					v-if="isShared"
 					v-model="sharedWith"
 					doctype="User"
+					searchUrl="lms.lms.api.get_lms_staff_users"
 					:label="__('Instructors to share with')"
-					:filters="{ ignore_user_type: 1 }"
 				/>
 				<div class="mt-4">
 					<label class="block text-sm font-medium text-ink-gray-5 mb-1.5">{{ __('Select File') }}</label>
@@ -339,8 +339,8 @@
 					v-if="shareIsShared"
 					v-model="shareInstructors"
 					doctype="User"
+					searchUrl="lms.lms.api.get_lms_staff_users"
 					:label="__('Instructors to share with')"
-					:filters="{ ignore_user_type: 1 }"
 				/>
 			</div>
 		</template>

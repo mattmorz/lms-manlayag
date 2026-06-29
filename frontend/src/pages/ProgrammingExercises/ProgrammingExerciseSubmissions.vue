@@ -18,14 +18,14 @@
 					doctype="LMS Programming Exercise"
 					v-model="filters.exercise"
 					:placeholder="__('Filter by Exercise')"
-					class="w-40"
+					class="w-100"
 				/>
 				<Link
 					doctype="User"
 					v-model="filters.member"
 					:placeholder="__('Filter by Member')"
 					:readonly="isStudent"
-					class="w-40"
+					class="w-100"
 				/>
 				<FormControl
 					v-model="filters.status"
@@ -127,6 +127,7 @@ import {
 	Breadcrumbs,
 	Button,
 	createListResource,
+	createResource,
 	FeatherIcon,
 	FormControl,
 	ListView,

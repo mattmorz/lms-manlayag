@@ -5,7 +5,7 @@
 			<span v-if="required" class="text-ink-red-3">*</span>
 		</label>
 		<Combobox v-model="selectedValue" nullable v-slot="{ open }">
-			<div class="relative w-full">
+			<div ref="inputWrapper" class="relative w-full">
 				<ComboboxInput
 					ref="search"
 					class="form-input w-full focus-visible:!ring-0"
@@ -20,67 +20,73 @@
 					:disabled="disabled"
 				/>
 				<ComboboxButton ref="trigger" class="hidden" />
-				<ComboboxOptions
-					v-show="open"
-					static
-					class="absolute z-20 mt-1 w-full rounded-lg bg-surface-modal border-2 border-outline-gray-modals max-h-[13rem] flex flex-col"
-				>
-					<div
-						class="flex-1 my-1 overflow-y-auto px-1.5"
-						:class="options.length ? 'min-h-[6rem]' : 'min-h-[3.8rem]'"
-					>
-						<template v-if="options.length">
-							<ComboboxOption
-								v-for="option in options"
-								:key="option.value"
-								:value="option"
-								v-slot="{ active }"
-							>
-								<li
-									:class="[
-										'flex cursor-pointer items-center rounded px-2 py-1 text-base',
-										{ 'bg-surface-gray-2': active },
-									]"
-								>
-									<div class="flex flex-col gap-1 p-1">
-										<div class="text-base font-medium text-ink-gray-8">
-											{{
-												option.value === option.label
-													? option.description
-													: option.label
-											}}
-										</div>
-										<div class="text-sm text-ink-gray-5">
-											{{ option.value }}
-										</div>
-									</div>
-								</li>
-							</ComboboxOption>
-						</template>
 
-						<div v-else class="text-ink-gray-7 px-4 py-2">
-							{{ __('No results found') }}
-						</div>
-					</div>
-
-					<div
-						v-if="attrs.onCreate"
-						class="p-1 bg-surface-white border-t rounded-b-lg"
+				<!-- Teleport dropdown to body to escape modal stacking context -->
+				<Teleport to="body">
+					<ComboboxOptions
+						v-show="open"
+						static
+						:style="dropdownStyle"
+						class="fixed z-[9999] rounded-lg bg-surface-modal border-2 border-outline-gray-modals max-h-[13rem] flex flex-col shadow-xl"
 					>
-						<Button
-							variant="ghost"
-							class="w-full !justify-start"
-							:label="__('Create New')"
-							@click="attrs.onCreate()"
+						<div
+							class="flex-1 my-1 overflow-y-auto px-1.5"
+							:class="options.length ? 'min-h-[6rem]' : 'min-h-[3.8rem]'"
 						>
-							<template #prefix>
-								<Plus class="h-4 w-4 stroke-1.5" />
+							<template v-if="options.length">
+								<ComboboxOption
+									v-for="option in options"
+									:key="option.value"
+									:value="option"
+									v-slot="{ active }"
+								>
+									<li
+										:class="[
+											'flex cursor-pointer items-center rounded px-2 py-1 text-base',
+											{ 'bg-surface-gray-2': active },
+										]"
+									>
+										<div class="flex flex-col gap-1 p-1">
+											<div class="text-base font-medium text-ink-gray-8">
+												{{
+													option.value === option.label
+														? option.description
+														: option.label
+												}}
+											</div>
+											<div class="text-sm text-ink-gray-5">
+												{{ option.value }}
+											</div>
+										</div>
+									</li>
+								</ComboboxOption>
 							</template>
-						</Button>
-					</div>
-				</ComboboxOptions>
+
+							<div v-else class="text-ink-gray-7 px-4 py-2">
+								{{ __('No results found') }}
+							</div>
+						</div>
+
+						<div
+							v-if="attrs.onCreate"
+							class="p-1 bg-surface-white border-t rounded-b-lg"
+						>
+							<Button
+								variant="ghost"
+								class="w-full !justify-start"
+								:label="__('Create New')"
+								@click="attrs.onCreate()"
+							>
+								<template #prefix>
+									<Plus class="h-4 w-4 stroke-1.5" />
+								</template>
+							</Button>
+						</div>
+					</ComboboxOptions>
+				</Teleport>
 			</div>
 		</Combobox>
+
 
 		<!-- Selected values -->
 		<div v-if="values?.length" class="grid grid-cols-2 gap-2 mt-1">
@@ -118,6 +124,7 @@ const props = defineProps({
 	size: { type: String, default: 'sm' },
 	doctype: { type: String, required: true },
 	filters: { type: Object, default: () => ({}) },
+	searchUrl: { type: String, default: '' },
 	validate: Function,
 	errorMessage: {
 		type: Function,
@@ -134,6 +141,18 @@ const query = ref('')
 const text = ref('')
 const selectedValue = ref(null)
 const error = ref(null)
+const inputWrapper = ref(null)
+const dropdownStyle = ref({})
+
+function updateDropdownPosition() {
+	if (!inputWrapper.value) return
+	const rect = inputWrapper.value.getBoundingClientRect()
+	dropdownStyle.value = {
+		top: `${rect.bottom + window.scrollY}px`,
+		left: `${rect.left + window.scrollX}px`,
+		width: `${rect.width}px`,
+	}
+}
 
 const emit = defineEmits(['update:modelValue'])
 
@@ -157,13 +176,12 @@ watchDebounced(
 )
 
 const filterOptions = createResource({
-	url: 'frappe.desk.search.search_link',
+	url: props.searchUrl || 'frappe.desk.search.search_link',
 	method: 'POST',
 	auto: true,
-	params: {
-		txt: text.value,
-		doctype: props.doctype,
-	},
+	params: props.searchUrl
+		? { txt: text.value }
+		: { txt: text.value, doctype: props.doctype },
 })
 
 const options = computed(() => {
@@ -173,16 +191,16 @@ const options = computed(() => {
 
 function reload(val) {
 	filterOptions.update({
-		params: {
-			txt: val,
-			doctype: props.doctype,
-		},
+		params: props.searchUrl
+			? { txt: val }
+			: { txt: val, doctype: props.doctype },
 	})
 	filterOptions.reload()
 }
 
 function onFocus() {
 	if (props.disabled) return
+	updateDropdownPosition()
 	if (!filterOptions.data?.length) {
 		reload('')
 	}
