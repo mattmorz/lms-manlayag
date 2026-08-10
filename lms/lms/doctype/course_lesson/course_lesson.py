@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.realtime import get_website_room
+from frappe.utils import cint, flt
 from frappe.utils.telemetry import capture
 
 from lms.lms.utils import get_course_progress
