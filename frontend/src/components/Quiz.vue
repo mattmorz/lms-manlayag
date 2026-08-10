@@ -187,6 +187,37 @@
 				<div v-if="quiz.data.due_date && isLateAttempt" class="mt-2 text-sm text-ink-red-3 font-semibold">
 					{{ __('Warning: The deadline has passed. Late submissions will receive 0 marks.') }}
 				</div>
+
+				<div
+					v-if="latestAttempt"
+					class="my-4 p-4 rounded-lg bg-surface-gray-2 border border-outline-gray-2 text-left space-y-2 max-w-md mx-auto"
+				>
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-semibold uppercase text-ink-gray-5">
+							{{ __('Latest Attempt') }} ({{ latestAttempt.creation }})
+						</span>
+						<Badge
+							:theme="Math.ceil(latestAttempt.percentage) >= (quiz.data?.passing_percentage || 0) ? 'green' : 'red'"
+							variant="subtle"
+							:label="Math.ceil(latestAttempt.percentage) >= (quiz.data?.passing_percentage || 0) ? __('Passed') : __('Failed')"
+						>
+							<template #prefix>
+								<CheckCircle
+									v-if="Math.ceil(latestAttempt.percentage) >= (quiz.data?.passing_percentage || 0)"
+									class="w-3.5 h-3.5 text-ink-green-2 mr-1"
+								/>
+								<XCircle
+									v-else
+									class="w-3.5 h-3.5 text-ink-red-3 mr-1"
+								/>
+							</template>
+						</Badge>
+					</div>
+					<div class="text-sm font-medium text-ink-gray-9">
+						{{ __('Score') }}: <span class="font-bold">{{ latestAttempt.score }}</span> / {{ latestAttempt.score_out_of }} ({{ Math.ceil(latestAttempt.percentage) }}%)
+					</div>
+				</div>
+
 				<div class="flex items-center justify-center space-x-2 mt-4">
 					<Button
 						v-if="
@@ -197,7 +228,7 @@
 						@click="startQuiz"
 					>
 						<span>
-							{{ inVideo ? __('Start the Quiz') : __('Start') }}
+							{{ latestAttempt ? __('Try Again') : (inVideo ? __('Start the Quiz') : __('Start')) }}
 						</span>
 					</Button>
 					<Button
@@ -218,7 +249,7 @@
 						quiz.data.max_attempts &&
 						attempts.data?.length >= quiz.data.max_attempts
 					"
-					class="leading-5 text-ink-gray-7"
+					class="leading-5 text-ink-gray-7 mt-2"
 				>
 					{{
 						__(
@@ -816,6 +847,10 @@ const isPassed = computed(() => {
 	return false
 })
 
+const latestAttempt = computed(() => {
+	return attempts.data && attempts.data.length > 0 ? attempts.data[0] : null
+})
+
 const savedResponses = computed(() => {
 	if (!quiz.data?.title) {
 		return []
@@ -938,13 +973,20 @@ const attempts = createResource({
 })
 
 watch(
+	[() => user.data?.name, () => quiz.data?.name],
+	([memberName, quizName]) => {
+		if (memberName && quizName) {
+			attempts.reload()
+		}
+	},
+	{ immediate: true }
+)
+
+watch(
 	() => quiz.data,
 	() => {
 		if (quiz.data) {
 			populateQuestions()
-			if (isLoggedIn.value) {
-				attempts.reload()
-			}
 		}
 		if (quiz.data && quiz.data.max_attempts) {
 			resetQuiz()
