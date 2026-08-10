@@ -324,7 +324,17 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 		after_commit=True,
 	)
 
-	return progress
+	is_completed = bool(
+		frappe.db.exists(
+			"LMS Course Progress",
+			{"lesson": lesson, "member": frappe.session.user, "status": "Complete"},
+		)
+	)
+
+	return {
+		"progress": progress,
+		"completed": is_completed,
+	}
 
 
 def capture_progress_for_analytics():

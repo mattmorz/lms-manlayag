@@ -1254,12 +1254,20 @@ const progress = createResource({
 	},
 	onSuccess(data) {
 		const wasNotComplete = !lesson.data?.progress
-		lessonProgress.value = data
-		if (lesson.data) {
-			lesson.data.progress = data
-		}
-		if (wasNotComplete && lesson.data?.next) {
-			toast.success(__('Next lesson is now unlocked!'))
+		const isNowComplete =
+			typeof data === 'object' && data !== null
+				? Boolean(data.completed)
+				: Boolean(data)
+		const courseProgressVal =
+			typeof data === 'object' && data !== null ? data.progress : data
+
+		lessonProgress.value = courseProgressVal
+
+		if (isNowComplete && lesson.data) {
+			lesson.data.progress = true
+			if (wasNotComplete && lesson.data?.next) {
+				toast.success(__('Next lesson is now unlocked!'))
+			}
 		}
 	},
 })
