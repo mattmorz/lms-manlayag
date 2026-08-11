@@ -9,7 +9,7 @@
 
 
 <div class="common-card-style course-card" data-course="{{ course.name }}" data-rating="{{ course.avg_rating }}"
-    data-enrollment="{{ course.enrollment_count }}" data-creation="{{ course.creation }}">
+    data-enrollment="{{ course.enrollments or course.enrollment_count or 0 }}" data-creation="{{ course.creation }}">
 
     <div class="course-image {% if not course.image %} default-image {% endif %}"
     {% if course.image %} style="background-image: url( {{ course.image | urlencode }} );" {% endif %}>
@@ -44,12 +44,13 @@
             <div class="pull-right indicator-pill {{ pill_color }} "> {{ course.status }} </div>
             {% endif %}
 
-            {% if course.enrollment_count %}
+            {% set student_count = course.enrollments or course.enrollment_count or 0 %}
+            {% if student_count %}
                 <div class="vertically-center">
                     <svg class="icon  icon-md">
                         <use class="" href="#icon-users">
                     </svg>
-                    {{ course.enrollment_count }}
+                    {{ student_count }}
                 </div>
             {% endif %}
 

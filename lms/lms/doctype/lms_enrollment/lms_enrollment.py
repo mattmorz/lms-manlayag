@@ -20,6 +20,10 @@ class LMSEnrollment(Document):
 
 	def on_update(self):
 		update_program_progress(self.member)
+		update_course_enrollment_count(self.course)
+
+	def on_trash(self):
+		update_course_enrollment_count(self.course)
 
 	def validate_duplicate_enrollment(self):
 		existing_enrollment = frappe.db.exists(
@@ -93,3 +97,10 @@ def update_program_progress(member):
 
 		average_progress = ceil(total_progress / len(courses))
 		frappe.db.set_value("LMS Program Member", program.name, "progress", average_progress)
+
+
+def update_course_enrollment_count(course_name):
+	if not course_name:
+		return
+	count = frappe.db.count("LMS Enrollment", {"course": course_name, "member_type": "Student"})
+	frappe.db.set_value("LMS Course", course_name, "enrollments", count, update_modified=False)
