@@ -3059,18 +3059,46 @@ def import_course(course_data):
 	else:
 		data = course_data
 
+	erroneous_questions = []
+	removed_quiz_questions = []
+
 	question_name_map = {}
 	for qst in data.get("questions", []):
 		old_name = qst.get("name")
+		qst_title = qst.get("question") or old_name or _("Untitled Question")
 		cleaned_qst = qst.copy()
 		cleaned_qst.pop("name", None)
 		
-		new_qst_doc = frappe.get_doc({
-			"doctype": "LMS Question",
-			**cleaned_qst
-		})
-		new_qst_doc.insert(ignore_permissions=True)
-		question_name_map[old_name] = new_qst_doc.name
+		# Reuse existing question if exact match exists by question text
+		existing_q = None
+		if cleaned_qst.get("question"):
+			existing_q = frappe.db.get_value("LMS Question", {"question": cleaned_qst.get("question")}, "name")
+
+		if existing_q:
+			question_name_map[old_name] = existing_q
+		else:
+			q_type = cleaned_qst.get("type", "Choices")
+			if q_type == "Choices":
+				if not cleaned_qst.get("option_1"):
+					cleaned_qst["option_1"] = "Option 1"
+				if not cleaned_qst.get("option_2"):
+					cleaned_qst["option_2"] = "Option 2"
+				if not any(cleaned_qst.get(f"is_correct_{i}") for i in range(1, 5)):
+					cleaned_qst["is_correct_1"] = 1
+
+			try:
+				new_qst_doc = frappe.get_doc({
+					"doctype": "LMS Question",
+					**cleaned_qst
+				})
+				new_qst_doc.insert(ignore_permissions=True)
+				question_name_map[old_name] = new_qst_doc.name
+			except Exception as err:
+				error_msg = str(err).replace("<p>", "").replace("</p>", "").strip()
+				erroneous_questions.append({
+					"title": qst_title,
+					"reason": error_msg
+				})
 		
 	quiz_name_map = {}
 	for quiz in data.get("quizzes", []):
@@ -3089,11 +3117,21 @@ def import_course(course_data):
 		new_questions = []
 		for qq in cleaned_quiz.get("questions", []):
 			old_q_ref = qq.get("question")
-			new_q_ref = question_name_map.get(old_q_ref, old_q_ref)
-			new_questions.append({
-				"question": new_q_ref,
-				"marks": qq.get("marks", 1)
-			})
+			new_q_ref = question_name_map.get(old_q_ref)
+			if not new_q_ref and frappe.db.exists("LMS Question", old_q_ref):
+				new_q_ref = old_q_ref
+
+			if new_q_ref:
+				new_questions.append({
+					"question": new_q_ref,
+					"marks": qq.get("marks", 1)
+				})
+			else:
+				removed_quiz_questions.append({
+					"quiz": original_title,
+					"question": old_q_ref
+				})
+
 		cleaned_quiz["questions"] = new_questions
 		
 		new_quiz_doc = frappe.get_doc({
@@ -3243,7 +3281,12 @@ def import_course(course_data):
 		# Save Chapter Document to persist lessons child table and trigger index/counts
 		chapter_doc.save(ignore_permissions=True)
 
-	return new_course_name
+	return {
+		"name": new_course_name,
+		"title": course_title,
+		"erroneous_questions": erroneous_questions,
+		"removed_quiz_questions": removed_quiz_questions
+	}
 
 
 def export_aiken(quiz_name, selected_questions=None):

@@ -172,13 +172,30 @@ const handleImportFile = (event) => {
 			const courseData = JSON.parse(e.target.result)
 			call('lms.lms.api.import_course', { course_data: courseData })
 				.then((response) => {
-					const courseName =
+					const resObj =
 						response && typeof response === 'object'
-							? response.message || response.name || JSON.stringify(response)
-							: response
+							? response
+							: { name: response }
+					const courseTitle =
+						resObj.title || resObj.name || __('Course')
 					toast.success(
-						__('Course "{0}" imported successfully.').format(courseName)
+						__('Course "{0}" imported successfully.').format(courseTitle)
 					)
+
+					const skipped = resObj.erroneous_questions || []
+					if (skipped.length > 0) {
+						const details = skipped
+							.map((q) => `"${q.title}" (${q.reason})`)
+							.join('; ')
+						toast.warning(
+							__('{0} erroneous question(s) were skipped during import: {1}').format(
+								skipped.length,
+								details
+							),
+							{ duration: 8 }
+						)
+					}
+
 					courses.reload()
 				})
 				.catch((err) => {
