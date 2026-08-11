@@ -44,6 +44,7 @@
 </template>
 <script setup>
 import {
+	createResource,
 	createListResource,
 	Breadcrumbs,
 	Button,

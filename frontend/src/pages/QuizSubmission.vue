@@ -74,6 +74,7 @@
 </template>
 <script setup>
 import {
+	createResource,
 	createDocumentResource,
 	Breadcrumbs,
 	FormControl,
