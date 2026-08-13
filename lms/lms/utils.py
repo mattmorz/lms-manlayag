@@ -548,7 +548,8 @@ def get_course_details_for_notification(topic: dict):
 	users += instructors
 
 	subject = _("New reply on the topic {0} in course {1}").format(topic.title, course_title)
-	link = get_lesson_url(course, get_lesson_index(topic.reference_docname))
+	lesson_url = get_lesson_url(course, get_lesson_index(topic.reference_docname))
+	link = f"{lesson_url}#discussions" if lesson_url else None
 
 	return subject, link, users
 
@@ -605,7 +606,8 @@ def notify_mentions_on_portal(doc: Document, topic: dict):
 		subject = _("{0} mentioned you in a comment in {1}").format(
 			frappe.bold(from_user_name), frappe.bold(topic.title)
 		)
-		link = get_lesson_url(course, get_lesson_index(topic.reference_docname))
+		lesson_url = get_lesson_url(course, get_lesson_index(topic.reference_docname))
+		link = f"{lesson_url}#discussions" if lesson_url else None
 	else:
 		batch_title = frappe.db.get_value("LMS Batch", topic.reference_docname, "title")
 		subject = _("{0} mentioned you in a comment in {1}").format(

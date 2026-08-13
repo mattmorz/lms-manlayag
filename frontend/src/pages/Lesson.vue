@@ -1697,6 +1697,10 @@ const checkIfDiscussionsAllowed = () => {
 			user.data?.is_instructor)
 	) {
 		allowDiscussions.value = true
+		if (route.hash && (route.hash.includes('discussion') || route.hash.includes('community') || route.hash.includes('question'))) {
+			currentTab.value = 'Community'
+			scrollDiscussionsIntoView()
+		}
 	} else {
 		allowDiscussions.value = false
 	}

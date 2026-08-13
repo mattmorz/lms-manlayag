@@ -237,11 +237,37 @@ const navigateToPage = (log) => {
 		hash = '#' + parts[1]
 	}
 	let link = rawLink.split('/')
-	if (link[2] == 'courses') {
-		router.push({
-			name: 'CourseDetail',
-			params: { courseName: link[3] },
-		})
+	if (link.includes('courses')) {
+		const courseIdx = link.indexOf('courses')
+		const courseName = link[courseIdx + 1]
+		if (link.includes('learn')) {
+			const learnIdx = link.indexOf('learn')
+			const lessonPart = link[learnIdx + 1]
+			if (lessonPart && lessonPart.includes('-')) {
+				const [chapNum, lessNum] = lessonPart.split('-')
+				router.push({
+					name: 'Lesson',
+					params: {
+						courseName: courseName,
+						chapterNumber: chapNum,
+						lessonNumber: lessNum,
+					},
+					hash: hash || '#discussions',
+				})
+			} else {
+				router.push({
+					name: 'CourseDetail',
+					params: { courseName: courseName },
+					hash: hash || undefined,
+				})
+			}
+		} else {
+			router.push({
+				name: 'CourseDetail',
+				params: { courseName: courseName },
+				hash: hash || undefined,
+			})
+		}
 	} else if (link.includes('batches')) {
 		if (link.includes('details')) {
 			router.push({
