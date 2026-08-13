@@ -4298,6 +4298,7 @@ def delete_question_bank(bank_label: str):
 
 	questions = frappe.get_all("LMS Question", filters={"question_bank": bank_label}, pluck="name")
 	for q in questions:
+		frappe.db.delete("LMS Quiz Question", {"question": q})
 		frappe.delete_doc("LMS Question", q, ignore_permissions=True)
 
 	return {"status": "success"}
@@ -4329,6 +4330,7 @@ def delete_bank_question(question_name: str):
 		if not is_allowed:
 			frappe.throw(_("You do not have permission to modify questions in this question bank."), frappe.PermissionError)
 
+	frappe.db.delete("LMS Quiz Question", {"question": question_name})
 	frappe.delete_doc("LMS Question", question_name, ignore_permissions=True)
 	return {"status": "success"}
 
