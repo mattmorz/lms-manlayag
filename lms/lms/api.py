@@ -5848,7 +5848,46 @@ def get_course_assessments_and_content(course: str) -> dict:
 	}
 
 
-def get_student_score_fallback(course: str, student: str) -> float:
+def get_bulk_student_scores(course: str) -> dict:
+	quiz_rows = frappe.db.sql(
+		"""
+		SELECT member, percentage
+		FROM `tabLMS Quiz Submission`
+		WHERE course = %s AND percentage IS NOT NULL
+		""",
+		(course,),
+		as_dict=True,
+	)
+	asg_rows = frappe.db.sql(
+		"""
+		SELECT member, score
+		FROM `tabLMS Assignment Submission`
+		WHERE course = %s AND score IS NOT NULL
+		""",
+		(course,),
+		as_dict=True,
+	)
+
+	member_scores = {}
+	for r in quiz_rows:
+		member_scores.setdefault(r.member, []).append(flt(r.percentage))
+	for r in asg_rows:
+		member_scores.setdefault(r.member, []).append(flt(r.score))
+
+	result = {}
+	for member, scores in member_scores.items():
+		if scores:
+			result[member] = round(sum(scores) / len(scores), 2)
+		else:
+			result[member] = 0.0
+
+	return result
+
+
+def get_student_score_fallback(course: str, student: str, bulk_map: dict = None) -> float:
+	if bulk_map is not None:
+		return bulk_map.get(student, 0.0)
+
 	quizzes = frappe.get_all("LMS Quiz Submission", filters={"course": course, "member": student}, fields=["percentage"])
 	assignments = frappe.get_all("LMS Assignment Submission", filters={"course": course, "member": student}, fields=["score"])
 
@@ -5860,8 +5899,152 @@ def get_student_score_fallback(course: str, student: str) -> float:
 	return 0.0
 
 
+def get_bulk_at_risk_details(course: str) -> dict:
+	from frappe.utils import get_datetime, now_datetime
+
+	enrollments = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": course},
+		fields=["member", "creation", "progress", "enrollment_from_batch"],
+	)
+	if not enrollments:
+		return {}
+
+	pv_rows = frappe.db.sql(
+		"""
+		SELECT member, MAX(creation) as max_pv
+		FROM `tabLMS Page View Log`
+		WHERE course = %s
+		GROUP BY member
+		""",
+		(course,),
+		as_dict=True,
+	)
+	pv_map = {r.member: r.max_pv for r in pv_rows}
+
+	sub_rows = frappe.db.sql(
+		"""
+		SELECT member, MAX(creation) as max_sub, AVG(percentage) as avg_pct
+		FROM `tabLMS Quiz Submission`
+		WHERE course = %s
+		GROUP BY member
+		""",
+		(course,),
+		as_dict=True,
+	)
+	sub_map = {r.member: r for r in sub_rows}
+
+	failed_rows = frappe.db.sql(
+		"""
+		SELECT member, COUNT(*) as failed_cnt
+		FROM `tabLMS Quiz Submission`
+		WHERE course = %s AND percentage < 60
+		GROUP BY member
+		""",
+		(course,),
+		as_dict=True,
+	)
+	failed_map = {r.member: r.failed_cnt for r in failed_rows}
+
+	batches = {e.enrollment_from_batch for e in enrollments if e.enrollment_from_batch}
+	batch_info_map = {}
+	if batches:
+		batch_docs = frappe.get_all(
+			"LMS Batch",
+			filters={"name": ["in", list(batches)]},
+			fields=["name", "start_date", "end_date"],
+		)
+		for b in batch_docs:
+			batch_info_map[b.name] = (b.start_date, b.end_date)
+
+	now_dt = now_datetime()
+	result = {}
+
+	for env in enrollments:
+		member = env.member
+		score = 0
+		reasons = []
+
+		last_pv = pv_map.get(member)
+		sub_info = sub_map.get(member)
+		last_sub = sub_info.max_sub if sub_info else None
+		avg_quiz = flt(sub_info.avg_pct) if sub_info and sub_info.avg_pct is not None else 0.0
+
+		last_act = None
+		if last_pv and last_sub:
+			last_act = max(get_datetime(last_pv), get_datetime(last_sub))
+		elif last_pv:
+			last_act = get_datetime(last_pv)
+		elif last_sub:
+			last_act = get_datetime(last_sub)
+
+		if last_act:
+			days_inactive = (now_dt - last_act).days
+			if days_inactive >= 14:
+				score += 40
+				reasons.append(_("No activity recorded for over 14 days ({0} days inactive).").format(days_inactive))
+			elif days_inactive >= 7:
+				score += 20
+				reasons.append(_("No activity recorded for over 7 days ({0} days inactive).").format(days_inactive))
+		else:
+			enrollment_date = env.creation
+			if enrollment_date:
+				days_since_enroll = (now_dt - get_datetime(enrollment_date)).days
+				if days_since_enroll >= 7:
+					score += 35
+					reasons.append(_("No activity since enrollment {0} days ago.").format(days_since_enroll))
+
+		if avg_quiz > 0 and avg_quiz < 60:
+			score += 30
+			reasons.append(_("Average quiz score is low ({0}%).").format(round(avg_quiz, 2)))
+
+		progress = flt(env.progress or 0.0)
+		batch = env.enrollment_from_batch
+		if batch and batch in batch_info_map:
+			start_date, end_date = batch_info_map[batch]
+			if start_date and end_date:
+				total_days = (get_datetime(end_date) - get_datetime(start_date)).days
+				elapsed_days = (now_dt.date() - get_datetime(start_date).date()).days
+				if total_days > 0 and elapsed_days > 0:
+					elapsed_pct = (elapsed_days / total_days) * 100
+					if elapsed_pct >= 50 and progress < 15:
+						score += 20
+						reasons.append(_("Struggling with progress: Course is {0}% elapsed but completion is only {1}%.").format(round(elapsed_pct, 1), round(progress, 1)))
+		else:
+			enrollment_date = env.creation
+			if enrollment_date:
+				days_since_enroll = (now_dt - get_datetime(enrollment_date)).days
+				if days_since_enroll >= 15 and progress < 5:
+					score += 15
+					reasons.append(_("Stagnant progress: Completed only {0}% in {1} days since enrollment.").format(round(progress, 1), days_since_enroll))
+
+		failed_quizzes = failed_map.get(member, 0)
+		if failed_quizzes >= 3:
+			score += 10
+			reasons.append(_("Failed {0} quiz attempts.").format(failed_quizzes))
+
+		risk_level = "Low Risk"
+		if score >= 70:
+			risk_level = "High Risk"
+		elif score >= 35:
+			risk_level = "Medium Risk"
+
+		result[member] = {
+			"member": member,
+			"course": course,
+			"risk_score": score,
+			"risk_level": risk_level,
+			"reasons": reasons,
+		}
+
+	return result
+
+
 @frappe.whitelist()
-def get_at_risk_details(member: str, course: str) -> dict:
+def get_at_risk_details(member: str, course: str, precalculated: dict = None) -> dict:
+	if precalculated is not None and member in precalculated:
+		return precalculated[member]
+
 	score = 0
 	reasons = []
 
@@ -6290,16 +6473,19 @@ def get_instructor_dashboard_metrics(course: str) -> dict:
 	completed_count = len([e for e in enrollment_docs if e.progress >= 100.0])
 	completion_rate = round((completed_count / enrollment_count * 100), 2)
 
+	bulk_scores = get_bulk_student_scores(course)
+	bulk_risks = get_bulk_at_risk_details(course)
+
 	student_scores = []
 	for e in enrollment_docs:
-		score = get_student_score_fallback(course, e.member)
+		score = get_student_score_fallback(course, e.member, bulk_map=bulk_scores)
 		if score > 0:
 			student_scores.append(score)
 	avg_grade = round(sum(student_scores) / len(student_scores), 2) if student_scores else 0.0
 
 	at_risk_students = []
 	for e in enrollment_docs:
-		risk_details = get_at_risk_details(e.member, course)
+		risk_details = get_at_risk_details(e.member, course, precalculated=bulk_risks)
 		if risk_details["risk_score"] >= 35:
 			member_name = frappe.db.get_value("User", e.member, "full_name") or e.member
 			at_risk_students.append({
@@ -6455,16 +6641,25 @@ def get_batch_dashboard_metrics(batch: str) -> dict:
 
 	buckets = {"0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0}
 
+	course_bulk_scores = {crs: get_bulk_student_scores(crs) for crs in courses}
+	course_bulk_risks = {crs: get_bulk_at_risk_details(crs) for crs in courses}
+	std_enrollment_rows = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": ["in", courses], "member": ["in", students]},
+		fields=["member", "course", "progress"]
+	)
+	std_progress_map = {(r.member, r.course): flt(r.progress or 0.0) for r in std_enrollment_rows}
+
 	for std in students:
 		std_name = frappe.db.get_value("User", std, "full_name") or std
 		std_progress = []
 		std_grades = []
 
 		for crs in courses:
-			prog = frappe.db.get_value("LMS Enrollment", {"member": std, "course": crs}, "progress") or 0.0
+			prog = std_progress_map.get((std, crs), 0.0)
 			std_progress.append(prog)
 
-			grade = get_student_score_fallback(crs, std)
+			grade = get_student_score_fallback(crs, std, bulk_map=course_bulk_scores.get(crs))
 			if grade > 0:
 				std_grades.append(grade)
 
@@ -6503,7 +6698,7 @@ def get_batch_dashboard_metrics(batch: str) -> dict:
 	for std in students:
 		max_risk = {"risk_score": 0, "risk_level": "Low Risk", "reasons": []}
 		for crs in courses:
-			risk = get_at_risk_details(std, crs)
+			risk = get_at_risk_details(std, crs, precalculated=course_bulk_risks.get(crs))
 			if risk["risk_score"] > max_risk["risk_score"]:
 				max_risk = risk
 
@@ -6591,8 +6786,8 @@ def get_department_dashboard_metrics(department: str) -> dict:
 			comp_rate = round((completed / ecount * 100), 2)
 			course_completion_rates.append({"course": ctitle, "completion_rate": comp_rate, "enrollments": ecount})
 
-			grades = [get_student_score_fallback(cname, e.member) for e in enrollments]
-			grades = [g for g in grades if g > 0]
+			bulk_scores = get_bulk_student_scores(cname)
+			grades = [bulk_scores.get(e.member, 0.0) for e in enrollments if bulk_scores.get(e.member, 0.0) > 0]
 			avg_grade = round(sum(grades) / len(grades), 2) if grades else 0.0
 			average_performance.append({"course": ctitle, "average_grade": avg_grade})
 		else:
@@ -6686,31 +6881,31 @@ def get_admin_dashboard_metrics() -> dict:
 
 	courses = frappe.get_all("LMS Course", filters={"published": 1}, fields=["name", "title"])
 	perf_list = []
+	risk_list = []
+
 	for c in courses:
 		enrollments = frappe.get_all("LMS Enrollment", filters={"course": c.name}, fields=["member"])
-		scores = []
-		for e in enrollments:
-			sc = get_student_score_fallback(c.name, e.member)
-			if sc > 0:
-				scores.append(sc)
+		if not enrollments:
+			continue
+
+		bulk_scores = get_bulk_student_scores(c.name)
+		scores = [bulk_scores.get(e.member, 0.0) for e in enrollments if bulk_scores.get(e.member, 0.0) > 0]
 		if scores:
 			avg_sc = sum(scores) / len(scores)
 			perf_list.append({"course": c.title, "average_grade": round(avg_sc, 2), "students_evaluated": len(scores)})
 
-	perf_list.sort(key=lambda x: x["average_grade"], reverse=True)
-	highest_perf_list = perf_list[:5]
-
-	risk_list = []
-	for c in courses:
-		enrollments = frappe.get_all("LMS Enrollment", filters={"course": c.name}, fields=["member"])
 		if len(enrollments) >= 3:
+			bulk_risks = get_bulk_at_risk_details(c.name)
 			at_risk_cnt = 0
 			for e in enrollments:
-				risk = get_at_risk_details(e.member, c.name)
+				risk = get_at_risk_details(e.member, c.name, precalculated=bulk_risks)
 				if risk["risk_score"] >= 35:
 					at_risk_cnt += 1
 			pct_risk = round((at_risk_cnt / len(enrollments) * 100), 2)
 			risk_list.append({"course": c.title, "risk_percentage": pct_risk, "at_risk_count": at_risk_cnt, "enrollments": len(enrollments)})
+
+	perf_list.sort(key=lambda x: x["average_grade"], reverse=True)
+	highest_perf_list = perf_list[:5]
 
 	risk_list.sort(key=lambda x: x["risk_percentage"], reverse=True)
 	highest_risk_courses = risk_list[:5]
@@ -6866,13 +7061,18 @@ def update_analytics_cache():
 	pvs = {p.member for p in frappe.get_all("LMS Page View Log", filters={"creation": [">=", thirty_days_ago]}, fields=["member"])}
 	subs = {s.member for s in frappe.get_all("LMS Quiz Submission", filters={"creation": [">=", thirty_days_ago]}, fields=["member"])}
 	active_students = pvs.union(subs)
+	processed = 0
 	for ast in active_students:
 		if ast:
 			try:
 				student_data = get_student_dashboard_metrics(ast)
 				save_dashboard_to_cache("Student", ast, student_data)
+				processed += 1
+				if processed % 20 == 0:
+					frappe.db.commit()
 			except Exception:
 				pass
+	frappe.db.commit()
 
 
 @frappe.whitelist()
