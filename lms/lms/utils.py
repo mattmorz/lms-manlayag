@@ -1847,6 +1847,9 @@ def get_batch_details(batch: str):
 		as_dict=True,
 	)
 
+	if not batch_details:
+		return None
+
 	batch_details.instructors = get_instructors("LMS Batch", batch)
 	if batch_details.allow_delayed_enrollment:
 		batch_details.accept_enrollments = batch_details.end_date >= getdate()

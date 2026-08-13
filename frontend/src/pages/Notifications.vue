@@ -229,7 +229,14 @@ const handleMarkAsRead = (logName) => {
 const navigateToPage = (log) => {
 	if (!log.link) return
 	handleMarkAsRead(log.name)
-	let link = log.link.split('/')
+	let rawLink = log.link
+	let hash = ''
+	if (rawLink.includes('#')) {
+		const parts = rawLink.split('#')
+		rawLink = parts[0]
+		hash = '#' + parts[1]
+	}
+	let link = rawLink.split('/')
 	if (link[2] == 'courses') {
 		router.push({
 			name: 'CourseDetail',
@@ -245,6 +252,7 @@ const navigateToPage = (log) => {
 			router.push({
 				name: 'Batch',
 				params: { batchName: link.pop() },
+				hash: hash || undefined,
 			})
 		}
 	} else if (link.includes('assignment-submission')) {
