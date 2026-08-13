@@ -148,7 +148,7 @@
 					</div>
 					<div class="flex items-center gap-2">
 						<Button
-							v-if="!readOnlyMode && bank.owner === user.data?.name"
+							v-if="!readOnlyMode && canManageBankCard(bank)"
 							variant="ghost"
 							class="text-ink-gray-6 hover:bg-surface-gray-2 p-1 rounded"
 							@click.stop="openShareModal(bank)"
@@ -156,7 +156,7 @@
 							<FeatherIcon name="share-2" class="w-4 h-4 text-ink-gray-5" />
 						</Button>
 						<Button
-							v-if="!readOnlyMode && bank.owner === user.data?.name"
+							v-if="!readOnlyMode && canManageBankCard(bank)"
 							variant="ghost"
 							class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1 rounded"
 							@click.stop="confirmDeleteBank(bank.question_bank)"
@@ -278,6 +278,22 @@
 		}"
 	>
 		<template #body-content>
+			<div class="flex justify-between items-center mb-4 border-b pb-3">
+				<div class="text-xs text-ink-gray-5 font-medium">
+					{{ bankQuestions.length }} {{ bankQuestions.length === 1 ? __('Question') : __('Questions') }}
+				</div>
+				<Button
+					v-if="canManageBank"
+					variant="solid"
+					size="sm"
+					@click="openAddBankQuestion()"
+				>
+					<template #prefix>
+						<Plus class="w-3.5 h-3.5" />
+					</template>
+					{{ __('Add Question') }}
+				</Button>
+			</div>
 			<div v-if="loadingBankQuestions" class="flex justify-center items-center py-10">
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
 			</div>
@@ -301,14 +317,102 @@
 						</div>
 						<div class="prose-sm text-ink-gray-9 leading-relaxed" v-html="formatQuizText(q.question)"></div>
 					</div>
-					<Button
-						v-if="!readOnlyMode && selectedBankOwner === user.data?.name"
-						variant="ghost"
-						class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1 rounded mt-1 align-self-start"
-						@click="confirmDeleteQuestion(q.name, idx)"
-					>
-						<FeatherIcon name="trash-2" class="w-4 h-4 text-red-500" />
-					</Button>
+					<div v-if="canManageBank" class="flex items-center gap-1 mt-1 shrink-0">
+						<Button
+							variant="ghost"
+							class="text-ink-gray-7 hover:bg-surface-gray-3 p-1 rounded"
+							@click="openEditBankQuestion(q.name)"
+						>
+							<FeatherIcon name="edit-2" class="w-4 h-4 text-ink-gray-6" />
+						</Button>
+						<Button
+							variant="ghost"
+							class="text-red-600 hover:bg-red-50 hover:text-red-800 p-1 rounded"
+							@click="confirmDeleteQuestion(q.name, idx)"
+						>
+							<FeatherIcon name="trash-2" class="w-4 h-4 text-red-500" />
+						</Button>
+					</div>
+				</div>
+			</div>
+		</template>
+	</Dialog>
+
+	<Dialog
+		v-model="showEditBankQuestionDialog"
+		:options="{
+			title: editingBankQuestion ? __('Edit Question') : __('Add Question to Bank'),
+			size: '4xl',
+			actions: [
+				{
+					label: __('Save'),
+					variant: 'solid',
+					onClick: (dialog) => handleSaveBankQuestion(dialog),
+				},
+			],
+		}"
+	>
+		<template #body-content>
+			<div v-if="loadingQuestionForm" class="flex justify-center items-center py-10">
+				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+			</div>
+			<div v-else class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+				<div>
+					<label class="block text-xs font-medium text-ink-gray-5 mb-1">
+						{{ __('Question') }}
+					</label>
+					<TextEditor
+						:content="editingBankQuestionForm.question"
+						@change="(val) => (editingBankQuestionForm.question = val)"
+						:fixedMenu="true"
+						editorClass="prose-sm max-w-none border border-outline-gray-2 bg-surface-white rounded-md py-1.5 px-3 min-h-[6rem]"
+					/>
+				</div>
+
+				<FormControl
+					:label="__('Question Type')"
+					v-model="editingBankQuestionForm.type"
+					type="select"
+					:options="['Choices', 'User Input', 'Open Ended']"
+				/>
+
+				<div v-if="editingBankQuestionForm.type === 'Choices'" class="space-y-4 pt-2">
+					<div class="text-sm font-semibold text-ink-gray-9 border-b pb-1">
+						{{ __('Options & Answers') }}
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div v-for="n in 4" :key="n" class="p-3 border border-outline-gray-2 rounded-lg bg-surface-white space-y-2">
+							<FormControl
+								:label="__('Option {0}').format(n)"
+								v-model="editingBankQuestionForm[`option_${n}`]"
+								:required="n <= 2"
+							/>
+							<FormControl
+								:label="__('Explanation')"
+								v-model="editingBankQuestionForm[`explanation_${n}`]"
+							/>
+							<FormControl
+								:label="__('Is Correct')"
+								v-model="editingBankQuestionForm[`is_correct_${n}`]"
+								type="checkbox"
+							/>
+						</div>
+					</div>
+				</div>
+
+				<div v-else-if="editingBankQuestionForm.type === 'User Input'" class="space-y-4 pt-2">
+					<div class="text-sm font-semibold text-ink-gray-9 border-b pb-1">
+						{{ __('Possible Accepted Answers') }}
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div v-for="n in 4" :key="n">
+							<FormControl
+								:label="__('Possibility {0}').format(n)"
+								v-model="editingBankQuestionForm[`possibility_${n}`]"
+								:required="n === 1"
+							/>
+						</div>
+					</div>
 				</div>
 			</div>
 		</template>
@@ -409,6 +513,7 @@ import {
 	ListHeaderItem,
 	ListSelectBanner,
 	TabButtons,
+	TextEditor,
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
@@ -541,6 +646,151 @@ const questionBanks = createResource({
 	cache: ['question_banks', user.data?.name],
 	auto: true,
 })
+
+const canManageBankCard = (bank) => {
+	if (readOnlyMode) return false
+	const u = user.data
+	if (!u) return false
+	if (u.is_system_manager || u.is_moderator || u.name === 'Administrator') return true
+	return bank.owner === u.name
+}
+
+const selectedBankDoc = computed(() => {
+	if (!selectedBank.value || !questionBanks.data) return null
+	return questionBanks.data.find(b => b.question_bank === selectedBank.value)
+})
+
+const canManageBank = computed(() => {
+	if (!selectedBank.value || readOnlyMode) return false
+	const u = user.data
+	if (!u) return false
+	if (u.is_system_manager || u.is_moderator || u.name === 'Administrator') return true
+	const b = selectedBankDoc.value
+	if (!b) return selectedBankOwner.value === u.name
+	if (b.owner === u.name) return true
+	if (b.is_shared) {
+		if (!b.shared_with) return true
+		const shared = b.shared_with.split(',').map(s => s.trim().toLowerCase())
+		return shared.includes(u.name.toLowerCase())
+	}
+	return false
+})
+
+const showEditBankQuestionDialog = ref(false)
+const editingBankQuestion = ref(null)
+const loadingQuestionForm = ref(false)
+const editingBankQuestionForm = ref({
+	name: '',
+	question_bank: '',
+	question: '',
+	type: 'Choices',
+	option_1: '',
+	is_correct_1: false,
+	explanation_1: '',
+	option_2: '',
+	is_correct_2: false,
+	explanation_2: '',
+	option_3: '',
+	is_correct_3: false,
+	explanation_3: '',
+	option_4: '',
+	is_correct_4: false,
+	explanation_4: '',
+	possibility_1: '',
+	possibility_2: '',
+	possibility_3: '',
+	possibility_4: '',
+})
+
+const openAddBankQuestion = () => {
+	editingBankQuestion.value = null
+	editingBankQuestionForm.value = {
+		name: '',
+		question_bank: selectedBank.value,
+		question: '',
+		type: 'Choices',
+		option_1: '',
+		is_correct_1: false,
+		explanation_1: '',
+		option_2: '',
+		is_correct_2: false,
+		explanation_2: '',
+		option_3: '',
+		is_correct_3: false,
+		explanation_3: '',
+		option_4: '',
+		is_correct_4: false,
+		explanation_4: '',
+		possibility_1: '',
+		possibility_2: '',
+		possibility_3: '',
+		possibility_4: '',
+	}
+	showEditBankQuestionDialog.value = true
+}
+
+const openEditBankQuestion = (qName) => {
+	editingBankQuestion.value = qName
+	loadingQuestionForm.value = true
+	showEditBankQuestionDialog.value = true
+	call('lms.lms.api.get_bank_question_details', { question_name: qName })
+		.then((data) => {
+			if (data) {
+				editingBankQuestionForm.value = {
+					name: data.name || '',
+					question_bank: data.question_bank || selectedBank.value,
+					question: data.question || '',
+					type: data.type || 'Choices',
+					option_1: data.option_1 || '',
+					is_correct_1: data.is_correct_1 ? true : false,
+					explanation_1: data.explanation_1 || '',
+					option_2: data.option_2 || '',
+					is_correct_2: data.is_correct_2 ? true : false,
+					explanation_2: data.explanation_2 || '',
+					option_3: data.option_3 || '',
+					is_correct_3: data.is_correct_3 ? true : false,
+					explanation_3: data.explanation_3 || '',
+					option_4: data.option_4 || '',
+					is_correct_4: data.is_correct_4 ? true : false,
+					explanation_4: data.explanation_4 || '',
+					possibility_1: data.possibility_1 || '',
+					possibility_2: data.possibility_2 || '',
+					possibility_3: data.possibility_3 || '',
+					possibility_4: data.possibility_4 || '',
+				}
+			}
+		})
+		.catch((err) => {
+			toast.error(err.messages?.[0] || err.message || err)
+			showEditBankQuestionDialog.value = false
+		})
+		.finally(() => {
+			loadingQuestionForm.value = false
+		})
+}
+
+const handleSaveBankQuestion = (dialog) => {
+	if (!editingBankQuestionForm.value.question || !editingBankQuestionForm.value.question.trim()) {
+		toast.error(__('Question text is required'))
+		return
+	}
+	call('lms.lms.api.save_bank_question', {
+		question_data: editingBankQuestionForm.value,
+	})
+		.then(() => {
+			toast.success(
+				editingBankQuestion.value
+					? __('Question updated successfully')
+					: __('Question added successfully')
+			)
+			showEditBankQuestionDialog.value = false
+			openBankQuestions(selectedBank.value)
+			questionBanks.reload()
+		})
+		.catch((err) => {
+			toast.error(err.messages?.[0] || err.message || err)
+		})
+}
 
 const filteredBanks = computed(() => {
 	if (!questionBanks.data) return []

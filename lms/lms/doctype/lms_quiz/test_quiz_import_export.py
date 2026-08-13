@@ -173,6 +173,51 @@ class TestQuizImportExport(unittest.TestCase):
 			if frappe.db.exists("LMS Quiz", gift_quiz.name):
 				frappe.delete_doc("LMS Quiz", gift_quiz.name, force=True)
 
+	def test_save_get_delete_bank_question(self):
+		from lms.lms.api import save_bank_question, get_bank_question_details, delete_bank_question
+		frappe.session.user = "Administrator"
+		
+		# 1. Create Question in Question Bank
+		res = save_bank_question({
+			"question_bank": "Test Math Bank",
+			"question": "What is 10 + 10?",
+			"type": "Choices",
+			"option_1": "20",
+			"is_correct_1": True,
+			"option_2": "15",
+			"is_correct_2": False,
+		})
+		self.assertEqual(res.get("status"), "success")
+		q_name = res.get("name")
+		self.assertTrue(frappe.db.exists("LMS Question", q_name))
+
+		# 2. Get Details
+		details = get_bank_question_details(q_name)
+		self.assertEqual(details.get("question"), "What is 10 + 10?")
+		self.assertEqual(details.get("option_1"), "20")
+		self.assertEqual(details.get("is_correct_1"), 1)
+
+		# 3. Update Question
+		res_update = save_bank_question({
+			"name": q_name,
+			"question_bank": "Test Math Bank",
+			"question": "What is 10 + 10 updated?",
+			"type": "Choices",
+			"option_1": "20",
+			"is_correct_1": True,
+			"option_2": "30",
+			"is_correct_2": False,
+		})
+		self.assertEqual(res_update.get("status"), "success")
+		details_updated = get_bank_question_details(q_name)
+		self.assertEqual(details_updated.get("question"), "What is 10 + 10 updated?")
+		self.assertEqual(details_updated.get("option_2"), "30")
+
+		# 4. Delete Question
+		del_res = delete_bank_question(q_name)
+		self.assertEqual(del_res.get("status"), "success")
+		self.assertFalse(frappe.db.exists("LMS Question", q_name))
+
 	@classmethod
 	def tearDownClass(cls) -> None:
 		if frappe.db.exists("LMS Quiz", cls.quiz.name):

@@ -4306,23 +4306,100 @@ def delete_question_bank(bank_label: str):
 @frappe.whitelist()
 def delete_bank_question(question_name: str):
 	roles = frappe.get_roles(frappe.session.user)
-	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator"]):
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator", "Administrator"]):
 		frappe.throw(_("You do not have permission to delete questions."), frappe.PermissionError)
 
 	question_bank = frappe.db.get_value("LMS Question", question_name, "question_bank")
 	user = frappe.session.user
-	if question_bank:
-		try:
-			frappe.reload_doc("lms", "doctype", "lms_question_bank")
-		except Exception:
-			pass
-		if frappe.db.exists("LMS Question Bank", question_bank):
-			doc = frappe.get_doc("LMS Question Bank", question_bank)
-			if doc.owner != user and user != "Administrator":
-				frappe.throw(_("Only the owner of the question bank can delete questions from it."), frappe.PermissionError)
+	if question_bank and frappe.db.exists("LMS Question Bank", question_bank):
+		bank_doc = frappe.get_doc("LMS Question Bank", question_bank)
+		is_allowed = False
+		if user in ["Administrator"] or "System Manager" in roles or "Moderator" in roles:
+			is_allowed = True
+		elif bank_doc.owner == user:
+			is_allowed = True
+		elif bank_doc.is_shared:
+			if not bank_doc.shared_with:
+				is_allowed = True
+			else:
+				shared_users = [u.strip().lower() for u in bank_doc.shared_with.replace(",", " ").split() if u.strip()]
+				if user.lower() in shared_users:
+					is_allowed = True
+
+		if not is_allowed:
+			frappe.throw(_("You do not have permission to modify questions in this question bank."), frappe.PermissionError)
 
 	frappe.delete_doc("LMS Question", question_name, ignore_permissions=True)
 	return {"status": "success"}
+
+
+@frappe.whitelist()
+def get_bank_question_details(question_name: str):
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator", "Administrator"]):
+		frappe.throw(_("You do not have permission to view question details."), frappe.PermissionError)
+
+	if not frappe.db.exists("LMS Question", question_name):
+		frappe.throw(_("Question does not exist."), frappe.DoesNotExistError)
+
+	doc = frappe.get_doc("LMS Question", question_name)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def save_bank_question(question_data):
+	import json
+	if isinstance(question_data, str):
+		question_data = json.loads(question_data)
+
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator", "Administrator"]):
+		frappe.throw(_("You do not have permission to save questions."), frappe.PermissionError)
+
+	bank_name = question_data.get("question_bank")
+	if not bank_name:
+		frappe.throw(_("Question Bank is required."), frappe.ValidationError)
+
+	user = frappe.session.user
+	if frappe.db.exists("LMS Question Bank", bank_name):
+		bank_doc = frappe.get_doc("LMS Question Bank", bank_name)
+		is_allowed = False
+		if user in ["Administrator"] or "System Manager" in roles or "Moderator" in roles:
+			is_allowed = True
+		elif bank_doc.owner == user:
+			is_allowed = True
+		elif bank_doc.is_shared:
+			if not bank_doc.shared_with:
+				is_allowed = True
+			else:
+				shared_users = [u.strip().lower() for u in bank_doc.shared_with.replace(",", " ").split() if u.strip()]
+				if user.lower() in shared_users:
+					is_allowed = True
+
+		if not is_allowed:
+			frappe.throw(_("You do not have permission to modify this question bank."), frappe.PermissionError)
+
+	q_name = question_data.get("name")
+	if q_name and frappe.db.exists("LMS Question", q_name):
+		doc = frappe.get_doc("LMS Question", q_name)
+	else:
+		doc = frappe.new_doc("LMS Question")
+		doc.question_bank = bank_name
+
+	doc.question = question_data.get("question")
+	doc.type = question_data.get("type", "Choices")
+
+	if doc.type == "Choices":
+		for n in range(1, 5):
+			setattr(doc, f"option_{n}", question_data.get(f"option_{n}"))
+			setattr(doc, f"is_correct_{n}", 1 if question_data.get(f"is_correct_{n}") else 0)
+			setattr(doc, f"explanation_{n}", question_data.get(f"explanation_{n}"))
+	elif doc.type == "User Input":
+		for n in range(1, 5):
+			setattr(doc, f"possibility_{n}", question_data.get(f"possibility_{n}"))
+
+	doc.save(ignore_permissions=True)
+	return {"status": "success", "name": doc.name}
 
 
 @frappe.whitelist()
