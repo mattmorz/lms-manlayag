@@ -95,6 +95,30 @@ class TestQuizImportExport(unittest.TestCase):
 		)
 		self.assertRaises(frappe.ValidationError, import_quiz, self.quiz.name, invalid_aiken, "AIKEN")
 
+	def test_import_special_characters(self):
+		self.quiz.questions = []
+		self.quiz.save(ignore_permissions=True)
+
+		special_aiken = (
+			"Which header is used for stdio in C?\n"
+			"A. <stdio.h>\n"
+			"B. <iostream>\n"
+			"C. Vector<int>\n"
+			"D. 5 < 10 && 10 > 5\n"
+			"ANSWER: A\n"
+		)
+		frappe.session.user = "Administrator"
+		import_quiz(self.quiz.name, special_aiken, "AIKEN")
+
+		self.quiz.reload()
+		self.assertEqual(len(self.quiz.questions), 1)
+		q_doc = frappe.get_doc("LMS Question", self.quiz.questions[0].question)
+		self.assertEqual(q_doc.question, "Which header is used for stdio in C?")
+		self.assertEqual(q_doc.option_1, "<stdio.h>")
+		self.assertEqual(q_doc.option_2, "<iostream>")
+		self.assertEqual(q_doc.option_3, "Vector<int>")
+		self.assertEqual(q_doc.option_4, "5 < 10 && 10 > 5")
+
 	def test_import_export_gift(self):
 		# Create a clean quiz
 		gift_quiz = frappe.get_doc({

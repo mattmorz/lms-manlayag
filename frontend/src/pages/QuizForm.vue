@@ -186,7 +186,7 @@
 							<div
 								v-if="column.key == 'question_detail'"
 								class="text-xs truncate h-4"
-								v-html="item"
+								v-html="formatQuizText(item)"
 							></div>
 							<div v-else class="text-xs">
 								{{ item }}
@@ -374,7 +374,7 @@
 												{{ q.name }}
 											</span>
 										</div>
-										<div class="prose-sm text-ink-gray-9" v-html="q.question"></div>
+										<div class="prose-sm text-ink-gray-9" v-html="formatQuizText(q.question)"></div>
 									</div>
 								</div>
 							</div>
@@ -467,7 +467,7 @@ import {
 import { sessionStore } from '../stores/session'
 import { AlertTriangle, ClipboardList, ListChecks, Plus, Trash2, Upload, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import { escapeHTML, cleanError } from '@/utils'
+import { escapeHTML, cleanError, formatQuizText } from '@/utils'
 
 import Question from '@/components/Modals/Question.vue'
 

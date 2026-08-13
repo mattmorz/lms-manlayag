@@ -637,7 +637,7 @@
 										<tbody class="divide-y text-xs">
 											<tr v-for="q in visibleQuestions" :key="q.question_name">
 												<td class="py-3 font-semibold text-ink-gray-8">{{ q.question_name }}</td>
-												<td class="py-3 max-w-[200px] truncate text-ink-gray-6" v-html="q.question_text"></td>
+												<td class="py-3 max-w-[200px] truncate text-ink-gray-6" v-html="formatQuizText(q.question_text)"></td>
 												<td class="py-3 text-center font-bold text-red-600">{{ q.correct_rate }}%</td>
 												<td class="py-3 text-xs text-ink-gray-5">{{ q.reason }}</td>
 											</tr>
@@ -1092,6 +1092,7 @@ import { useRouter } from 'vue-router'
 import { useSettings } from '@/stores/settings'
 import { sessionStore } from '@/stores/session'
 import { usersStore } from '@/stores/user'
+import { formatQuizText } from '@/utils'
 import {
 	TrendingUp,
 	Activity,

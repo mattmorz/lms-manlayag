@@ -54,11 +54,11 @@
 			>
 				<div class="text-ink-gray-9">
 					<span class="font-semibold"> {{ __('Question') }}: </span>
-					<span class="leading-5" v-html="row.question"> </span>
+					<span class="leading-5" v-html="formatQuizText(row.question)"> </span>
 				</div>
 				<div class="text-ink-gray-9">
 					<span class="font-semibold"> {{ __('Answer') }}: </span>
-					<span class="leading-5" v-html="row.answer"></span>
+					<span class="leading-5" v-html="formatQuizText(row.answer)"></span>
 				</div>
 				<div class="grid grid-cols-2 gap-5">
 					<FormControl v-model="row.marks" :label="__('Marks')" />
@@ -86,6 +86,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, inject, onUpdated } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '@/stores/session'
+import { formatQuizText } from '@/utils'
 
 const { brand } = sessionStore()
 const router = useRouter()

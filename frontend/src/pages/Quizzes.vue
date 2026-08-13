@@ -299,7 +299,7 @@
 								{{ q.name }}
 							</span>
 						</div>
-						<div class="prose-sm text-ink-gray-9 leading-relaxed" v-html="q.question"></div>
+						<div class="prose-sm text-ink-gray-9 leading-relaxed" v-html="formatQuizText(q.question)"></div>
 					</div>
 					<Button
 						v-if="!readOnlyMode && selectedBankOwner === user.data?.name"
@@ -416,7 +416,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { computed, inject, onMounted, ref, watch, onUpdated } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
-import { escapeHTML, cleanError } from '@/utils'
+import { escapeHTML, cleanError, formatQuizText } from '@/utils'
 import { useTelemetry } from 'frappe-ui/frappe'
 import EmptyState from '@/components/EmptyState.vue'
 import MultiSelect from '@/components/Controls/MultiSelect.vue'

@@ -167,7 +167,7 @@
 					:key="question.question || index"
 					class="rounded-md border border-outline-gray-2 bg-surface-gray-2 p-4"
 				>
-					<div class="text-sm font-semibold text-ink-gray-9" v-html="question.question_detail || question.question"></div>
+					<div class="text-sm font-semibold text-ink-gray-9" v-html="formatQuizText(question.question_detail || question.question)"></div>
 					<div class="mt-2 text-sm text-ink-gray-7">
 						<span class="font-medium text-ink-gray-9">{{ __('Answer') }}:</span>
 						<span class="ml-1">{{ getSavedAnswer(question.question) || __('No answer recorded') }}</span>
@@ -282,7 +282,7 @@
 					</div>
 					<div
 						class="text-ink-gray-9 font-semibold mt-2 leading-5"
-						v-html="questionDetails.data.question"
+						v-html="formatQuizText(questionDetails.data.question)"
 					></div>
 					<div v-if="questionDetails.data.type == 'Choices'" v-for="index in optionIndices" :key="index">
 						<label
@@ -326,7 +326,7 @@
 							</div>
 							<span
 								class="ml-2 text-ink-gray-9"
-								v-html="questionDetails.data[`option_${index}`]"
+								v-html="formatQuizText(questionDetails.data[`option_${index}`])"
 							>
 							</span>
 						</label>
@@ -534,7 +534,7 @@ import {
 } from 'frappe-ui'
 import { ref, watch, reactive, inject, computed, onMounted, onBeforeUnmount, onUpdated } from 'vue'
 import { CheckCircle, XCircle, MinusCircle, Lock } from 'lucide-vue-next'
-import { timeAgo } from '@/utils'
+import { timeAgo, formatQuizText } from '@/utils'
 import { useRouter } from 'vue-router'
 import ProgressBar from '@/components/ProgressBar.vue'
 import { usersStore } from '@/stores/user'

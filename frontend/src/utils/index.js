@@ -728,6 +728,62 @@ export const escapeHTML = (text) => {
 	)
 }
 
+export const escapeUnescapedHtml = (str) => {
+	if (!str) return ''
+	return String(str)
+		.replace(/&(?!(amp|lt|gt|quot|#39|#x60|#x3D|#\d+);)/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+}
+
+export const formatQuizText = (text) => {
+	if (!text) return ''
+	let str = String(text)
+
+	const standardTags = new Set([
+		'p', 'div', 'span', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup',
+		'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'br', 'hr',
+		'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+		'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+		'a', 'img', 'mark', 'small', 'del', 'ins', 'iframe'
+	])
+
+	const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*\/?>/g
+
+	let hasStandardHtml = false
+	let match
+	const tagCheckRegex = /<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*\/?>/g
+	while ((match = tagCheckRegex.exec(str)) !== null) {
+		if (standardTags.has(match[1].toLowerCase())) {
+			hasStandardHtml = true
+			break
+		}
+	}
+
+	if (!hasStandardHtml) {
+		return escapeUnescapedHtml(str)
+	}
+
+	const tokens = []
+	let processed = str.replace(tagRegex, (m, tagName) => {
+		if (standardTags.has(tagName.toLowerCase())) {
+			const token = `___TAG_TOKEN_${tokens.length}___`
+			tokens.push({ token, match: m })
+			return token
+		}
+		return m
+	})
+
+	processed = escapeUnescapedHtml(processed)
+
+	tokens.forEach(({ token, match: tagMatch }) => {
+		processed = processed.replace(token, tagMatch)
+	})
+
+	return processed
+}
+
+
 export const sanitizeHTML = (text) => {
 	text = DOMPurify.sanitize(decodeEntities(text), {
 		ALLOWED_TAGS: [
