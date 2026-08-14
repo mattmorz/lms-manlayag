@@ -49,9 +49,17 @@
 				<Button
 					variant="subtle"
 					size="sm"
+					@click="clearCurrentEditor"
+				>
+					{{ __('Clear') }}
+				</Button>
+
+				<Button
+					variant="subtle"
+					size="sm"
 					@click="confirmReset"
 				>
-					{{ __('Reset Code') }}
+					{{ __('Reset') }}
 				</Button>
 
 				<Button
@@ -61,13 +69,14 @@
 				>
 					<template #prefix>
 						<svg class="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
 						</svg>
 					</template>
 					{{ __('Run') }}
 				</Button>
 
 				<Button
+					v-if="props.exerciseId"
 					variant="solid"
 					size="sm"
 					:disabled="submitting || isMaxAttemptsReached"
@@ -78,25 +87,25 @@
 			</div>
 		</div>
 
-		<!-- Main Workspace Grid: Editors (Left) & Preview / Console (Right) -->
+		<!-- Main Workspace Grid: Ace Editors (Left) & Preview / Console (Right) -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-			<!-- Left: Monaco Editors -->
+			<!-- Left: Ace Editors -->
 			<div class="flex flex-col space-y-2 h-[460px]">
-				<MonacoEditor
+				<AceEditor
 					v-show="activeEditorTab === 'html'"
 					v-model="htmlCode"
 					language="html"
 					:read-only="isMaxAttemptsReached"
 					@change="onCodeChange"
 				/>
-				<MonacoEditor
+				<AceEditor
 					v-show="activeEditorTab === 'css'"
 					v-model="cssCode"
 					language="css"
 					:read-only="isMaxAttemptsReached"
 					@change="onCodeChange"
 				/>
-				<MonacoEditor
+				<AceEditor
 					v-show="activeEditorTab === 'js'"
 					v-model="jsCode"
 					language="javascript"
@@ -126,6 +135,7 @@
 
 		<!-- Bottom: Test Results Panel -->
 		<TestResults
+			v-if="exercise && exercise.test_cases && exercise.test_cases.length"
 			:results="testEvaluation.results"
 			:score="testEvaluation.score"
 			:earned-points="testEvaluation.earnedPoints"
@@ -142,9 +152,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Button, call, toast } from 'frappe-ui'
-import MonacoEditor from './MonacoEditor.vue'
+import AceEditor from './AceEditor.vue'
 import PreviewFrame from './PreviewFrame.vue'
 import ConsolePanel from './ConsolePanel.vue'
 import TestResults from './TestResults.vue'
@@ -153,15 +163,19 @@ import { buildSandboxedDocument, runDomTests } from './playgroundUtils.js'
 const props = defineProps({
 	exerciseId: {
 		type: String,
-		required: true,
+		default: '',
 	},
 })
 
+const defaultHtml = `<h1>Hello, Manlayag!</h1>\n\n<p>Welcome to the Web Playground.</p>\n\n<button id="demoButton">Click Me</button>`
+const defaultCss = `body {\n    font-family: Arial, sans-serif;\n    padding: 2rem;\n}\n\nh1 {\n    margin-bottom: 0.5rem;\n}\n\nbutton {\n    padding: 0.5rem 1rem;\n    cursor: pointer;\n}`
+const defaultJs = `document.getElementById("demoButton").addEventListener("click", () => {\n    alert("Hello from Manlayag!");\n});`
+
 const exercise = ref(null)
 const activeEditorTab = ref('html')
-const htmlCode = ref('')
-const cssCode = ref('')
-const jsCode = ref('')
+const htmlCode = ref(defaultHtml)
+const cssCode = ref(defaultCss)
+const jsCode = ref(defaultJs)
 const previewDoc = ref('')
 const consoleLogs = ref([])
 const submitting = ref(false)
@@ -185,7 +199,6 @@ const isMaxAttemptsReached = computed(() => {
 	return exercise.value.max_attempts > 0 && attemptCount.value >= exercise.value.max_attempts
 })
 
-// Listen for console postMessages from isolated sandbox iframe
 const handleWindowMessage = (event) => {
 	if (event.data && event.data.type === 'web_playground_console') {
 		const now = new Date()
@@ -198,29 +211,32 @@ const handleWindowMessage = (event) => {
 	}
 }
 
-// Fetch exercise details from backend
 const loadExercise = () => {
+	if (!props.exerciseId) {
+		runCode()
+		return
+	}
 	call('lms.lms.api.get_web_playground_exercise', { exercise_id: props.exerciseId })
 		.then((res) => {
 			exercise.value = res
 			attemptCount.value = res.attempt_count || 0
 			userPassed.value = !!res.user_passed
 
-			// Prefer latest saved submission code if student has attempted, else starter code
 			if (res.latest_code) {
 				htmlCode.value = res.latest_code.html || ''
 				cssCode.value = res.latest_code.css || ''
 				jsCode.value = res.latest_code.js || ''
 			} else {
-				htmlCode.value = res.starter_html || ''
-				cssCode.value = res.starter_css || ''
-				jsCode.value = res.starter_js || ''
+				htmlCode.value = res.starter_html || defaultHtml
+				cssCode.value = res.starter_css || defaultCss
+				jsCode.value = res.starter_js || defaultJs
 			}
 
 			runCode()
 		})
 		.catch((err) => {
 			toast.error(err.messages?.[0] || err.message || err)
+			runCode()
 		})
 }
 
@@ -236,7 +252,6 @@ const runCode = () => {
 		}
 	)
 
-	// Run DOM tests against updated preview iframe after document loads
 	setTimeout(() => {
 		evaluateTests()
 	}, 150)
@@ -255,7 +270,6 @@ const onIframeReady = () => {
 }
 
 const onCodeChange = () => {
-	// Debounced draft autosave in localStorage
 	clearTimeout(debounceTimer)
 	debounceTimer = setTimeout(() => {
 		if (props.exerciseId) {
@@ -268,19 +282,31 @@ const onCodeChange = () => {
 	}, 1500)
 }
 
+const clearCurrentEditor = () => {
+	if (activeEditorTab.value === 'html') htmlCode.value = ''
+	else if (activeEditorTab.value === 'css') cssCode.value = ''
+	else if (activeEditorTab.value === 'js') jsCode.value = ''
+	runCode()
+}
+
 const confirmReset = () => {
 	if (confirm(__('Are you sure you want to reset your code? Your current changes will be lost.'))) {
 		if (exercise.value) {
-			htmlCode.value = exercise.value.starter_html || ''
-			cssCode.value = exercise.value.starter_css || ''
-			jsCode.value = exercise.value.starter_js || ''
-			runCode()
-			toast.success(__('Code reset to starter template.'))
+			htmlCode.value = exercise.value.starter_html || defaultHtml
+			cssCode.value = exercise.value.starter_css || defaultCss
+			jsCode.value = exercise.value.starter_js || defaultJs
+		} else {
+			htmlCode.value = defaultHtml
+			cssCode.value = defaultCss
+			jsCode.value = defaultJs
 		}
+		runCode()
+		toast.success(__('Code reset to starter template.'))
 	}
 }
 
 const submitExercise = () => {
+	if (!props.exerciseId) return
 	if (isMaxAttemptsReached.value) {
 		toast.error(__('Maximum attempts reached.'))
 		return
@@ -318,9 +344,7 @@ const submitExercise = () => {
 
 onMounted(() => {
 	window.addEventListener('message', handleWindowMessage)
-	if (props.exerciseId) {
-		loadExercise()
-	}
+	loadExercise()
 })
 
 onBeforeUnmount(() => {
