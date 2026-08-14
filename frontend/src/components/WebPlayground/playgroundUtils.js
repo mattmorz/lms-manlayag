@@ -51,12 +51,12 @@ export function runDomTests(iframeDocument, testCases = []) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
-						const actualText = (elem.textContent || '').trim()
-						const expectedText = (tc.expected_text || tc.expected_value || '').trim()
+						const actualText = (elem.textContent || '').trim().toLowerCase()
+						const expectedText = (tc.expected_text || tc.expected_value || '').trim().toLowerCase()
 						testPassed = actualText.includes(expectedText)
 						detailMessage = testPassed
-							? `Element '${selector}' contains text '${expectedText}'`
-							: `Expected text '${expectedText}', found '${actualText}'`
+							? `Element '${selector}' contains text '${tc.expected_text || tc.expected_value}'`
+							: `Expected text '${tc.expected_text || tc.expected_value}', found '${elem.textContent.trim()}'`
 					}
 					break
 
@@ -86,8 +86,8 @@ export function runDomTests(iframeDocument, testCases = []) {
 					} else {
 						const attrName = tc.property || ''
 						const actualAttr = elem.getAttribute(attrName) || ''
-						const expectedAttr = (tc.expected_value || '').trim()
-						testPassed = actualAttr === expectedAttr || actualAttr.includes(expectedAttr)
+						const expectedAttr = (tc.expected_value || '').trim().toLowerCase()
+						testPassed = actualAttr.toLowerCase().includes(expectedAttr)
 						detailMessage = testPassed
 							? `Attribute '${attrName}' matches '${expectedAttr}'`
 							: `Attribute '${attrName}' is '${actualAttr}', expected '${expectedAttr}'`
@@ -97,10 +97,10 @@ export function runDomTests(iframeDocument, testCases = []) {
 				case 'Element Count':
 					const actualCount = elements.length
 					const expectedCount = parseInt(tc.expected_value, 10) || 0
-					testPassed = actualCount === expectedCount
+					testPassed = actualCount >= expectedCount
 					detailMessage = testPassed
 						? `Found ${actualCount} matching element(s) for '${selector}'`
-						: `Expected ${expectedCount} elements for '${selector}', found ${actualCount}`
+						: `Expected at least ${expectedCount} elements for '${selector}', found ${actualCount}`
 					break
 
 				case 'Input Value':

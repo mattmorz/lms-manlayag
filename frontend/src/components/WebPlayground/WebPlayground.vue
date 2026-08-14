@@ -120,6 +120,7 @@
 					<PreviewFrame
 						ref="previewRef"
 						:document-content="previewDoc"
+						@loaded="onIframeLoaded"
 						@iframe-ready="onIframeReady"
 					/>
 				</div>
@@ -135,13 +136,13 @@
 
 		<!-- Bottom: Test Results Panel -->
 		<TestResults
-			v-if="exercise && exercise.test_cases && exercise.test_cases.length"
+			v-if="testEvaluation.results && testEvaluation.results.length"
 			:results="testEvaluation.results"
 			:score="testEvaluation.score"
 			:earned-points="testEvaluation.earnedPoints"
 			:total-points="testEvaluation.totalPoints"
 			:passed="testEvaluation.passed"
-			:submitted="hasSubmitted"
+			:submitted="hasSubmitted || hasRun"
 		/>
 
 		<!-- Submission Limit Warning Banner -->
@@ -180,6 +181,7 @@ const previewDoc = ref('')
 const consoleLogs = ref([])
 const submitting = ref(false)
 const hasSubmitted = ref(false)
+const hasRun = ref(false)
 const attemptCount = ref(0)
 const userPassed = ref(false)
 const previewRef = ref(null)
@@ -242,6 +244,7 @@ const loadExercise = () => {
 
 const runCode = () => {
 	consoleLogs.value = []
+	hasRun.value = true
 	previewDoc.value = buildSandboxedDocument(
 		htmlCode.value,
 		cssCode.value,
@@ -254,7 +257,7 @@ const runCode = () => {
 
 	setTimeout(() => {
 		evaluateTests()
-	}, 150)
+	}, 200)
 }
 
 const evaluateTests = () => {
@@ -263,6 +266,12 @@ const evaluateTests = () => {
 	if (!doc) return
 	const testCases = exercise.value ? exercise.value.test_cases || [] : []
 	testEvaluation.value = runDomTests(doc, testCases)
+}
+
+const onIframeLoaded = (doc) => {
+	if (doc && exercise.value && exercise.value.test_cases) {
+		testEvaluation.value = runDomTests(doc, exercise.value.test_cases)
+	}
 }
 
 const onIframeReady = () => {
