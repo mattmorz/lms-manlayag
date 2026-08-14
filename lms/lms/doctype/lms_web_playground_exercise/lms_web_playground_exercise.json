@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:WPE-{YYYY}-{#####}",
+ "creation": "2026-08-14 15:45:00.000000",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "instructions",
+  "section_break_starter",
+  "starter_html",
+  "column_break_starter",
+  "starter_css",
+  "section_break_starter_js",
+  "starter_js",
+  "section_break_solution",
+  "solution_html",
+  "column_break_solution",
+  "solution_css",
+  "section_break_solution_js",
+  "solution_js",
+  "section_break_settings",
+  "passing_score",
+  "max_attempts",
+  "time_limit",
+  "column_break_settings",
+  "allow_javascript",
+  "allow_console",
+  "section_break_tests",
+  "test_cases"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "instructions",
+   "fieldtype": "Text Editor",
+   "label": "Instructions"
+  },
+  {
+   "fieldname": "section_break_starter",
+   "fieldtype": "Section Break",
+   "label": "Starter Code"
+  },
+  {
+   "fieldname": "starter_html",
+   "fieldtype": "Code",
+   "label": "Starter HTML",
+   "options": "HTML"
+  },
+  {
+   "fieldname": "column_break_starter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "starter_css",
+   "fieldtype": "Code",
+   "label": "Starter CSS",
+   "options": "CSS"
+  },
+  {
+   "fieldname": "section_break_starter_js",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "starter_js",
+   "fieldtype": "Code",
+   "label": "Starter JavaScript",
+   "options": "JS"
+  },
+  {
+   "fieldname": "section_break_solution",
+   "fieldtype": "Section Break",
+   "label": "Instructor Solution (Protected)"
+  },
+  {
+   "fieldname": "solution_html",
+   "fieldtype": "Code",
+   "label": "Solution HTML",
+   "options": "HTML"
+  },
+  {
+   "fieldname": "column_break_solution",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "solution_css",
+   "fieldtype": "Code",
+   "label": "Solution CSS",
+   "options": "CSS"
+  },
+  {
+   "fieldname": "section_break_solution_js",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "solution_js",
+   "fieldtype": "Code",
+   "label": "Solution JavaScript",
+   "options": "JS"
+  },
+  {
+   "fieldname": "section_break_settings",
+   "fieldtype": "Section Break",
+   "label": "Settings & Limits"
+  },
+  {
+   "default": "70",
+   "fieldname": "passing_score",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Passing Score (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "max_attempts",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Max Attempts (0 = Unlimited)",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "time_limit",
+   "fieldtype": "Int",
+   "label": "Time Limit (Minutes)"
+  },
+  {
+   "fieldname": "column_break_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "allow_javascript",
+   "fieldtype": "Check",
+   "label": "Allow JavaScript Execution"
+  },
+  {
+   "default": "1",
+   "fieldname": "allow_console",
+   "fieldtype": "Check",
+   "label": "Allow Console Output"
+  },
+  {
+   "fieldname": "section_break_tests",
+   "fieldtype": "Section Break",
+   "label": "Automated DOM Test Cases"
+  },
+  {
+   "fieldname": "test_cases",
+   "fieldtype": "Table",
+   "label": "Test Cases",
+   "options": "LMS Web Playground Test Case"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-14 15:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "LMS Web Playground Exercise",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Moderator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Course Creator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "LMS Student"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,174 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:WPS-{YYYY}-{#####}",
+ "creation": "2026-08-14 15:45:00.000000",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "student",
+  "exercise",
+  "attempt_number",
+  "column_break_sub",
+  "score",
+  "passed",
+  "submitted_on",
+  "section_break_code",
+  "html_code",
+  "column_break_code",
+  "css_code",
+  "section_break_js",
+  "javascript_code",
+  "section_break_results",
+  "test_results"
+ ],
+ "fields": [
+  {
+   "fieldname": "student",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Student",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "exercise",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Exercise",
+   "options": "LMS Web Playground Exercise",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "attempt_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Attempt Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_sub",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Score (%)",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "passed",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Passed"
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Submitted On"
+  },
+  {
+   "fieldname": "section_break_code",
+   "fieldtype": "Section Break",
+   "label": "Submitted Code"
+  },
+  {
+   "fieldname": "html_code",
+   "fieldtype": "Code",
+   "label": "HTML Code",
+   "options": "HTML"
+  },
+  {
+   "fieldname": "column_break_code",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "css_code",
+   "fieldtype": "Code",
+   "label": "CSS Code",
+   "options": "CSS"
+  },
+  {
+   "fieldname": "section_break_js",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "javascript_code",
+   "fieldtype": "Code",
+   "label": "JavaScript Code",
+   "options": "JS"
+  },
+  {
+   "fieldname": "section_break_results",
+   "fieldtype": "Section Break",
+   "label": "Test Case Results"
+  },
+  {
+   "fieldname": "test_results",
+   "fieldtype": "Code",
+   "label": "Test Results JSON",
+   "options": "JSON"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-14 15:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "LMS Web Playground Submission",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Moderator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Course Creator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "LMS Student"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

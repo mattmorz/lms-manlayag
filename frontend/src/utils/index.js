@@ -3,6 +3,7 @@ import { useTimeAgo } from '@vueuse/core'
 import colorsJSON from '@/utils/frappe-ui-colors.json'
 import { Quiz } from '@/utils/quiz'
 import { Program } from '@/utils/program'
+import { WebPlaygroundTool } from '@/utils/webPlayground'
 import { Assignment } from '@/utils/assignment'
 import { Upload } from '@/utils/upload'
 import { Markdown } from '@/utils/markdownParser'
@@ -264,6 +265,8 @@ export function getEditorTools(options = {}) {
 	if (allowProgram) {
 		tools.program = Program
 	}
+
+	tools.web_playground = WebPlaygroundTool
 
 	return tools
 }

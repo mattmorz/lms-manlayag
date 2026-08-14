@@ -255,12 +255,13 @@ def save_progress(lesson: str, course: str, scorm_details: dict = None):
 	quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
 	programming_exercise_completed = get_programming_exercise_progress(lesson)
+	web_playground_completed = get_web_playground_progress(lesson)
 	video_completed = get_video_progress(lesson)
 
 	if scorm_details:
 		scorm_details = frappe._dict(**scorm_details)
 
-	if not lesson_already_completed and quiz_completed and assignment_completed and programming_exercise_completed and video_completed and not scorm_details:
+	if not lesson_already_completed and quiz_completed and assignment_completed and programming_exercise_completed and web_playground_completed and video_completed and not scorm_details:
 		if progress_already_exists:
 			frappe.db.set_value("LMS Course Progress", progress_already_exists, "status", "Complete")
 		else:
@@ -506,6 +507,47 @@ def save_progress_for_programming_exercise(exercise: str):
 				content = json.loads(lesson.content)
 				for block in content.get("blocks", []):
 					if block.get("type") == "program" and block.get("data", {}).get("exercise") == exercise:
+						save_progress(lesson.name, lesson.course)
+			except Exception:
+				pass
+
+
+def get_web_playground_progress(lesson):
+	lesson_details = frappe.db.get_value("Course Lesson", lesson, ["body", "content"], as_dict=1)
+	exercises = []
+
+	if lesson_details and lesson_details.content:
+		try:
+			content = json.loads(lesson_details.content)
+			for block in content.get("blocks", []):
+				if block.get("type") in ["web_playground", "playground"]:
+					ex = block.get("data", {}).get("exercise")
+					if ex:
+						exercises.append(ex)
+		except Exception:
+			pass
+
+	for exercise in exercises:
+		if not frappe.db.exists(
+			"LMS Web Playground Submission",
+			{"exercise": exercise, "student": frappe.session.user, "passed": 1},
+		):
+			return False
+	return True
+
+
+def save_progress_for_web_playground(exercise: str):
+	lessons = frappe.get_all(
+		"Course Lesson",
+		filters={"content": ["like", f"%{exercise}%"]},
+		fields=["name", "course"]
+	)
+	for lesson in lessons:
+		if lesson.content:
+			try:
+				content = json.loads(lesson.content)
+				for block in content.get("blocks", []):
+					if block.get("type") in ["web_playground", "playground"] and block.get("data", {}).get("exercise") == exercise:
 						save_progress(lesson.name, lesson.course)
 			except Exception:
 				pass

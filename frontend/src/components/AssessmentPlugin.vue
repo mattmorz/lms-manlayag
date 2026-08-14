@@ -7,7 +7,9 @@
 					? __('Add a quiz to your lesson')
 					: type == 'program'
 						? __('Add a programming exercise to your lesson')
-						: __('Add an assignment to your lesson'),
+						: type == 'web_playground'
+							? __('Add a web playground to your lesson')
+							: __('Add an assignment to your lesson'),
 			size: 'xl',
 			position: 'top',
 			paddingTop: '3rem',
@@ -141,6 +143,14 @@
 							:onCreate="(value, close) => redirectToForm()"
 						/>
 					</div>
+					<div v-else-if="type == 'web_playground'" class="space-y-4">
+						<Link
+							v-model="web_playground"
+							doctype="LMS Web Playground Exercise"
+							placeholder=" "
+							:label="__('Select a Web Playground Exercise')"
+						/>
+					</div>
 				</div>
 			</div>
 		</template>
@@ -157,6 +167,7 @@ const show = ref(false)
 const quiz = ref(null)
 const assignment = ref(null)
 const exercise = ref(null)
+const web_playground = ref(null)
 const grading_category = ref('')
 const due_date = ref('')
 const due_time = ref('')
@@ -295,6 +306,8 @@ const addAssessment = () => {
 		selectedItem = quiz.value
 	} else if (props.type === 'program') {
 		selectedItem = exercise.value
+	} else if (props.type === 'web_playground') {
+		selectedItem = web_playground.value
 	} else {
 		selectedItem = assignment.value
 	}
@@ -305,7 +318,9 @@ const addAssessment = () => {
 				? __('Please select a quiz')
 				: props.type === 'program'
 					? __('Please select a programming exercise')
-					: __('Please select an assignment')
+					: props.type === 'web_playground'
+						? __('Please select a web playground exercise')
+						: __('Please select an assignment')
 		)
 		return
 	}

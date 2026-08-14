@@ -288,7 +288,7 @@ const getAssessmentBlockTypes = (content) => {
 		const parsedContent = JSON.parse(content)
 		const blockTypes = new Set()
 		for (const block of parsedContent.blocks || []) {
-			if (['quiz', 'assignment', 'program'].includes(block.type)) {
+			if (['quiz', 'assignment', 'program', 'web_playground'].includes(block.type)) {
 				blockTypes.add(block.type)
 			}
 		}

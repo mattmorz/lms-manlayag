@@ -8435,3 +8435,144 @@ def get_content_usage_info(content_doctype: str) -> dict:
 	return usage_info
 
 
+@frappe.whitelist()
+def get_web_playground_exercise(exercise_id: str):
+	if not frappe.db.exists("LMS Web Playground Exercise", exercise_id):
+		frappe.throw(_("Exercise not found."), frappe.DoesNotExistError)
+
+	doc = frappe.get_doc("LMS Web Playground Exercise", exercise_id)
+	d = doc.as_dict()
+
+	# SECURITY REQUIREMENT: Exclude solution code fields from client response
+	d.pop("solution_html", None)
+	d.pop("solution_css", None)
+	d.pop("solution_js", None)
+
+	# Student attempt history
+	student = frappe.session.user
+	attempts = frappe.get_all(
+		"LMS Web Playground Submission",
+		filters={"exercise": exercise_id, "student": student},
+		fields=["name", "attempt_number", "score", "passed", "submitted_on"],
+		order_by="attempt_number desc",
+	)
+	d["user_attempts"] = attempts
+	d["attempt_count"] = len(attempts)
+	d["user_passed"] = any(a.get("passed") for a in attempts)
+
+	if attempts:
+		latest_sub = frappe.get_doc("LMS Web Playground Submission", attempts[0].name)
+		d["latest_code"] = {
+			"html": latest_sub.html_code,
+			"css": latest_sub.css_code,
+			"js": latest_sub.javascript_code,
+		}
+
+	return d
+
+
+@frappe.whitelist()
+def create_web_playground_submission(
+	exercise: str,
+	html_code: str = "",
+	css_code: str = "",
+	javascript_code: str = "",
+	score: float = 0.0,
+	passed: int = 0,
+	test_results: str = "[]",
+):
+	if not frappe.db.exists("LMS Web Playground Exercise", exercise):
+		frappe.throw(_("Exercise not found."), frappe.DoesNotExistError)
+
+	ex_doc = frappe.get_doc("LMS Web Playground Exercise", exercise)
+	student = frappe.session.user
+
+	# Validate Attempt Limits
+	existing_attempts = frappe.db.count(
+		"LMS Web Playground Submission",
+		filters={"exercise": exercise, "student": student},
+	)
+
+	if ex_doc.max_attempts and ex_doc.max_attempts > 0 and existing_attempts >= ex_doc.max_attempts:
+		frappe.throw(_("You have reached the maximum number of attempts allowed for this exercise."), frappe.ValidationError)
+
+	attempt_number = existing_attempts + 1
+	is_passed = 1 if (frappe.utils.cint(passed) or score >= ex_doc.passing_score) else 0
+
+	sub = frappe.get_doc({
+		"doctype": "LMS Web Playground Submission",
+		"student": student,
+		"exercise": exercise,
+		"attempt_number": attempt_number,
+		"html_code": html_code or "",
+		"css_code": css_code or "",
+		"javascript_code": javascript_code or "",
+		"score": score,
+		"passed": is_passed,
+		"submitted_on": frappe.utils.now_datetime(),
+		"test_results": test_results or "[]",
+	})
+	sub.insert(ignore_permissions=True)
+
+	if is_passed:
+		from lms.lms.doctype.course_lesson.course_lesson import save_progress_for_web_playground
+		save_progress_for_web_playground(exercise)
+
+	return {
+		"status": "success",
+		"name": sub.name,
+		"attempt_number": attempt_number,
+		"score": score,
+		"passed": is_passed,
+	}
+
+
+@frappe.whitelist()
+def save_web_playground_exercise(exercise_data):
+	import json
+	if isinstance(exercise_data, str):
+		exercise_data = json.loads(exercise_data)
+
+	roles = frappe.get_roles(frappe.session.user)
+	if not any(r in roles for r in ["System Manager", "Moderator", "Course Creator", "Administrator"]):
+		frappe.throw(_("You do not have permission to modify Web Playground exercises."), frappe.PermissionError)
+
+	ex_name = exercise_data.get("name")
+	if ex_name and frappe.db.exists("LMS Web Playground Exercise", ex_name):
+		doc = frappe.get_doc("LMS Web Playground Exercise", ex_name)
+	else:
+		doc = frappe.new_doc("LMS Web Playground Exercise")
+
+	doc.title = exercise_data.get("title", "Untitled Web Playground")
+	doc.instructions = exercise_data.get("instructions", "")
+	doc.starter_html = exercise_data.get("starter_html", "")
+	doc.starter_css = exercise_data.get("starter_css", "")
+	doc.starter_js = exercise_data.get("starter_js", "")
+	doc.solution_html = exercise_data.get("solution_html", "")
+	doc.solution_css = exercise_data.get("solution_css", "")
+	doc.solution_js = exercise_data.get("solution_js", "")
+	doc.passing_score = frappe.utils.cint(exercise_data.get("passing_score", 70))
+	doc.max_attempts = frappe.utils.cint(exercise_data.get("max_attempts", 0))
+	doc.time_limit = frappe.utils.cint(exercise_data.get("time_limit", 0))
+	doc.allow_javascript = 1 if exercise_data.get("allow_javascript", True) else 0
+	doc.allow_console = 1 if exercise_data.get("allow_console", True) else 0
+
+	doc.test_cases = []
+	for tc in exercise_data.get("test_cases", []):
+		doc.append("test_cases", {
+			"title": tc.get("title", "Test Case"),
+			"description": tc.get("description", ""),
+			"test_type": tc.get("test_type", "Element Exists"),
+			"selector": tc.get("selector", ""),
+			"property": tc.get("property", ""),
+			"expected_value": tc.get("expected_value", ""),
+			"expected_text": tc.get("expected_text", ""),
+			"points": frappe.utils.cint(tc.get("points", 10)),
+			"required": 1 if tc.get("required", True) else 0,
+		})
+
+	doc.save(ignore_permissions=True)
+	return {"status": "success", "name": doc.name}
+
+
+
