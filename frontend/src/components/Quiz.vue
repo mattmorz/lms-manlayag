@@ -659,16 +659,24 @@ const maxProctorWarnings = computed(() => {
 const showProctorWarningModal = ref(false)
 const lastWarningReason = ref('')
 
-const enterFullscreen = () => {
+const enterFullscreen = async () => {
 	const elem = document.documentElement
-	if (elem.requestFullscreen) {
-		elem.requestFullscreen()
-	} else if (elem.webkitRequestFullscreen) {
-		elem.webkitRequestFullscreen()
-	} else if (elem.mozRequestFullScreen) {
-		elem.mozRequestFullScreen()
-	} else if (elem.msRequestFullscreen) {
-		elem.msRequestFullscreen()
+	try {
+		if (elem.requestFullscreen) {
+			await elem.requestFullscreen()
+		} else if (elem.webkitRequestFullscreen) {
+			elem.webkitRequestFullscreen()
+		} else if (elem.mozRequestFullScreen) {
+			elem.mozRequestFullScreen()
+		} else if (elem.msRequestFullscreen) {
+			elem.msRequestFullscreen()
+		} else {
+			// Mobile iOS Safari Fallback: Fullscreen API is unsupported on iPhones
+			isFullscreenActive.value = true
+		}
+	} catch (err) {
+		console.warn('Fullscreen API request error/unsupported:', err)
+		isFullscreenActive.value = true
 	}
 }
 
