@@ -26,12 +26,12 @@ export class Markdown {
 	static get toolbox() {
 		const app = createApp({
 			render: () =>
-				h(CodeXml, { size: 18, strokeWidth: 1.5, color: 'black' }),
+				h(CodeXml, { size: 18, strokeWidth: 1.5, color: 'currentColor' }),
 		})
 
 		const div = document.createElement('div')
 		app.mount(div)
-		return { title: '', icon: div.innerHTML }
+		return { title: 'Markdown', icon: div.innerHTML }
 	}
 
 	static get pasteConfig() {
