@@ -147,9 +147,6 @@ export function runDomTests(iframeDocument, testCases = []) {
 							? `Class '${className}' is absent on '${selector}'`
 							: `Class '${className}' should not exist on '${selector}'`
 					}
-							? `Class '${className}' is absent on '${selector}'`
-							: `Class '${className}' should not exist on '${selector}'`
-					}
 					break
 
 				default:
