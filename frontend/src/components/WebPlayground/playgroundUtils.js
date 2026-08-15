@@ -47,50 +47,54 @@ export function runDomTests(iframeDocument, testCases = []) {
 					break
 
 				case 'Text Content':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
-						const actualText = (elem.textContent || '').trim().toLowerCase()
 						const expectedText = (tc.expected_text || tc.expected_value || '').trim().toLowerCase()
-						testPassed = actualText.includes(expectedText)
+						const matchedElem = Array.from(elements).find(el => (el.textContent || '').trim().toLowerCase().includes(expectedText))
+						testPassed = !!matchedElem
 						detailMessage = testPassed
 							? `Element '${selector}' contains text '${tc.expected_text || tc.expected_value}'`
-							: `Expected text '${tc.expected_text || tc.expected_value}', found '${elem.textContent.trim()}'`
+							: `Expected text '${tc.expected_text || tc.expected_value}' in '${selector}'`
 					}
 					break
 
 				case 'CSS Property':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
 						const win = iframeDocument.defaultView || window
-						const computedStyle = win.getComputedStyle(elem)
 						const propName = tc.property || ''
-						const actualVal = computedStyle.getPropertyValue(propName) || computedStyle[propName] || ''
 						const expectedVal = (tc.expected_value || '').trim().toLowerCase()
-
-						// Normalize colors/values where possible
-						testPassed = (actualVal || '').trim().toLowerCase().includes(expectedVal)
+						const matchedElem = Array.from(elements).find(el => {
+							const computedStyle = win.getComputedStyle(el)
+							const actualVal = (computedStyle.getPropertyValue(propName) || computedStyle[propName] || '').trim().toLowerCase()
+							return actualVal.includes(expectedVal)
+						})
+						testPassed = !!matchedElem
 						detailMessage = testPassed
 							? `CSS property '${propName}' matches '${tc.expected_value}'`
-							: `CSS '${propName}' is '${actualVal}', expected '${tc.expected_value}'`
+							: `CSS property '${propName}' does not match '${tc.expected_value}' on '${selector}'`
 					}
 					break
 
 				case 'Attribute':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
 						const attrName = tc.property || ''
-						const actualAttr = elem.getAttribute(attrName) || ''
 						const expectedAttr = (tc.expected_value || '').trim().toLowerCase()
-						testPassed = actualAttr.toLowerCase().includes(expectedAttr)
+						const matchedElem = Array.from(elements).find(el => {
+							const actualAttr = (el.getAttribute(attrName) || '').toLowerCase()
+							return !expectedAttr || actualAttr.includes(expectedAttr)
+						})
+						testPassed = !!matchedElem
 						detailMessage = testPassed
 							? `Attribute '${attrName}' matches '${expectedAttr}'`
-							: `Attribute '${attrName}' is '${actualAttr}', expected '${expectedAttr}'`
+							: `Attribute '${attrName}' missing or invalid on '${selector}'`
 					}
 					break
 
@@ -104,26 +108,27 @@ export function runDomTests(iframeDocument, testCases = []) {
 					break
 
 				case 'Input Value':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
-						const actualVal = (elem.value || '').trim()
 						const expectedVal = (tc.expected_value || '').trim()
-						testPassed = actualVal === expectedVal
+						const matchedElem = Array.from(elements).find(el => (el.value || '').trim() === expectedVal)
+						testPassed = !!matchedElem
 						detailMessage = testPassed
 							? `Input value matches '${expectedVal}'`
-							: `Input value is '${actualVal}', expected '${expectedVal}'`
+							: `Input value '${expectedVal}' not found on '${selector}'`
 					}
 					break
 
 				case 'Class Exists':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = false
 						detailMessage = `Element '${selector}' not found`
 					} else {
 						const className = (tc.expected_value || tc.property || '').trim()
-						testPassed = elem.classList.contains(className)
+						const matchedElem = Array.from(elements).find(el => el.classList.contains(className))
+						testPassed = !!matchedElem
 						detailMessage = testPassed
 							? `Class '${className}' exists on '${selector}'`
 							: `Class '${className}' missing on '${selector}'`
@@ -131,13 +136,17 @@ export function runDomTests(iframeDocument, testCases = []) {
 					break
 
 				case 'Class Does Not Exist':
-					if (!elem) {
+					if (!elements.length) {
 						testPassed = true
 						detailMessage = `Element '${selector}' not found`
 					} else {
 						const className = (tc.expected_value || tc.property || '').trim()
-						testPassed = !elem.classList.contains(className)
+						const hasClass = Array.from(elements).some(el => el.classList.contains(className))
+						testPassed = !hasClass
 						detailMessage = testPassed
+							? `Class '${className}' is absent on '${selector}'`
+							: `Class '${className}' should not exist on '${selector}'`
+					}
 							? `Class '${className}' is absent on '${selector}'`
 							: `Class '${className}' should not exist on '${selector}'`
 					}
