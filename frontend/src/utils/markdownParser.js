@@ -345,19 +345,30 @@ export class Markdown {
 	_parseInlineMarkdown(text) {
 		if (!text) return ''
 
-		let html = escapeHTML(text)
+		// 1. Extract and escape inline code blocks `code`
+		const codeBlocks = []
+		let processed = text.replace(/`([^`]+)`/g, (match, p1) => {
+			const idx = codeBlocks.length
+			codeBlocks.push(`<code class="inline-code">${escapeHTML(p1)}</code>`)
+			return `___INLINE_CODE_${idx}___`
+		})
 
-		html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
+		// 2. Escape HTML for remaining text
+		processed = escapeHTML(processed)
 
-		html = html.replace(/\*\*([^\*\n]+?)\*\*/g, '<b>$1</b>')
-		html = html.replace(/__([^_\n]+?)__/g, '<b>$1</b>')
+		// 3. Process markdown formatting (bold, italic, links)
+		processed = processed.replace(/\*\*([^\*\n]+?)\*\*/g, '<b>$1</b>')
+		processed = processed.replace(/__([^_\n]+?)__/g, '<b>$1</b>')
+		processed = processed.replace(/\*([^\*\n]+?)\*/g, '<i>$1</i>')
+		processed = processed.replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '<i>$1</i>')
+		processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
 
-		html = html.replace(/\*([^\*\n]+?)\*/g, '<i>$1</i>')
-		html = html.replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '<i>$1</i>')
+		// 4. Restore inline code tags
+		processed = processed.replace(/___INLINE_CODE_(\d+)___/g, (match, p1) => {
+			return codeBlocks[parseInt(p1, 10)] || ''
+		})
 
-		html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-
-		return html
+		return processed
 	}
 
 	_togglePlaceholder() {
