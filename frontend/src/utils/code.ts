@@ -96,7 +96,7 @@ export class CodeBox {
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder');
 		this._applyCodeAreaClass();
 		this.codeArea.setAttribute('contenteditable', 'true');
-		this.codeArea.textContent = this.data.code;
+		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 
@@ -111,15 +111,11 @@ export class CodeBox {
 	}
 
 	save(blockContent) {
-		return Object.assign(this.data, {
-			code: this.codeArea.textContent || this.codeArea.innerText || '',
-			language: this.data.language || 'html',
-			theme: this.data.theme || 'dark',
-		});
+		return Object.assign(this.data, { code: this.codeArea.innerHTML, theme: this.data.theme });
 	}
 
 	validate(savedData) {
-		if (!savedData.code || !savedData.code.trim()) return false;
+		if (!savedData.code.trim()) return false;
 		return true;
 	}
 
@@ -175,15 +171,11 @@ export class CodeBox {
 	}
 
 	_highlightCodeArea(event) {
-		delete this.codeArea.dataset.highlighted;
-		hljs.highlightElement(this.codeArea);
+		hljs.highlightBlock(this.codeArea);
 	}
 
 	_handleCodeAreaPaste(event) {
-		event.preventDefault();
 		event.stopPropagation();
-		const text = (event.clipboardData || window.clipboardData).getData('text/plain');
-		document.execCommand('insertText', false, text);
 	}
 
 	_handleSelectInputClick(event) {

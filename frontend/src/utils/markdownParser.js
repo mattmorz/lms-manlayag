@@ -26,12 +26,12 @@ export class Markdown {
 	static get toolbox() {
 		const app = createApp({
 			render: () =>
-				h(CodeXml, { size: 18, strokeWidth: 1.5, color: 'currentColor' }),
+				h(CodeXml, { size: 18, strokeWidth: 1.5, color: 'black' }),
 		})
 
 		const div = document.createElement('div')
 		app.mount(div)
-		return { title: 'Markdown', icon: div.innerHTML }
+		return { title: '', icon: div.innerHTML }
 	}
 
 	static get pasteConfig() {
@@ -335,8 +335,7 @@ export class Markdown {
 				type: 'codeBox',
 				data: {
 					code: codeLines.join('\n'),
-					language: (language || 'html').toLowerCase(),
-					theme: 'dark',
+					language: language || 'plaintext',
 				},
 			},
 			nextIndex: i,
@@ -346,30 +345,19 @@ export class Markdown {
 	_parseInlineMarkdown(text) {
 		if (!text) return ''
 
-		// 1. Extract and escape inline code blocks `code`
-		const codeBlocks = []
-		let processed = text.replace(/`([^`]+)`/g, (match, p1) => {
-			const idx = codeBlocks.length
-			codeBlocks.push(`<code class="inline-code">${escapeHTML(p1)}</code>`)
-			return `%%INLINECODE${idx}%%`
-		})
+		let html = escapeHTML(text)
 
-		// 2. Escape HTML for remaining text
-		processed = escapeHTML(processed)
+		html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
 
-		// 3. Process markdown formatting (bold, italic, links)
-		processed = processed.replace(/\*\*([^\*\n]+?)\*\*/g, '<b>$1</b>')
-		processed = processed.replace(/__([^_\n]+?)__/g, '<b>$1</b>')
-		processed = processed.replace(/\*([^\*\n]+?)\*/g, '<i>$1</i>')
-		processed = processed.replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '<i>$1</i>')
-		processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+		html = html.replace(/\*\*([^\*\n]+?)\*\*/g, '<b>$1</b>')
+		html = html.replace(/__([^_\n]+?)__/g, '<b>$1</b>')
 
-		// 4. Restore inline code tags
-		processed = processed.replace(/%%INLINECODE(\d+)%%/g, (match, p1) => {
-			return codeBlocks[parseInt(p1, 10)] || ''
-		})
+		html = html.replace(/\*([^\*\n]+?)\*/g, '<i>$1</i>')
+		html = html.replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '<i>$1</i>')
 
-		return processed
+		html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+
+		return html
 	}
 
 	_togglePlaceholder() {
@@ -403,11 +391,15 @@ export class Markdown {
 				style: 'unordered',
 				items: [{ content: '' }],
 			})
-		} else if ((event.key === ' ' || event.key === 'Enter') && /^```[a-zA-Z]*$/.test(trimmedText)) {
+		} else if (event.key === ' ' && trimmedText === '$$') {
 			event.preventDefault()
-			const lang = trimmedText.substring(3).trim().toLowerCase()
 			this.wrapper.textContent = ''
-			this._convertBlock('codeBox', { code: '', language: lang || 'html', theme: 'dark' })
+			this._convertBlock('latex', { formula: '' })
+		} else if (event.key === ' ' && trimmedText.startsWith('$$') && trimmedText.endsWith('$$')) {
+			event.preventDefault()
+			const formula = trimmedText.slice(2, -2).trim()
+			this.wrapper.textContent = ''
+			this._convertBlock('latex', { formula })
 		} else if (event.key === ' ' && /^1\.$/.test(trimmedText)) {
 			event.preventDefault()
 			this.wrapper.textContent = ''

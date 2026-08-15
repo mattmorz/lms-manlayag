@@ -1024,7 +1024,13 @@ iframe {
 	border-left: 1px solid #e8e8eb;
 }
 
+.ce-toolbox__button[data-tool='markdown'] {
+	display: none !important;
+}
 
+.ce-popover-item[data-item-name='markdown'] {
+	display: none !important;
+}
 
 .plyr__volume input[type='range'] {
 	display: none;
