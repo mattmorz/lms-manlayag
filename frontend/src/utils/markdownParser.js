@@ -335,7 +335,8 @@ export class Markdown {
 				type: 'codeBox',
 				data: {
 					code: codeLines.join('\n'),
-					language: language || 'plaintext',
+					language: (language || 'html').toLowerCase(),
+					theme: 'dark',
 				},
 			},
 			nextIndex: i,
@@ -402,15 +403,11 @@ export class Markdown {
 				style: 'unordered',
 				items: [{ content: '' }],
 			})
-		} else if (event.key === ' ' && trimmedText === '$$') {
+		} else if ((event.key === ' ' || event.key === 'Enter') && /^```[a-zA-Z]*$/.test(trimmedText)) {
 			event.preventDefault()
+			const lang = trimmedText.substring(3).trim().toLowerCase()
 			this.wrapper.textContent = ''
-			this._convertBlock('latex', { formula: '' })
-		} else if (event.key === ' ' && trimmedText.startsWith('$$') && trimmedText.endsWith('$$')) {
-			event.preventDefault()
-			const formula = trimmedText.slice(2, -2).trim()
-			this.wrapper.textContent = ''
-			this._convertBlock('latex', { formula })
+			this._convertBlock('codeBox', { code: '', language: lang || 'html', theme: 'dark' })
 		} else if (event.key === ' ' && /^1\.$/.test(trimmedText)) {
 			event.preventDefault()
 			this.wrapper.textContent = ''
