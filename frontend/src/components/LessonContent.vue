@@ -7,68 +7,80 @@
 				: 'highlight-theme-dark'
 		"
 	>
-		<div v-if="youtube">
+		<div v-if="props.youtube">
 			<div
 				class="video-player rounded-md border border-gray-100 mb-4"
-				:src="youtube"
+				:src="props.youtube"
 				data-plyr-provider="youtube"
 			></div>
 		</div>
-		<div v-for="block in content?.split('\n\n')">
-			<div v-if="block.includes('{{ YouTubeVideo')">
+
+		<!-- Render Parsed Editor.js & Markdown Blocks -->
+		<div v-for="(block, idx) in parsedBlocks" :key="idx" class="my-2">
+			<!-- Web Playground Block -->
+			<div v-if="block.type === 'web_playground' && block.exerciseId">
+				<WebPlayground :exerciseId="block.exerciseId" />
+			</div>
+
+			<!-- Embed Shortcodes (Legacy String Fallback) -->
+			<div v-else-if="block.raw && block.raw.includes('{{ YouTubeVideo')">
 				<div
 					class="video-player rounded-md border border-gray-100 mb-4"
-					:src="getId(block)"
+					:src="getId(block.raw)"
 					data-plyr-provider="youtube"
 				></div>
 			</div>
-			<div v-else-if="block.includes('{{ Quiz')">
-				<Quiz :quiz="getId(block)" />
+			<div v-else-if="block.raw && block.raw.includes('{{ Quiz')">
+				<Quiz :quiz="getId(block.raw)" />
 			</div>
-			<div v-else-if="block.includes('{{ Video')">
+			<div v-else-if="block.raw && block.raw.includes('{{ Video')">
 				<video
 					controls
 					width="100%"
 					controlsList="nodownload"
 					oncontextmenu="return false;"
 				>
-					<source :src="getId(block)" type="video/mp4" />
+					<source :src="getId(block.raw)" type="video/mp4" />
 				</video>
 			</div>
-			<div v-else-if="block.includes('{{ PDF')">
+			<div v-else-if="block.raw && block.raw.includes('{{ PDF')">
 				<iframe
-					:src="getPDFSource(block)"
+					:src="getPDFSource(block.raw)"
 					width="100%"
 					height="700px"
 					frameborder="0"
 					allowfullscreen
 				></iframe>
 			</div>
-			<div v-else-if="block.includes('{{ Audio')">
+			<div v-else-if="block.raw && block.raw.includes('{{ Audio')">
 				<audio width="100%" controls controlsList="nodownload">
-					<source :src="getId(block)" type="audio/mp3" />
+					<source :src="getId(block.raw)" type="audio/mp3" />
 				</audio>
 			</div>
-			<div v-else-if="block.includes('{{ Embed')">
+			<div v-else-if="block.raw && block.raw.includes('{{ Embed')">
 				<iframe
 					width="100%"
 					height="400"
-					:src="getId(block)"
+					:src="getId(block.raw)"
 					frameborder="0"
 					allowfullscreen
-				>
-				</iframe>
+				></iframe>
 			</div>
-			<div v-else v-html="markdown.render(block)"></div>
+
+			<!-- Formatted HTML Block (codeBox, markdown, table, header, list, etc.) -->
+			<div v-else v-html="block.html"></div>
 		</div>
-		<div v-if="quizId">
-			<Quiz :quiz="quizId" />
+
+		<div v-if="props.quizId">
+			<Quiz :quiz="props.quizId" />
 		</div>
 	</div>
 </template>
+
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import Quiz from '@/components/QuizBlock.vue'
+import WebPlayground from '@/components/WebPlayground/WebPlayground.vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js/lib/common'
 import hljsDarkTheme from 'highlight.js/styles/atom-one-dark.css?inline'
@@ -107,6 +119,115 @@ const normalizedHighlightTheme = computed(() =>
 	props.highlightTheme === 'light' ? 'light' : 'dark'
 )
 
+const parsedBlocks = computed(() => {
+	if (!props.content) return []
+
+	try {
+		const json = JSON.parse(props.content)
+		if (json && Array.isArray(json.blocks)) {
+			return json.blocks.map((b) => {
+				if (b.type === 'codeBox' || b.type === 'code') {
+					const code = b.data?.code || b.data?.text || ''
+					const lang = (b.data?.language || 'html').toLowerCase()
+					const escapedCode = String(code)
+						.replace(/&/g, '&amp;')
+						.replace(/</g, '&lt;')
+						.replace(/>/g, '&gt;')
+					return {
+						type: 'codeBox',
+						html: `<pre><code class="language-${lang}">${escapedCode}</code></pre>`,
+					}
+				} else if (b.type === 'header') {
+					const level = b.data?.level || 2
+					const text = b.data?.text || ''
+					return {
+						type: 'header',
+						html: `<h${level}>${text}</h${level}>`,
+					}
+				} else if (b.type === 'table') {
+					const rows = b.data?.content || []
+					if (!rows.length) return { type: 'table', html: '' }
+					let tableHtml = '<div class="overflow-x-auto my-4"><table>'
+					if (b.data?.withHeadings && rows.length > 0) {
+						tableHtml +=
+							'<thead><tr>' +
+							rows[0].map((c) => `<th>${c}</th>`).join('') +
+							'</tr></thead>'
+						tableHtml +=
+							'<tbody>' +
+							rows
+								.slice(1)
+								.map(
+									(r) =>
+										'<tr>' +
+										r.map((c) => `<td>${c}</td>`).join('') +
+										'</tr>'
+								)
+								.join('') +
+							'</tbody>'
+					} else {
+						tableHtml +=
+							'<tbody>' +
+							rows
+								.map(
+									(r) =>
+										'<tr>' +
+										r.map((c) => `<td>${c}</td>`).join('') +
+										'</tr>'
+								)
+								.join('') +
+							'</tbody>'
+					}
+					tableHtml += '</table></div>'
+					return { type: 'table', html: tableHtml }
+				} else if (b.type === 'paragraph' || b.type === 'markdown') {
+					const text = b.data?.text || ''
+					return {
+						type: 'markdown',
+						html: markdown.render(text),
+					}
+				} else if (b.type === 'list') {
+					const items = b.data?.items || []
+					const tag = b.data?.style === 'ordered' ? 'ol' : 'ul'
+					const listHtml =
+						`<${tag}>` +
+						items
+							.map((i) => `<li>${i.content || i}</li>`)
+							.join('') +
+						`</${tag}>`
+					return { type: 'list', html: listHtml }
+				} else if (b.type === 'latex') {
+					const formula = b.data?.formula || ''
+					return {
+						type: 'latex',
+						html: `<div class="math-block">$$${formula}$$</div>`,
+					}
+				} else if (b.type === 'web_playground') {
+					return {
+						type: 'web_playground',
+						exerciseId: b.data?.exercise_id || b.data?.exercise,
+					}
+				}
+				return {
+					type: b.type,
+					html: markdown.render(b.data?.text || JSON.stringify(b.data || {})),
+				}
+			})
+		}
+	} catch (e) {
+		// Fallback for non-JSON string content
+	}
+
+	// Legacy plain text / raw string content split by double newlines
+	return props.content.split('\n\n').map((blockStr) => {
+		return {
+			type: 'markdown',
+			html: markdown.render(blockStr),
+			raw: blockStr,
+		}
+	})
+})
+
 const getYouTubeVideoSource = (block) => {
 	if (block.includes('{{')) {
 		block = getId(block)
@@ -119,7 +240,8 @@ const getPDFSource = (block) => {
 }
 
 const getId = (block) => {
-	return block.match(/\(["']([^"']+?)["']\)/)[1]
+	const match = block.match(/\(["']([^"']+?)["']\)/)
+	return match ? match[1] : ''
 }
 
 const ensureHighlightTheme = () => {
