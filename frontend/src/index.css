@@ -1,2 +1,81 @@
 @import 'frappe-ui/style.css';
 @import './styles/codemirror.css';
+
+/* Inline Code Styling */
+code,
+.inline-code,
+.ce-paragraph code,
+.prose code,
+.markdown-body code {
+	background-color: #f3f4f6;
+	color: #d97706;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	font-size: 0.875em;
+	padding: 0.15rem 0.4rem;
+	border-radius: 0.375rem;
+	border: 1px solid #e5e7eb;
+	word-break: break-word;
+}
+
+/* Markdown & HTML Table Styling */
+table,
+.prose table,
+.ce-table,
+.markdown-body table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 1.25rem 0;
+	font-size: 0.875rem;
+	line-height: 1.5;
+	border-radius: 0.5rem;
+	overflow: hidden;
+	box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+	border: 1px solid #e5e7eb;
+}
+
+th,
+.prose th,
+.ce-table th,
+.markdown-body th {
+	background-color: #f9fafb;
+	color: #111827;
+	font-weight: 600;
+	text-align: left;
+	padding: 0.75rem 1rem;
+	border-bottom: 2px solid #e5e7eb;
+	border-right: 1px solid #e5e7eb;
+}
+
+th:last-child,
+.prose th:last-child,
+.ce-table th:last-child {
+	border-right: none;
+}
+
+td,
+.prose td,
+.ce-table td,
+.markdown-body td {
+	padding: 0.75rem 1rem;
+	border-bottom: 1px solid #e5e7eb;
+	border-right: 1px solid #e5e7eb;
+	color: #374151;
+}
+
+td:last-child,
+.prose td:last-child,
+.ce-table td:last-child {
+	border-right: none;
+}
+
+tr:nth-child(even),
+.prose tr:nth-child(even),
+.ce-table tr:nth-child(even) {
+	background-color: #f9fafb;
+}
+
+tr:hover,
+.prose tr:hover,
+.ce-table tr:hover {
+	background-color: #f3f4f6;
+}

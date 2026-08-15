@@ -86,6 +86,7 @@ export class Markdown {
 			/^[\-\*]\s+/m,
 			/^\d+\.\s+/m,
 			/```[\s\S]*```/,
+			/^\|.+\|/m,
 		]
 
 		return markdownPatterns.some((pattern) => pattern.test(text))
@@ -143,6 +144,13 @@ export class Markdown {
 				continue
 			}
 
+			if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+				const tableBlock = this._parseTable(lines, i)
+				blocks.push(tableBlock.block)
+				i = tableBlock.nextIndex
+				continue
+			}
+
 			if (/^#{1,6}\s+/.test(line)) {
 				blocks.push(this._parseHeading(line))
 				i++
@@ -171,6 +179,41 @@ export class Markdown {
 		}
 
 		return blocks
+	}
+
+	_parseTable(lines, startIndex) {
+		const content = []
+		let i = startIndex
+
+		while (i < lines.length) {
+			const line = lines[i].trim()
+			if (line.startsWith('|') && line.endsWith('|')) {
+				// Skip separator line e.g. |---|---|
+				if (/^\|[\s\-:]+(\|[\s\-:]+)+\|$/.test(line)) {
+					i++
+					continue
+				}
+				const cells = line
+					.slice(1, -1)
+					.split('|')
+					.map((c) => this._parseInlineMarkdown(c.trim()))
+				content.push(cells)
+				i++
+			} else {
+				break
+			}
+		}
+
+		return {
+			block: {
+				type: 'table',
+				data: {
+					withHeadings: true,
+					content: content,
+				},
+			},
+			nextIndex: i,
+		}
 	}
 
 	_parseHeading(line) {

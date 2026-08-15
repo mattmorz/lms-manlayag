@@ -80,7 +80,7 @@ const contentRoot = ref(null)
 const highlightThemeStyleId = 'lesson-highlight-theme-style'
 
 const markdown = new MarkdownIt({
-	html: true,
+	html: false,
 	linkify: true,
 })
 
@@ -168,26 +168,31 @@ watch(
 </script>
 
 <style scoped>
-.highlight-theme-dark :deep(pre code.hljs),
-
-.highlight-theme-dark :deep(pre code.hljs) {
-	display: block;
-	overflow-x: auto;
-	padding: 0.75rem 0.9rem;
-	border-radius: 0.35rem;
-	background: #282c34;
-	color: #abb2bf;
+:deep(pre) {
+	margin: 1.25rem 0;
+	border-radius: 0.5rem;
+	overflow: hidden;
 }
 
-.highlight-theme-light :deep(pre code.hljs),
-
-.highlight-theme-light :deep(pre code.hljs) {
+:deep(pre code.hljs) {
 	display: block;
 	overflow-x: auto;
-	padding: 0.75rem 0.9rem;
-	border-radius: 0.35rem;
-	background: #fafafa;
-	color: #383a42;
-	border: 1px solid #e5e7eb;
+	padding: 1rem 1.25rem;
+	border-radius: 0.5rem;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	font-size: 0.875rem;
+	line-height: 1.6;
+}
+
+.highlight-theme-dark :deep(pre code.hljs) {
+	background: #1e1e1e;
+	color: #d4d4d4;
+	border: 1px solid #333333;
+}
+
+.highlight-theme-light :deep(pre code.hljs) {
+	background: #f8fafc;
+	color: #0f172a;
+	border: 1px solid #e2e8f0;
 }
 </style>
