@@ -142,7 +142,7 @@ const parsedBlocks = computed(() => {
 					const text = b.data?.text || ''
 					return {
 						type: 'header',
-						html: `<h${level}>${text}</h${level}>`,
+						html: `<h${level}>${markdown.renderInline(text)}</h${level}>`,
 					}
 				} else if (b.type === 'table') {
 					const rows = b.data?.content || []
@@ -151,7 +151,7 @@ const parsedBlocks = computed(() => {
 					if (b.data?.withHeadings && rows.length > 0) {
 						tableHtml +=
 							'<thead><tr>' +
-							rows[0].map((c) => `<th>${c}</th>`).join('') +
+							rows[0].map((c) => `<th>${markdown.renderInline(c)}</th>`).join('') +
 							'</tr></thead>'
 						tableHtml +=
 							'<tbody>' +
@@ -160,7 +160,7 @@ const parsedBlocks = computed(() => {
 								.map(
 									(r) =>
 										'<tr>' +
-										r.map((c) => `<td>${c}</td>`).join('') +
+										r.map((c) => `<td>${markdown.renderInline(c)}</td>`).join('') +
 										'</tr>'
 								)
 								.join('') +
@@ -172,7 +172,7 @@ const parsedBlocks = computed(() => {
 								.map(
 									(r) =>
 										'<tr>' +
-										r.map((c) => `<td>${c}</td>`).join('') +
+										r.map((c) => `<td>${markdown.renderInline(c)}</td>`).join('') +
 										'</tr>'
 								)
 								.join('') +
@@ -192,7 +192,7 @@ const parsedBlocks = computed(() => {
 					const listHtml =
 						`<${tag}>` +
 						items
-							.map((i) => `<li>${i.content || i}</li>`)
+							.map((i) => `<li>${markdown.renderInline(i.content || i)}</li>`)
 							.join('') +
 						`</${tag}>`
 					return { type: 'list', html: listHtml }

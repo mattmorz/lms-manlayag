@@ -351,7 +351,7 @@ export class Markdown {
 		let processed = text.replace(/`([^`]+)`/g, (match, p1) => {
 			const idx = codeBlocks.length
 			codeBlocks.push(`<code class="inline-code">${escapeHTML(p1)}</code>`)
-			return `___INLINE_CODE_${idx}___`
+			return `%%INLINECODE${idx}%%`
 		})
 
 		// 2. Escape HTML for remaining text
@@ -365,7 +365,7 @@ export class Markdown {
 		processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
 
 		// 4. Restore inline code tags
-		processed = processed.replace(/___INLINE_CODE_(\d+)___/g, (match, p1) => {
+		processed = processed.replace(/%%INLINECODE(\d+)%%/g, (match, p1) => {
 			return codeBlocks[parseInt(p1, 10)] || ''
 		})
 
