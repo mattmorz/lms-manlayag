@@ -82,7 +82,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import Quiz from '@/components/QuizBlock.vue'
 import WebPlayground from '@/components/WebPlayground/WebPlayground.vue'
 import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js/lib/common'
+import hljs from 'highlight.js'
 import hljsDarkTheme from 'highlight.js/styles/atom-one-dark.css?inline'
 import hljsLightTheme from 'highlight.js/styles/atom-one-light.css?inline'
 import { useScreenSize } from '@/utils/composables'
@@ -91,9 +91,28 @@ const screenSize = useScreenSize()
 const contentRoot = ref(null)
 const highlightThemeStyleId = 'lesson-highlight-theme-style'
 
+const highlightCode = (str, lang) => {
+	let validLang = (lang || 'xml').toLowerCase()
+	if (validLang === 'html') validLang = 'xml'
+	try {
+		if (validLang && hljs.getLanguage(validLang)) {
+			return hljs.highlight(str, { language: validLang, ignoreIllegals: true }).value
+		}
+		return hljs.highlightAuto(str).value
+	} catch (e) {
+		return String(str)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+	}
+}
+
 const markdown = new MarkdownIt({
 	html: false,
 	linkify: true,
+	highlight: (str, lang) => {
+		return `<pre class="hljs"><code>${highlightCode(str, lang)}</code></pre>`
+	},
 })
 
 const props = defineProps({
@@ -119,6 +138,31 @@ const normalizedHighlightTheme = computed(() =>
 	props.highlightTheme === 'light' ? 'light' : 'dark'
 )
 
+const renderInlineContent = (text) => {
+	if (!text) return ''
+	let str = String(text)
+
+	// If str contains backticks `code`, convert backticks to inline code pills
+	if (str.includes('`')) {
+		const codeBlocks = []
+		str = str.replace(/`([^`]+)`/g, (match, p1) => {
+			const idx = codeBlocks.length
+			const escapedInside = String(p1)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+			codeBlocks.push(`<code class="inline-code">${escapedInside}</code>`)
+			return `%%INLINECODE${idx}%%`
+		})
+
+		str = str.replace(/%%INLINECODE(\d+)%%/g, (match, p1) => {
+			return codeBlocks[parseInt(p1, 10)] || ''
+		})
+	}
+
+	return str
+}
+
 const parsedBlocks = computed(() => {
 	if (!props.content) return []
 
@@ -129,20 +173,17 @@ const parsedBlocks = computed(() => {
 				if (b.type === 'codeBox' || b.type === 'code') {
 					const code = b.data?.code || b.data?.text || ''
 					const lang = (b.data?.language || 'html').toLowerCase()
-					const escapedCode = String(code)
-						.replace(/&/g, '&amp;')
-						.replace(/</g, '&lt;')
-						.replace(/>/g, '&gt;')
+					const highlightedHtml = highlightCode(code, lang)
 					return {
 						type: 'codeBox',
-						html: `<pre><code class="language-${lang}">${escapedCode}</code></pre>`,
+						html: `<pre class="hljs"><code class="language-${lang}">${highlightedHtml}</code></pre>`,
 					}
 				} else if (b.type === 'header') {
 					const level = b.data?.level || 2
 					const text = b.data?.text || ''
 					return {
 						type: 'header',
-						html: `<h${level}>${markdown.renderInline(text)}</h${level}>`,
+						html: `<h${level}>${renderInlineContent(text)}</h${level}>`,
 					}
 				} else if (b.type === 'table') {
 					const rows = b.data?.content || []
@@ -151,7 +192,7 @@ const parsedBlocks = computed(() => {
 					if (b.data?.withHeadings && rows.length > 0) {
 						tableHtml +=
 							'<thead><tr>' +
-							rows[0].map((c) => `<th>${markdown.renderInline(c)}</th>`).join('') +
+							rows[0].map((c) => `<th>${renderInlineContent(c)}</th>`).join('') +
 							'</tr></thead>'
 						tableHtml +=
 							'<tbody>' +
@@ -160,7 +201,7 @@ const parsedBlocks = computed(() => {
 								.map(
 									(r) =>
 										'<tr>' +
-										r.map((c) => `<td>${markdown.renderInline(c)}</td>`).join('') +
+										r.map((c) => `<td>${renderInlineContent(c)}</td>`).join('') +
 										'</tr>'
 								)
 								.join('') +
@@ -172,7 +213,7 @@ const parsedBlocks = computed(() => {
 								.map(
 									(r) =>
 										'<tr>' +
-										r.map((c) => `<td>${markdown.renderInline(c)}</td>`).join('') +
+										r.map((c) => `<td>${renderInlineContent(c)}</td>`).join('') +
 										'</tr>'
 								)
 								.join('') +
@@ -184,7 +225,7 @@ const parsedBlocks = computed(() => {
 					const text = b.data?.text || ''
 					return {
 						type: 'markdown',
-						html: markdown.render(text),
+						html: renderInlineContent(text),
 					}
 				} else if (b.type === 'list') {
 					const items = b.data?.items || []
@@ -192,7 +233,7 @@ const parsedBlocks = computed(() => {
 					const listHtml =
 						`<${tag}>` +
 						items
-							.map((i) => `<li>${markdown.renderInline(i.content || i)}</li>`)
+							.map((i) => `<li>${renderInlineContent(i.content || i)}</li>`)
 							.join('') +
 						`</${tag}>`
 					return { type: 'list', html: listHtml }

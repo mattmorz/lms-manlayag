@@ -7,21 +7,19 @@ code,
 .ce-paragraph code,
 .prose code,
 .markdown-body code,
-h1 code,
-h2 code,
-h3 code,
-h4 code,
-h5 code,
-h6 code {
-	background-color: #f3f4f6;
-	color: #d97706;
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-	font-size: 0.85em;
-	padding: 0.15rem 0.4rem;
-	border-radius: 0.375rem;
-	border: 1px solid #e5e7eb;
-	word-break: break-word;
-	vertical-align: middle;
+h1 code, h2 code, h3 code, h4 code, h5 code, h6 code,
+h1 .inline-code, h2 .inline-code, h3 .inline-code, h4 .inline-code, h5 .inline-code, h6 .inline-code,
+.prose h1 code, .prose h2 code, .prose h3 code, .prose h4 code, .prose h5 code, .prose h6 code {
+	background-color: #f3f4f6 !important;
+	color: #d97706 !important;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+	font-size: 0.8em !important;
+	padding: 0.2rem 0.5rem !important;
+	border-radius: 0.375rem !important;
+	border: 1px solid #e5e7eb !important;
+	word-break: break-word !important;
+	vertical-align: middle !important;
+	display: inline-block !important;
 }
 
 /* Markdown & HTML Table Styling */
