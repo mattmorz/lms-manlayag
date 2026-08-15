@@ -96,11 +96,7 @@
 				"
 				:isSidebarCollapsed="sidebarStore.isSidebarCollapsed"
 			/>
-			<GettingStartedBanner
-				v-if="showOnboarding && !isOnboardingStepsCompleted"
-				:isSidebarCollapsed="sidebarStore.isSidebarCollapsed"
-				appName="learning"
-			/>
+
 
 			<div
 				class="flex items-center mt-4"
@@ -138,17 +134,7 @@
 							@click="redirectToWebsite()"
 						/>
 					</Tooltip>
-					<Tooltip v-if="showOnboarding" :text="__('Help')">
-						<CircleHelp
-							class="size-4 stroke-1.5 text-ink-gray-7 cursor-pointer"
-							@click="
-								() => {
-									showHelpModal = minimize ? true : !showHelpModal
-									minimize = !showHelpModal
-								}
-							"
-						/>
-					</Tooltip>
+
 				</div>
 				<Tooltip
 					:text="
@@ -165,19 +151,7 @@
 				</Tooltip>
 			</div>
 		</div>
-		<HelpModal
-			v-if="showOnboarding && showHelpModal"
-			v-model="showHelpModal"
-			v-model:articles="articles"
-			appName="learning"
-			title="Manlayag"
-			:logo="LMSLogo"
-			:afterSkip="(step) => capture('onboarding_step_skipped_' + step)"
-			:afterSkipAll="() => capture('onboarding_steps_skipped')"
-			:afterReset="(step) => capture('onboarding_step_reset_' + step)"
-			:afterResetAll="() => capture('onboarding_steps_reset')"
-			docsLink="https://docs.frappe.io/learning"
-		/>
+
 		<IntermediateStepModal
 			v-model="showIntermediateModal"
 			:currentStep="currentStep"
@@ -556,6 +530,8 @@ const articles = ref([
 		subArticles: [
 			{ name: 'quizzes', title: __('Quizzes') },
 			{ name: 'assignments', title: __('Assignments') },
+			{ name: 'programming-exercises', title: __('Programming Exercises') },
+			{ name: 'web-playground', title: __('Web Playground Exercises') },
 		],
 	},
 	{
@@ -587,12 +563,7 @@ const articles = ref([
 ])
 
 const setUpOnboarding = () => {
-	if (userResource.data?.is_system_manager) {
-		onboardingDetails = useOnboarding('learning')
-		onboardingDetails.setUp(steps)
-		isOnboardingStepsCompleted = onboardingDetails.isOnboardingStepsCompleted
-		showOnboarding.value = true
-	}
+	showOnboarding.value = false
 }
 
 watch(userResource, async () => {
@@ -616,7 +587,7 @@ const updateSidebarLinks = () => {
 }
 
 const redirectToWebsite = () => {
-	window.open('https://frappe.io/learning', '_blank')
+	window.open('https://www.carsu-vlrc.info/', '_blank')
 }
 
 onUnmounted(() => {
