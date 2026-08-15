@@ -286,10 +286,12 @@ const getId = (block) => {
 }
 
 const ensureHighlightTheme = () => {
-	const css =
+	const rawCss =
 		normalizedHighlightTheme.value === 'light'
 			? hljsLightTheme
 			: hljsDarkTheme
+
+	const css = typeof rawCss === 'string' ? rawCss : (rawCss?.default || String(rawCss || ''))
 
 	let styleEl = document.getElementById(highlightThemeStyleId)
 	if (!styleEl) {
@@ -298,7 +300,7 @@ const ensureHighlightTheme = () => {
 		document.head?.appendChild(styleEl)
 	}
 
-	if (styleEl.textContent !== css) {
+	if (css && styleEl.textContent !== css) {
 		styleEl.textContent = css
 	}
 }

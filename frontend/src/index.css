@@ -84,3 +84,77 @@ tr:hover,
 .ce-table tr:hover {
 	background-color: #f3f4f6;
 }
+
+/* Highlight.js Syntax Colorization */
+.hljs {
+	display: block;
+	overflow-x: auto;
+	padding: 1rem 1.25rem;
+	background: #1e1e1e;
+	color: #abb2bf;
+	border-radius: 0.5rem;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+	color: #c678dd !important;
+	font-weight: 600;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-literal,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-addition {
+	color: #98c379 !important;
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+	color: #7f848e !important;
+	font-style: italic;
+}
+
+.hljs-number,
+.hljs-regexp,
+.hljs-link {
+	color: #d19a66 !important;
+}
+
+.hljs-name,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-id,
+.hljs-selector-class {
+	color: #e06c75 !important;
+}
+
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet {
+	color: #d19a66 !important;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+	color: #e5c07b !important;
+}
+
+.hljs-tag {
+	color: #abb2bf !important;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
