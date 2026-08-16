@@ -17,13 +17,9 @@ export class CodeBox {
 	api: any;
 	config: { themeName: any; themeURL: any; useDefaultTheme: any; };
 	readOnly: boolean;
-	data: { code: any; language: any; theme: any; };
-	highlightScriptID: string;
-	highlightCSSID: string;
-	codeArea: HTMLDivElement;
-	selectInput: HTMLInputElement;
-	selectDropIcon: HTMLElement;
-	themeToggleButton: HTMLButtonElement;
+	previewToggleButton: HTMLButtonElement;
+	previewContainer: HTMLDivElement;
+	isPreviewMode: boolean;
 
 	constructor({ data, api, config, readOnly }) {
 		this.api = api;
@@ -47,6 +43,9 @@ export class CodeBox {
 		this.selectInput = document.createElement('input');
 		this.selectDropIcon = document.createElement('i');
 		this.themeToggleButton = document.createElement('button');
+		this.previewToggleButton = document.createElement('button');
+		this.previewContainer = document.createElement('div');
+		this.isPreviewMode = false;
 
 		this._injectHighlightJSCSSElement();
 
@@ -91,20 +90,26 @@ export class CodeBox {
 		const codeAreaHolder = document.createElement('pre');
 		const languageSelect = this._createLanguageSelectElement();
 		const themeToggle = this._createThemeToggleElement();
+		const previewToggle = this._createPreviewToggleElement();
 		const controlsHolder = document.createElement('div');
 
-		codeAreaHolder.setAttribute('class', 'codeBoxHolder');
+		codeAreaHolder.setAttribute('class', 'codeBoxHolder relative');
 		this._applyCodeAreaClass();
 		this.codeArea.setAttribute('contenteditable', 'true');
 		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 
-		controlsHolder.setAttribute('class', 'codeBoxControls');
+		this.previewContainer.setAttribute('class', 'codeBoxPreviewArea hidden p-4 bg-white text-black border rounded-md my-2 overflow-auto');
+		this.previewContainer.style.display = 'none';
+
+		controlsHolder.setAttribute('class', 'codeBoxControls flex items-center space-x-2');
 		controlsHolder.appendChild(languageSelect);
 		controlsHolder.appendChild(themeToggle);
+		controlsHolder.appendChild(previewToggle);
 
 		codeAreaHolder.appendChild(this.codeArea);
+		codeAreaHolder.appendChild(this.previewContainer);
 		!this.readOnly && codeAreaHolder.appendChild(controlsHolder);
 
 		return codeAreaHolder;
@@ -125,6 +130,7 @@ export class CodeBox {
 		this.api.listeners.off(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 		this.api.listeners.off(this.selectInput, 'click', event => this._handleSelectInputClick(event), false);
 		this.api.listeners.off(this.themeToggleButton, 'click', event => this._handleThemeToggleClick(event), false);
+		this.api.listeners.off(this.previewToggleButton, 'click', event => this._handlePreviewToggleClick(event), false);
 	}
 
 	_createLanguageSelectElement() {
@@ -168,6 +174,31 @@ export class CodeBox {
 		this.api.listeners.on(this.themeToggleButton, 'click', event => this._handleThemeToggleClick(event), false);
 
 		return this.themeToggleButton;
+	}
+
+	_createPreviewToggleElement() {
+		this.previewToggleButton.setAttribute('type', 'button');
+		this.previewToggleButton.setAttribute('class', 'codeBoxThemeToggle codeBoxPreviewToggle');
+		this.previewToggleButton.textContent = 'Preview HTML';
+		this.api.listeners.on(this.previewToggleButton, 'click', event => this._handlePreviewToggleClick(event), false);
+
+		return this.previewToggleButton;
+	}
+
+	_handlePreviewToggleClick(event) {
+		event.preventDefault();
+		this.isPreviewMode = !this.isPreviewMode;
+		if (this.isPreviewMode) {
+			const rawCode = this.codeArea.textContent || this.codeArea.innerText || '';
+			this.previewContainer.innerHTML = rawCode;
+			this.codeArea.style.display = 'none';
+			this.previewContainer.style.display = 'block';
+			this.previewToggleButton.textContent = 'View Code';
+		} else {
+			this.codeArea.style.display = 'block';
+			this.previewContainer.style.display = 'none';
+			this.previewToggleButton.textContent = 'Preview HTML';
+		}
 	}
 
 	_highlightCodeArea(event) {
