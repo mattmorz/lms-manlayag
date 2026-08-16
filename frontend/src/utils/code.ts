@@ -95,7 +95,7 @@ export class CodeBox {
 
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder relative');
 		this._applyCodeAreaClass();
-		this.codeArea.setAttribute('contenteditable', 'true');
+		this.codeArea.setAttribute('contenteditable', this.readOnly ? 'false' : 'true');
 		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
@@ -110,7 +110,9 @@ export class CodeBox {
 
 		codeAreaHolder.appendChild(this.codeArea);
 		codeAreaHolder.appendChild(this.previewContainer);
-		!this.readOnly && codeAreaHolder.appendChild(controlsHolder);
+		codeAreaHolder.appendChild(controlsHolder);
+
+		this._updatePreviewButtonVisibility();
 
 		return codeAreaHolder;
 	}
@@ -185,6 +187,24 @@ export class CodeBox {
 		return this.previewToggleButton;
 	}
 
+	_updatePreviewButtonVisibility() {
+		const lang = (this.data.language || '').toLowerCase();
+		const rawCode = this.codeArea.textContent || this.codeArea.innerText || '';
+		const isHtml = lang === 'html' || (lang === 'none' && /<[a-z][\s\S]*>/i.test(rawCode));
+
+		if (isHtml) {
+			this.previewToggleButton.style.display = 'inline-block';
+		} else {
+			this.previewToggleButton.style.display = 'none';
+			if (this.isPreviewMode) {
+				this.isPreviewMode = false;
+				this.codeArea.style.display = 'block';
+				this.previewContainer.style.display = 'none';
+				this.previewToggleButton.textContent = 'Preview HTML';
+			}
+		}
+	}
+
 	_handlePreviewToggleClick(event) {
 		event.preventDefault();
 		this.isPreviewMode = !this.isPreviewMode;
@@ -202,6 +222,7 @@ export class CodeBox {
 	}
 
 	_highlightCodeArea(event) {
+		this._updatePreviewButtonVisibility();
 		hljs.highlightBlock(this.codeArea);
 	}
 
@@ -218,7 +239,8 @@ export class CodeBox {
 		event.target.parentNode.classList.remove('codeBoxShow');
 		this.data.language = language[0];
 		this._applyCodeAreaClass();
-	
+		this._updatePreviewButtonVisibility();
+
 		hljs.highlightElement(this.codeArea);
 	}
 
