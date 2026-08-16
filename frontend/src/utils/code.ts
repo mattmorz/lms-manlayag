@@ -95,10 +95,8 @@ export class CodeBox {
 
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder relative');
 		this._applyCodeAreaClass();
-		this.codeArea.setAttribute('contenteditable', this.readOnly ? 'false' : 'true');
-		this.codeArea.style.whiteSpace = 'pre-wrap';
-		this.codeArea.style.wordBreak = 'break-word';
-		this.codeArea.textContent = this.data.code;
+		this.codeArea.setAttribute('contenteditable', 'true');
+		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 
@@ -112,32 +110,13 @@ export class CodeBox {
 
 		codeAreaHolder.appendChild(this.codeArea);
 		codeAreaHolder.appendChild(this.previewContainer);
-		codeAreaHolder.appendChild(controlsHolder);
-
-		this._updatePreviewButtonVisibility();
+		!this.readOnly && codeAreaHolder.appendChild(controlsHolder);
 
 		return codeAreaHolder;
 	}
 
-	_getRawCode() {
-		let html = this.codeArea.innerHTML || '';
-		html = html.replace(/<br\s*\/?>/gi, '\n');
-		html = html.replace(/<\/div>/gi, '\n');
-		html = html.replace(/<div>/gi, '');
-		html = html.replace(/<\/p>/gi, '\n');
-		html = html.replace(/<p>/gi, '');
-
-		const txt = document.createElement('textarea');
-		txt.innerHTML = html;
-		return txt.value;
-	}
-
 	save(blockContent) {
-		return Object.assign(this.data, {
-			code: this._getRawCode(),
-			theme: this.data.theme,
-			language: this.data.language
-		});
+		return Object.assign(this.data, { code: this.codeArea.innerHTML, theme: this.data.theme });
 	}
 
 	validate(savedData) {
@@ -206,29 +185,11 @@ export class CodeBox {
 		return this.previewToggleButton;
 	}
 
-	_updatePreviewButtonVisibility() {
-		const lang = (this.data.language || '').toLowerCase();
-		const rawCode = this._getRawCode();
-		const isHtml = lang === 'html' || (lang === 'none' && /<[a-z][\s\S]*>/i.test(rawCode));
-
-		if (isHtml) {
-			this.previewToggleButton.style.display = 'inline-block';
-		} else {
-			this.previewToggleButton.style.display = 'none';
-			if (this.isPreviewMode) {
-				this.isPreviewMode = false;
-				this.codeArea.style.display = 'block';
-				this.previewContainer.style.display = 'none';
-				this.previewToggleButton.textContent = 'Preview HTML';
-			}
-		}
-	}
-
 	_handlePreviewToggleClick(event) {
 		event.preventDefault();
 		this.isPreviewMode = !this.isPreviewMode;
 		if (this.isPreviewMode) {
-			const rawCode = this._getRawCode();
+			const rawCode = this.codeArea.textContent || this.codeArea.innerText || '';
 			this.previewContainer.innerHTML = rawCode;
 			this.codeArea.style.display = 'none';
 			this.previewContainer.style.display = 'block';
@@ -241,7 +202,6 @@ export class CodeBox {
 	}
 
 	_highlightCodeArea(event) {
-		this._updatePreviewButtonVisibility();
 		hljs.highlightBlock(this.codeArea);
 	}
 
@@ -258,8 +218,7 @@ export class CodeBox {
 		event.target.parentNode.classList.remove('codeBoxShow');
 		this.data.language = language[0];
 		this._applyCodeAreaClass();
-		this._updatePreviewButtonVisibility();
-
+	
 		hljs.highlightElement(this.codeArea);
 	}
 
