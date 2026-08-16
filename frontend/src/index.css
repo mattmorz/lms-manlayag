@@ -17,6 +17,19 @@ code,
 	word-break: break-word;
 }
 
+code::before,
+code::after,
+.inline-code::before,
+.inline-code::after,
+.ce-paragraph code::before,
+.ce-paragraph code::after,
+.prose code::before,
+.prose code::after,
+.markdown-body code::before,
+.markdown-body code::after {
+	content: "" !important;
+}
+
 /* Markdown & HTML Table Styling */
 table,
 .prose table,
