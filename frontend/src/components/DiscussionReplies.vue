@@ -59,16 +59,18 @@
 					</div>
 				</div>
 				<TextEditor
+					v-if="reply.editable"
 					:content="reply.reply"
 					@change="(val) => (reply.reply = val)"
-					:editable="reply.editable || false"
-					:fixedMenu="reply.editable || false"
-					:editorClass="
-						reply.editable
-							? 'ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none'
-							: 'prose-sm'
-					"
+					:editable="true"
+					:fixedMenu="true"
+					editorClass="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none"
 				/>
+				<div
+					v-else
+					class="prose prose-sm max-w-none text-ink-gray-9 discussion-content leading-relaxed mt-1"
+					v-html="formatReplyContent(reply.reply)"
+				></div>
 			</div>
 		</div>
 
@@ -127,6 +129,23 @@ const props = defineProps({
 		default: false,
 	},
 })
+
+const formatReplyContent = (content) => {
+	if (!content) return ''
+	let formatted = content
+
+	// Auto-embed YouTube URLs into iframe video players
+	const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi
+	formatted = formatted.replace(ytRegex, (match, videoId) => {
+		if (content.includes(`embed/${videoId}`)) return match
+		return `<div class="my-3 aspect-video w-full rounded-lg overflow-hidden border border-outline-gray-2 shadow-sm"><iframe src="https://www.youtube.com/embed/${videoId}" class="w-full h-full min-h-[320px]" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
+	})
+
+	// Format backtick snippets into styled inline code
+	formatted = formatted.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>')
+
+	return formatted
+}
 
 onMounted(() => {
 	socket.on('publish_message', (data) => {
