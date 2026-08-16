@@ -407,6 +407,14 @@ export class Markdown {
 				style: 'ordered',
 				items: [{ content: '' }],
 			})
+		} else if ((event.key === '`' || event.key === ' ') && /`([^`]+)`/.test(this.wrapper.textContent || '')) {
+			setTimeout(() => {
+				const textContent = this.wrapper.textContent || ''
+				if (/`([^`]+)`/.test(textContent)) {
+					const updatedHtml = this._parseInlineMarkdown(textContent)
+					this.wrapper.innerHTML = updatedHtml
+				}
+			}, 0)
 		} else if (this._isEmbed(trimmedText) && event.key === 'Enter') {
 			event.preventDefault()
 			this.wrapper.textContent = ''
