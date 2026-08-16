@@ -95,7 +95,7 @@ export class CodeBox {
 
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder relative');
 		this._applyCodeAreaClass();
-		this.codeArea.setAttribute('contenteditable', 'true');
+		this.codeArea.setAttribute('contenteditable', this.readOnly ? 'false' : 'true');
 		this.codeArea.innerHTML = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
@@ -110,7 +110,7 @@ export class CodeBox {
 
 		codeAreaHolder.appendChild(this.codeArea);
 		codeAreaHolder.appendChild(this.previewContainer);
-		!this.readOnly && codeAreaHolder.appendChild(controlsHolder);
+		codeAreaHolder.appendChild(controlsHolder);
 
 		return codeAreaHolder;
 	}

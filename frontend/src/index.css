@@ -92,3 +92,15 @@ tr:hover,
 .ce-table tr:hover {
 	background-color: #f3f4f6;
 }
+
+/* CodeBox Indentation & Whitespace Formatting */
+.codeBoxHolder,
+.codeBoxTextArea,
+pre.codeBoxHolder {
+	white-space: pre-wrap !important;
+	word-wrap: break-word !important;
+	tab-size: 4 !important;
+	-moz-tab-size: 4 !important;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+	text-align: left !important;
+}
