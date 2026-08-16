@@ -72,6 +72,11 @@ const routes = [
 		component: () => import('@/pages/Analytics.vue'),
 	},
 	{
+		path: '/web-playground',
+		name: 'WebPlayground',
+		component: () => import('@/pages/WebPlaygroundPage.vue'),
+	},
+	{
 		path: '/user/:username',
 		name: 'Profile',
 		component: () => import('@/pages/Profile.vue'),

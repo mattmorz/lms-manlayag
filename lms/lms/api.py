@@ -405,9 +405,10 @@ def get_sidebar_settings():
 		"statistics",
 		"notifications",
 		"programming_exercises",
+		"web_playground",
 	]
 	for item in items:
-		sidebar_items[item] = lms_settings.get(item)
+		sidebar_items[item] = lms_settings.get(item) if hasattr(lms_settings, item) else 1
 
 	if len(lms_settings.sidebar_items):
 		web_pages = frappe.get_all(

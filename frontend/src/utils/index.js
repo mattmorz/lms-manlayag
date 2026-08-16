@@ -531,6 +531,15 @@ const getSidebarItems = () => {
 					activeFor: ['Analytics'],
 				},
 				{
+					label: 'Web Playground',
+					icon: 'Code2',
+					to: 'WebPlayground',
+					activeFor: ['WebPlayground'],
+					condition: () => {
+						return userResource?.data
+					},
+				},
+				{
 					label: 'Contact Us',
 					icon: settings.data?.contact_us_url ? 'Headset' : 'Mail',
 					to: settings.data?.contact_us_url

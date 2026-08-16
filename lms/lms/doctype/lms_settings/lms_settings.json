@@ -43,6 +43,7 @@
   "certified_members",
   "certifications",
   "programming_exercises",
+  "web_playground",
   "column_break_exdz",
   "jobs",
   "statistics",
@@ -301,6 +302,12 @@
    "fieldname": "notifications",
    "fieldtype": "Check",
    "label": "Notifications"
+  },
+  {
+   "default": "1",
+   "fieldname": "web_playground",
+   "fieldtype": "Check",
+   "label": "Web Playground"
   },
   {
    "fieldname": "items_in_sidebar_section",
