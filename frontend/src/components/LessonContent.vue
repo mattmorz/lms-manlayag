@@ -59,7 +59,7 @@
 				>
 				</iframe>
 			</div>
-			<div v-else v-html="markdown.render(block)"></div>
+			<div v-else v-html="renderBlockContent(block)"></div>
 		</div>
 		<div v-if="quizId">
 			<Quiz :quiz="quizId" />
@@ -116,6 +116,13 @@ const getYouTubeVideoSource = (block) => {
 
 const getPDFSource = (block) => {
 	return `${getId(block)}#toolbar=0`
+}
+
+const renderBlockContent = (block) => {
+	if (!block) return ''
+	// Pre-process any backticks `code` in the block HTML/text string
+	const formatted = block.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>')
+	return markdown.render(formatted)
 }
 
 const getId = (block) => {
@@ -189,5 +196,24 @@ watch(
 	background: #fafafa;
 	color: #383a42;
 	border: 1px solid #e5e7eb;
+}
+
+:deep(code),
+:deep(.inline-code) {
+	background-color: #f3f4f6 !important;
+	color: #d97706 !important;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+	font-size: 0.875em !important;
+	padding: 0.15rem 0.4rem !important;
+	border-radius: 0.375rem !important;
+	border: 1px solid #e5e7eb !important;
+	word-break: break-word !important;
+}
+
+:deep(code::before),
+:deep(code::after),
+:deep(.inline-code::before),
+:deep(.inline-code::after) {
+	content: "" !important;
 }
 </style>
