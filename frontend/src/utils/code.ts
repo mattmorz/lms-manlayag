@@ -96,7 +96,9 @@ export class CodeBox {
 		codeAreaHolder.setAttribute('class', 'codeBoxHolder relative');
 		this._applyCodeAreaClass();
 		this.codeArea.setAttribute('contenteditable', this.readOnly ? 'false' : 'true');
-		this.codeArea.innerHTML = this.data.code;
+		this.codeArea.style.whiteSpace = 'pre-wrap';
+		this.codeArea.style.wordBreak = 'break-word';
+		this.codeArea.textContent = this.data.code;
 		this.api.listeners.on(this.codeArea, 'blur', event => this._highlightCodeArea(event), false);
 		this.api.listeners.on(this.codeArea, 'paste', event => this._handleCodeAreaPaste(event), false);
 
@@ -117,8 +119,25 @@ export class CodeBox {
 		return codeAreaHolder;
 	}
 
+	_getRawCode() {
+		let html = this.codeArea.innerHTML || '';
+		html = html.replace(/<br\s*\/?>/gi, '\n');
+		html = html.replace(/<\/div>/gi, '\n');
+		html = html.replace(/<div>/gi, '');
+		html = html.replace(/<\/p>/gi, '\n');
+		html = html.replace(/<p>/gi, '');
+
+		const txt = document.createElement('textarea');
+		txt.innerHTML = html;
+		return txt.value;
+	}
+
 	save(blockContent) {
-		return Object.assign(this.data, { code: this.codeArea.innerHTML, theme: this.data.theme });
+		return Object.assign(this.data, {
+			code: this._getRawCode(),
+			theme: this.data.theme,
+			language: this.data.language
+		});
 	}
 
 	validate(savedData) {
@@ -189,7 +208,7 @@ export class CodeBox {
 
 	_updatePreviewButtonVisibility() {
 		const lang = (this.data.language || '').toLowerCase();
-		const rawCode = this.codeArea.textContent || this.codeArea.innerText || '';
+		const rawCode = this._getRawCode();
 		const isHtml = lang === 'html' || (lang === 'none' && /<[a-z][\s\S]*>/i.test(rawCode));
 
 		if (isHtml) {
@@ -209,7 +228,7 @@ export class CodeBox {
 		event.preventDefault();
 		this.isPreviewMode = !this.isPreviewMode;
 		if (this.isPreviewMode) {
-			const rawCode = this.codeArea.textContent || this.codeArea.innerText || '';
+			const rawCode = this._getRawCode();
 			this.previewContainer.innerHTML = rawCode;
 			this.codeArea.style.display = 'none';
 			this.previewContainer.style.display = 'block';
