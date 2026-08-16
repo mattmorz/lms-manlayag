@@ -130,14 +130,25 @@ const props = defineProps({
 	},
 })
 
+const unescapeHTML = (str) => {
+	if (!str) return ''
+	return str
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&amp;/g, '&')
+}
+
 const formatReplyContent = (content) => {
 	if (!content) return ''
-	let formatted = content
+	// Unescape any HTML entities so <iframe ...> tags render as live HTML elements
+	let formatted = unescapeHTML(content)
 
-	// Auto-embed YouTube URLs into iframe video players
+	// Auto-embed plain YouTube URLs if user pasted raw link instead of iframe code
 	const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi
 	formatted = formatted.replace(ytRegex, (match, videoId) => {
-		if (content.includes(`embed/${videoId}`)) return match
+		if (formatted.includes(`src=`) || formatted.includes(`embed/${videoId}`)) return match
 		return `<div class="my-3 aspect-video w-full rounded-lg overflow-hidden border border-outline-gray-2 shadow-sm"><iframe src="https://www.youtube.com/embed/${videoId}" class="w-full h-full min-h-[320px]" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`
 	})
 
