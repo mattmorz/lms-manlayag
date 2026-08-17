@@ -2344,11 +2344,13 @@ def get_course_assessment_progress(course: str, member: str):
 	quizzes = get_course_quiz_progress(course, member)
 	assignments = get_course_assignment_progress(course, member)
 	programming_exercises = get_course_programming_exercise_progress(course, member)
+	web_playground_exercises = get_course_web_playground_exercise_progress(course, member)
 
 	return {
 		"quizzes": quizzes,
 		"assignments": assignments,
 		"exercises": programming_exercises,
+		"web_playground_exercises": web_playground_exercises,
 	}
 
 
@@ -2440,18 +2442,68 @@ def get_course_programming_exercise_progress(course: str, member: str):
 	return submissions
 
 
+def get_course_web_playground_exercise_progress(course: str, member: str):
+	exercises = get_assessment_from_lesson(course, "web_playground")
+	submissions = []
+
+	for exercise in exercises:
+		if not exercise:
+			continue
+		exercise_subs = frappe.get_all(
+			"LMS Web Playground Submission",
+			{
+				"exercise": exercise,
+				"owner": member,
+			},
+			["name", "score", "passed", "exercise", "creation"],
+			order_by="creation desc",
+			limit=1,
+		)
+		title = frappe.db.get_value("LMS Web Playground Exercise", exercise, "title") or exercise
+		if len(exercise_subs):
+			sub = exercise_subs[0]
+			status = "Passed" if sub.passed else "Failed"
+			submissions.append(
+				{
+					"exercise": exercise,
+					"exercise_title": title,
+					"score": sub.score,
+					"percentage": sub.score,
+					"status": status,
+					"passed": sub.passed,
+				}
+			)
+		else:
+			submissions.append(
+				{
+					"exercise": exercise,
+					"exercise_title": title,
+					"score": 0,
+					"percentage": 0,
+					"status": "Not Attempted",
+					"passed": 0,
+				}
+			)
+
+	return submissions
+
+
 def get_assessment_from_lesson(course: str, assessmentType: str):
 	assessments = []
 	lessons = frappe.get_all("Course Lesson", {"course": course}, ["name", "title", "content"])
 
 	for lesson in lessons:
 		if lesson.content:
-			content = json.loads(lesson.content)
-			for block in content.get("blocks", []):
-				if block.get("type") == assessmentType:
-					data_field = "exercise" if assessmentType == "program" else assessmentType
-					quiz_name = block.get("data", {}).get(data_field)
-					assessments.append(quiz_name)
+			try:
+				content = json.loads(lesson.content)
+				for block in content.get("blocks", []):
+					if block.get("type") == assessmentType:
+						data_field = "exercise" if assessmentType in ("program", "web_playground") else assessmentType
+						quiz_name = block.get("data", {}).get(data_field)
+						if quiz_name:
+							assessments.append(quiz_name)
+			except Exception:
+				pass
 
 	return assessments
 

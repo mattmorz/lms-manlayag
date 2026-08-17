@@ -178,6 +178,34 @@
 								</Badge>
 							</div>
 						</div>
+
+						<div
+							v-if="assessmentProgress.data?.web_playground_exercises?.length"
+							class="border border-outline-gray-modals rounded-lg px-3 pt-3 h-fit"
+						>
+							<div>
+								<div class="text-ink-gray-5 mb-5 font-semibold text-xs uppercase tracking-wider">
+									{{ __('Web Playground Exercise Progress') }}
+								</div>
+							</div>
+							<div
+								v-for="exercise in assessmentProgress.data.web_playground_exercises"
+								:key="exercise.exercise"
+								class="flex justify-between text-sm py-2 my-1 border-b last:border-b-0 border-outline-gray-1"
+							>
+								<div class="font-medium text-ink-gray-9">
+									{{ exercise.exercise_title }}
+								</div>
+								<div class="flex items-center space-x-3">
+									<span class="text-xs font-mono font-bold text-ink-gray-7">
+										{{ exercise.score }}%
+									</span>
+									<Badge :theme="getAssessmentStatusTheme(exercise.status)">
+										{{ exercise.status }}
+									</Badge>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -263,6 +291,8 @@ const hasAssessmentData = computed(() => {
 			assessmentProgress.data.assignments.length > 0) ||
 		(assessmentProgress.data?.exercises &&
 			assessmentProgress.data.exercises.length > 0) ||
+		(assessmentProgress.data?.web_playground_exercises &&
+			assessmentProgress.data.web_playground_exercises.length > 0) ||
 		studentGrades.data?.enable_grading_policy
 	)
 })
