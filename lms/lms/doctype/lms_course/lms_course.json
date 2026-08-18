@@ -37,6 +37,7 @@
   "pricing_section",
   "paid_course",
   "enable_certification",
+  "certificate_template",
   "paid_certificate",
   "column_break_acoj",
   "section_break_vqbh",
@@ -157,6 +158,13 @@
    "fieldname": "enable_certification",
    "fieldtype": "Check",
    "label": "Completion Certificate"
+  },
+  {
+   "depends_on": "enable_certification",
+   "fieldname": "certificate_template",
+   "fieldtype": "Link",
+   "label": "Certificate Template",
+   "options": "Print Format"
   },
   {
    "fieldname": "related_courses",

@@ -124,21 +124,23 @@ def is_certified(course):
 
 @frappe.whitelist()
 def create_certificate(course: str):
-	if is_certified(course):
+	existing_cert = is_certified(course)
+	if existing_cert:
 		return frappe.db.get_value(
-			"LMS Certificate", certificate, ["name", "course", "template"], as_dict=True
+			"LMS Certificate", existing_cert, ["name", "course", "template"], as_dict=True
 		)
 
 	else:
 		validate_certification_eligibility(course)
-		default_certificate_template = get_default_certificate_template()
+		course_template = frappe.db.get_value("LMS Course", course, "certificate_template")
+		template = course_template or get_default_certificate_template()
 		certificate = frappe.get_doc(
 			{
 				"doctype": "LMS Certificate",
 				"member": frappe.session.user,
 				"course": course,
 				"issue_date": nowdate(),
-				"template": default_certificate_template,
+				"template": template,
 			}
 		)
 		certificate.save(ignore_permissions=True)

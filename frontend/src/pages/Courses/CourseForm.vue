@@ -223,6 +223,16 @@
 								@change="makeFormDirty()"
 							/>
 						</div>
+						<div v-if="courseResource.doc.enable_certification" class="max-w-md">
+							<Link
+								doctype="Print Format"
+								v-model="courseResource.doc.certificate_template"
+								:filters="{ doc_type: 'LMS Certificate' }"
+								:label="__('Certificate Template')"
+								:placeholder="__('Default Certificate Template')"
+								@update:modelValue="makeFormDirty()"
+							/>
+						</div>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 							<div class="space-y-5">
 								<FormControl
