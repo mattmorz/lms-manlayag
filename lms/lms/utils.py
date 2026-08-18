@@ -1886,15 +1886,19 @@ def get_batch_details(batch: str):
 
 
 def categorize_batches(batches: list) -> dict:
-	upcoming, archived, private, enrolled = [], [], [], []
+	upcoming, active, archived, private, enrolled = [], [], [], [], []
+	today = getdate()
 
 	for batch in batches:
+		start_date = getdate(batch.start_date) if batch.get("start_date") else None
+		end_date = getdate(batch.end_date) if batch.get("end_date") else None
+
 		if not batch.published:
 			private.append(batch)
-		elif getdate(batch.start_date) < getdate():
+		elif end_date and end_date < today:
 			archived.append(batch)
-		elif getdate(batch.start_date) == getdate() and get_time_str(batch.start_time) < nowtime():
-			archived.append(batch)
+		elif start_date and start_date <= today and (not end_date or end_date >= today):
+			active.append(batch)
 		else:
 			upcoming.append(batch)
 
@@ -1902,12 +1906,13 @@ def categorize_batches(batches: list) -> dict:
 			if frappe.db.exists("LMS Batch Enrollment", {"member": frappe.session.user, "batch": batch.name}):
 				enrolled.append(batch)
 
-	categories = [archived, private, enrolled]
+	categories = [active, archived, private, enrolled]
 	for category in categories:
-		category.sort(key=lambda x: x.start_date, reverse=True)
+		category.sort(key=lambda x: x.start_date or getdate(), reverse=True)
 
-	upcoming.sort(key=lambda x: x.start_date)
+	upcoming.sort(key=lambda x: x.start_date or getdate())
 	return {
+		"active": active,
 		"upcoming": upcoming,
 		"archived": archived,
 		"private": private,
